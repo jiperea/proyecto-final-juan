@@ -83,4 +83,13 @@
   (reuso-detectado es más lento por el write de revocación de familia). Hoy solo se garantiza uniformidad
   de **contenido** (FR-005); la de timing se difiere por su coste sobre SC-005. Prioridad: media (002).
 
+### Gate G2 (corrección logout) — MEDIA
+
+- **BL-024** (stretch · 001 · MEDIA) — **Terminación forzosa de sesiones al marcar `disabled`** (revocar
+  activamente todas las sesiones/refresh de la cuenta en el momento del disable, en vez de solo bloqueo
+  reactivo por login/refresh/validación). Hoy el acceso se corta reactivamente (FR-002b/FR-004c); esto
+  sería contención proactiva ante incidente. Requiere trigger de administración (fuera de 001).
+- **BL-025** (stretch · 001 · BAJA) — **Señal de auditoría** cuando una cuenta `disabled` ejecuta `logout`
+  con éxito (204) — visibilidad forense sin filtrar nada al cliente (vía correlation-id/FR-014).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
