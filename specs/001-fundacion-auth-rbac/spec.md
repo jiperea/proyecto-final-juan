@@ -37,6 +37,16 @@ como base transversal sobre la que se construyen las features de dominio (Order,
 - **Regla 403 vs 404** fundacional para 002+ (FR-017).
 - MEDIA (idempotencia logout, técnica CSRF, binding refresh, PII en logs, política de contraseña en seed) → `docs/backlog.md`.
 
+**Gate G2 (decisiones de nivel spec; ver `gates/gate-G2-001-fundacion-auth-rbac.md`):**
+- Q: ¿Qué prevalece en refresh/logout si faltan a la vez sesión y CSRF? → A: **401 antes que 403** —
+  sin sesión válida = 401 (comprobado antes del CSRF); con sesión válida y CSRF inválido/ausente = 403 (FR-018).
+- Q: ¿Es idempotente el logout a nivel de token? → A: **No** — un 2º logout con la misma cookie ya
+  revocada → **401** (cookie no vigente). Idempotencia por request-id → backlog (FR-003).
+- Q: Al expirar/caducar la ventana de lockout, ¿qué pasa con el contador? → A: **reset** de contador y
+  ventana al expirar el bloqueo; y ventana nueva si la de 15 min ha caducado (fallos aislados no se acumulan) (FR-011).
+- Q: ¿La regla 403-vs-404 (FR-017) es verificable? → A: debe ser **determinista y testeable con datos
+  semilla** (la técnica/fixture concreta es de `/plan`) (FR-017).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar y cerrar sesión (Priority: P1)
@@ -57,7 +67,8 @@ un recurso protegido → logout → el acceso deja de funcionar.
 2. **Given** credenciales inválidas, **When** hace login, **Then** el sistema lo rechaza con un error de
    autenticación y no crea sesión.
 3. **Given** una sesión activa, **When** el usuario hace logout, **Then** la sesión queda revocada y un
-   intento posterior con esa sesión es rechazado.
+   intento posterior de **refresh** con esa sesión es rechazado (el access ya emitido expira por su TTL
+   corto — invalidación inmediata = stretch, FR-003).
 
 ---
 
@@ -127,19 +138,32 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   y un mensaje uniforme, sin crear sesión ni revelar si el usuario existe.
 - **FR-003**: WHEN un usuario autenticado hace logout THE sistema SHALL **revocar solo el refresh token de
   la sesión actual** (las demás sesiones del usuario siguen vigentes), de modo que su reutilización
-  posterior se rechace. El **access token vigente expira por su TTL corto** (≤15 min); la invalidación
-  inmediata del access (denylist/session-version) es **stretch** (backlog).
+  posterior se rechace. En el **logout voluntario** el **access token vigente expira por su TTL corto**
+  (≤15 min): aplicar la invalidación inmediata **también al logout voluntario** es **stretch** (backlog).
+  *(El mecanismo de invalidación inmediata del access SÍ se construye —lo exige FR-004b para compromiso
+  confirmado—; lo diferido es únicamente usarlo en el logout normal.)* **Logout NO es idempotente a
+  nivel de token**: un 2º logout con la **misma cookie ya revocada** responde **401** (cookie no vigente,
+  coherente con FR-018); la idempotencia por request-id queda diferida a backlog.
 - **FR-003b**: THE sistema SHALL permitir **sesiones concurrentes** por usuario (un refresh por dispositivo).
 - **FR-004**: WHEN un usuario presenta un refresh token válido y vigente THE sistema SHALL emitir un nuevo
-  access token **y rotar el refresh** (single-use: el refresh anterior queda invalidado), sin requerir credenciales.
+  access token **y rotar el refresh** (single-use: el refresh anterior queda invalidado), sin requerir
+  credenciales. Al reemitir el access, THE sistema SHALL **releer el rol actual del usuario en BD** (para
+  que un cambio de rol se propague en el siguiente refresh; mínimo privilegio, Constitution IV). Un cambio
+  de rol se propaga como **máximo en ≤15 min** (TTL del access ya emitido); la **invalidación inmediata
+  del rol** (cortar el access en curso) es *stretch* → backlog (BL-022).
 - **FR-004b**: WHEN se presenta un refresh token **ya rotado/revocado fuera de una ventana de gracia
   breve** (posible robo) THE sistema SHALL rechazarlo, **revocar todas las sesiones del usuario** (familia)
   e **invalidar de forma inmediata los access tokens vigentes** (compromiso confirmado ≠ logout voluntario).
 - **FR-004d**: WHEN se **reintenta el mismo refresh dentro de la ventana de gracia** (idempotencia por
   reintento: timeout de red, doble envío) THE sistema SHALL tratarlo como **el mismo uso legítimo** (no
-  como reuso) y **no** revocar la familia.
-- **FR-004c**: WHEN se renueva o se valida un access token THE sistema SHALL verificar que el usuario
-  sigue **activo** (no bloqueado); si está bloqueado, responde 401.
+  como reuso) y **no** revocar la familia, **devolviendo el MISMO par access/refresh ya emitido**
+  (respuesta idempotente, no una nueva rotación) — así dos reintentos casi simultáneos no crean dos
+  refresh válidos (se respeta single-use).
+- **FR-004c**: WHEN se renueva o se valida un access token THE sistema SHALL verificar que el usuario no
+  está **`disabled`** (bloqueo administrativo permanente); si lo está, responde 401. El **lockout temporal
+  por fuerza bruta** (`locked_until`, FR-011) afecta **solo al login**, **no** corta las sesiones activas
+  ya emitidas — así fallar la contraseña de un tercero **no** puede desloguear sus sesiones (evita
+  DoS-logout). El estado autoritativo se comprueba contra BD en `refresh` (la mecánica por-request es de `/plan`).
 - **FR-005**: WHEN un refresh token está **caducado o revocado** THE sistema SHALL responder **401** y no
   emitir access token.
 - **FR-006**: WHILE una sesión está activa THE sistema SHALL exponer un endpoint "me" que devuelve la
@@ -158,13 +182,18 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   cuenta) **y también por `identifier` no resuelto** (mismo umbral y misma respuesta **429**), de modo que
   cuentas existentes e inexistentes son **indistinguibles** también al superar el umbral (no hay oráculo
   de enumeración vía 429). La **diferencia de tiempo de respuesta** entre "usuario inexistente" y
-  "credenciales inválidas" debe ser **< 50 ms (P95)**.
+  "credenciales inválidas" debe ser **< 50 ms (P95)** (método de medición en `/plan`). Al **expirar el
+  bloqueo** (`locked_until`) THE sistema SHALL **resetear contador y ventana**; y en **cada intento**, si
+  la ventana fija de 15 min ha **caducado**, SHALL **abrir ventana nueva** (los fallos aislados fuera de
+  ventana no se acumulan; evita el bloqueo perpetuo).
 - **FR-012**: THE sistema SHALL emitir en todas las respuestas la **lista cerrada** de cabeceras:
   `Strict-Transport-Security` (max-age ≥ 15552000), `Content-Security-Policy` (default-src 'self'),
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`; y aplicar
   **protección CSRF** en las operaciones que usan la cookie de refresh (técnica concreta en `/plan`).
 - **FR-013**: WHEN se produce cualquier error THE sistema SHALL responder con el **contrato de error**
-  `{ code, message, details?, agent_action? }` y el código HTTP correcto (400/401/403/404/409/422/429/503).
+  `{ code, message, details?, agent_action? }` y el código HTTP correcto. Códigos que **001 produce**:
+  **401/403/404/422/429/503** (422 = validación de body). **400 y 409 NO aplican a 001** (llegan con las
+  transiciones/conflictos de dominio en 002) → no se testean como código en esta feature.
 - **FR-014**: THE sistema SHALL propagar un **correlation-id** por petición y registrarlo en el logging
   estructurado (sin PII).
 - **FR-015**: THE sistema SHALL exponer `/health` (vivo) y `/ready` (listo, con dependencias) diferenciados.
@@ -173,7 +202,18 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   sin escuchar peticiones.
 - **FR-017 (regla 403 vs 404, fundacional para 002+)**: THE sistema SHALL responder **403** cuando el rol
   **nunca** puede ejecutar esa acción sobre ese tipo de recurso, y **404** cuando el recurso existe pero
-  está **fuera del alcance/propiedad** del usuario (no revelar su existencia).
+  está **fuera del alcance/propiedad** del usuario (no revelar su existencia). **Orden determinista de
+  evaluación:** primero **capacidad de rol** (si el rol **nunca** puede esa acción sobre ese tipo →
+  **403**, sin consultar la instancia); solo si el rol **sí** puede, se evalúa **pertenencia/alcance** de
+  la instancia (fuera de alcance/inexistente → **404**). Esta regla SHALL ser **determinista y verificable
+  con datos semilla** que modelen pertenencia (fixture concreta en `/plan`), de modo que 403 y 404 tengan
+  casos de prueba objetivos.
+- **FR-018 (autenticación antes que autorización — 401 antes que 403)**: THE sistema SHALL comprobar la
+  **autenticación antes que la autorización** en **todos** los endpoints protegidos: sin credencial válida
+  → **401**; con credencial válida pero sin permiso/CSRF → **403**. En particular, en `refresh`/`logout`
+  (cookie): **sin sesión válida** (cookie ausente/caducada/revocada) → **401** (comprobado **antes** que el
+  CSRF); **solo** con sesión válida y CSRF inválido/ausente → **403** (coherente con FR-017: 403 =
+  autenticado sin permiso, no "sin autenticar").
 
 ### Key Entities
 
@@ -194,8 +234,10 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 - **SC-001**: un usuario válido completa el **login en < 1 s** (P95) y queda autenticado.
 - **SC-002**: el **100%** de los intentos de acceso a recursos protegidos sin permiso se rechazan con el
   código correcto (401/403/404 según el caso).
-- **SC-003**: una sesión revocada o caducada **nunca** concede acceso (0 falsos positivos en la batería
-  de pruebas de sesión).
+- **SC-003**: una sesión revocada o caducada **nunca** concede acceso **vía refresh** (0 falsos positivos
+  en la batería de pruebas de sesión); el **access token ya emitido** deja de funcionar al expirar su TTL
+  (≤15 min) — la invalidación inmediata del access es *stretch* (FR-003), por lo que SC-003 se mide sobre
+  el refresh, no sobre el access dentro de su TTL.
 - **SC-004**: tras **5 intentos** de login fallidos en **15 min**, la cuenta se bloquea y los intentos
   posteriores se rechazan.
 - **SC-005**: las operaciones de auth (login/refresh/me/logout) responden en **P95 < 300 ms** (excluida la
@@ -208,9 +250,10 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 - **Fichero**: `contracts/auth.openapi.yaml` (OpenAPI 3.1), rutas bajo **`/v1`**.
 - **Endpoints (operationId → método ruta → roles → respuestas):**
   - `login` — `POST /v1/auth/login` — público — 200 / 401 / 422 / 429
-  - `refresh` — `POST /v1/auth/refresh` — cookie refresh — 200 / 401
-  - `logout` — `POST /v1/auth/logout` — autenticado — 204 / 401
-  - `me` — `GET /v1/auth/me` — autenticado — 200 / 401
+  - `refresh` — `POST /v1/auth/refresh` — cookie refresh + CSRF — 200 / 401 / **403** (CSRF con sesión válida)
+  - `logout` — `POST /v1/auth/logout` — cookie refresh + CSRF — 204 / 401 / **403** (CSRF con sesión válida)
+  - `me` — `GET /v1/auth/me` — Bearer — 200 / 401
+  - `rbacProbe` — `GET /v1/rbac/probe/{id}` — Bearer — 200 / 401 / 403 / 404
   - `health` — `GET /health` — público — 200
   - `ready` — `GET /ready` — público — 200 / 503
 - **Esquemas**: `LoginRequest` `{ identifier (email o username), password }`; `Role` enum
@@ -222,11 +265,11 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 | FR | Endpoint(s) | Test(s) |
 |----|-------------|---------|
 | FR-001/002 | `login` | `should issue session when valid creds` · `should 401 uniform when invalid` |
-| FR-003 | `logout` | `should revoke refresh on logout` |
-| FR-004/005 | `refresh` | `should refresh when valid` · `should 401 when revoked/expired` |
+| FR-003 | `logout` | `should revoke refresh on logout` · `should 401 on 2nd logout with revoked cookie (not idempotent)` |
+| FR-004/005 | `refresh` | `should refresh when valid` · `should 401 when revoked/expired` · `should re-read role from DB on rotation` |
 | FR-006 | `me` | `should return identity and role` |
 | FR-007/008/009/010 | (middleware) | `should 401/403/404 by auth+role+scope at API level` |
-| FR-011 | `login` | `should lock account after N failed attempts` |
+| FR-011 | `login` | `should lock account after N failed attempts` · `should reset window on expiry (no perpetual lock)` |
 | FR-012 | (todas) | `should set security headers` · `should reject missing CSRF on refresh` |
 | FR-013 | (todas) | `should return error contract shape per code` |
 | FR-014 | (todas) | `should propagate correlation-id to logs` |
@@ -235,7 +278,8 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 | FR-001b | `login` | `should resolve identifier to a single user (email/username global uniqueness)` |
 | FR-003b/004d | `refresh`/`login` | `should allow concurrent sessions` · `should treat refresh retry within grace as same use` |
 | FR-004b/004c | `refresh` | `should revoke family + invalidate access on reuse` · `should 401 when account disabled/locked` |
-| FR-017 | (middleware) | `should 403 for role-forbidden action` · `should 404 for out-of-scope resource` |
+| FR-017 | (middleware) | `should 403 for role-forbidden action` · `should 404 for out-of-scope resource` (regla determinista, fixture en /plan) |
+| FR-018 | `refresh`/`logout` | `should 401 (no session) checked before CSRF` · `should 403 only when session valid and CSRF fails` |
 
 ## Eval de objetivos *(Constitution XIV)*
 
@@ -246,7 +290,11 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 ## Assumptions
 
 - **TTL access token**: 15 min; **TTL refresh**: 7 días (valores por defecto razonables; ajustables por config).
-- **Lockout**: 5 intentos fallidos / ventana de 15 min (FR-011/SC-004).
+- **Ventana de gracia de reintento de refresh (FR-004b/004d)**: **≤ 10 s** desde la rotación (**límite
+  inclusive**: t = 10,000 s aún cuenta como dentro); dentro = mismo uso legítimo, fuera = reuso (revoca
+  familia). Valor de seguridad, ajustable por config.
+- **Lockout**: 5 intentos fallidos / ventana de 15 min (FR-011/SC-004). El `identifier` se **normaliza**
+  (minúsculas + trim) antes de contar, también para identifiers no resueltos (anti-enumeración real).
 - **Política de contraseña**: mín. 12 caracteres, sin rotación forzada (best practice NIST); aplica al
   alta de usuarios, que es **fuera de alcance** → se refleja en los datos semilla.
 - **Identidad**: login por **email o username** (espacio de unicidad global, FR-001b); **sesiones

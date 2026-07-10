@@ -49,4 +49,32 @@
 - **BL-014** (001 · MEDIA) — Access token en body (Bearer) vs cookie y alcance CSRF correspondiente
   (H-007) → decidir en /plan (contrato).
 
+### Analyze 001 (G2 previo) — MEDIUM (no bloquean)
+
+- **BL-015** (001 · analyze · MEDIA) — Contrato `logout`: sus respuestas listan 204/401 pero exige CSRF
+  double-submit (como `refresh`, que sí declara 403). Decidir en implementación: añadir **403** a `logout`
+  en el contrato **o** documentar que el fallo CSRF en logout mapea a 401 (coherencia contrato↔middleware T049).
+- **BL-016** (001 · analyze · MEDIA) — `health`/`ready` son operationIds del contrato sin **contract test**
+  dedicado (Const. II: contract test por operationId×código). Añadir aserciones de contrato en T020 o tarea propia.
+
+### Gate G2 (001) — diferidos y hardening
+
+- **BL-017** (stretch · 001 · MEDIA) — **Binding del replay de gracia** (FR-004d) a la identidad del
+  cliente (nonce/fingerprint), para no depender solo de la asunción TLS (S-001). Hardening.
+- **BL-018** (DevOps · 001 · MEDIA) — **Store distribuido** (p. ej. Redis) para el set de revocación y el
+  contador de rate-limit, al pasar a **multi-instancia** (hoy in-memory single-instance tras puertos).
+- **BL-019** (001 · analyze · BAJA) — FR-013: el código **400** (body no-JSON) queda **acotado** como no
+  usado en 001 (validación → 422); reconsiderar si algún caso lo requiere (paralelo al 409 N/A).
+
+### Gate G1 re-run (001, tras clarify G2) — MEDIAS
+
+- **BL-020** (001 · G1 · MEDIA) — **Atomicidad del contador de lockout** ante intentos concurrentes
+  (transacción/lock) para que la fuerza bruta en paralelo no evada el umbral (FR-011). Mecánica → `/plan`.
+- **BL-021** (001 · G1 · BAJA) — **UX de reintento de logout**: tras timeout de red, un 2º logout da 401
+  (no idempotente); el frontend debería tratar 401-en-logout como "ya deslogueado" (éxito). Concierne al
+  cliente (fuera del backend de 001).
+- **BL-022** (stretch · 001 · MEDIA) — **Invalidación inmediata del rol** (cortar el access en curso ante
+  cambio/degradación de rol); hoy el cambio de rol se propaga en ≤15 min (TTL del access). Requiere el
+  mismo mecanismo de invalidación inmediata que FR-004b (session-version).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

@@ -52,3 +52,23 @@ Complementaria a la adversarial: cobertura fiel de la parte auth/RBAC del brief 
 401/403, "rápido y seguro" cuantificado); sin contradecir "stack libre"; proporcionada (rotación/
 anti-enumeración/cabeceras = "cómo" justificado; resto en backlog/stretch). Único PARCIAL esperado:
 "ver sus órdenes" → diferido a 002 (001 es fundación de identidad). **Veredicto: lista para /plan.**
+
+---
+
+## Re-ejecución G1 (tras `/speckit-clarify` con decisiones de nivel spec del G2) — ✅ PASS
+
+**Contexto:** el G2 (spec↔plan↔tasks) había revelado que ciertas decisiones eran de **nivel spec**. En
+vez de parchear plan/tasks a mano (que rompía coherencia), se revirtieron los artefactos y se re-lanzó el
+flujo por skills. `/speckit-clarify` incorporó al spec: orden 401-antes-403 (**FR-018**), logout no
+idempotente (**FR-003**), reset de ventana de lockout (**FR-011**), regla 403/404 determinista con orden
+rol→pertenencia (**FR-017**), identidad de estado disabled vs locked_until (**FR-004c**), ventana de
+gracia = ≤10 s (Assumptions), replay idempotente (**FR-004d**), relectura de rol (**FR-004**), códigos de
+error acotados a 001 (**FR-013**), y SC-003 medido sobre refresh.
+
+**Vueltas del panel (spec-freeze → re-G1):**
+- v1: 3 BLOQUEANTES (SC-003⟂FR-003; FR-018⟂tabla de contrato; ventana de gracia sin valor) + ALTAS.
+- v2: resueltos; nuevo BLOQUEANTE (FR-003 "stretch" ⟂ FR-004b "SHALL invalidar").
+- v3: **0 BLOQUEANTES** — cínico APROBADA_CON_COMENTARIOS, spec-theater APROBADA, rbac APROBADA.
+
+**MEDIAS → backlog:** BL-020 (atomicidad contador lockout), BL-021 (UX reintento logout), BL-022
+(invalidación inmediata de rol). **G1 cerrado (PASS).** Siguiente: re-lanzar `/speckit-plan` y `/speckit-tasks`.
