@@ -30,8 +30,9 @@ Cada gate (G1/G2/G3) ejecuta el panel adversarial de forma **acumulativa** y sol
 
 ## Cómo arrancar y verificar
 
-> Stack objetivo: **TypeScript/Node** (Express hexagonal, Prisma+SQLite, Zod, OpenAPI 3.1, Vitest) +
-> **Docker** para paridad de entornos. La app se implementa feature a feature; cuando exista `package.json`:
+> Stack objetivo: **TypeScript/Node** (Express hexagonal, Prisma + **PostgreSQL (Docker)**, Zod,
+> OpenAPI 3.1, Vitest) + **Docker** para paridad de entornos. Auth JWT access+refresh (argon2id).
+> La app se implementa feature a feature; cuando exista `package.json`:
 
 ```bash
 npm install        # instalar dependencias

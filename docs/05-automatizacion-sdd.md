@@ -69,7 +69,7 @@ El comando `speckit.adversarial-gate.run` (fichero `.md`) instruye a Claude para
 2. Lanzar el **panel de 3 subagentes** (`revisor-cinico`, `auditor-spec-theater`,
    `revisor-rbac-seguridad`) en paralelo sobre esos artefactos.
 3. Consolidar (dedupe + severidad + veredicto más restrictivo).
-4. Escribir el informe en `docs/gates/gate-G{n}-{spec}.json` y su resumen `.md`.
+4. Escribir el informe en `specs/<feature>/gates/gate-G{n}-{spec}.json` y su resumen `.md`.
 5. Si hay ≥1 BLOQUEANTE → reportarlo y **detener** el avance; si 0 → luz verde.
 
 ---
@@ -82,7 +82,7 @@ Para ejecución no interactiva (CI, o correr el gate a mano), un script portable
 - Por cada agente: `claude -p "$(cat .claude/agents/<agente>.md) \n\n<artefacto>" --output-format json | jq -r '.result'` (extracción del wrapper + parseo del JSON del review).
 - Cuenta `huecos[] | select(.severidad=="BLOQUEANTE") | length`.
 - **Exit code 0** si 0 bloqueantes; **exit 1** si hay bloqueantes → apto como gate de branch protection.
-- Vuelca el informe a `docs/gates/`.
+- Vuelca el informe a `specs/<feature>/gates/`.
 
 > El `.md` sirve al flujo interactivo (auto-hook de Spec Kit); el `.sh` sirve a CI y a reproducibilidad.
 > Mismo criterio (0 bloqueantes), misma salida.
@@ -115,4 +115,4 @@ Para ejecución no interactiva (CI, o correr el gate a mano), un script portable
                                                   (0 bloqueantes)
 ```
 
-Cada gate deja rastro en `docs/gates/`, alimentando la bitácora (ver `README.md`).
+Cada gate deja rastro en `specs/<feature>/gates/`, alimentando la bitácora (ver `README.md`).

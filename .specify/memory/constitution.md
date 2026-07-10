@@ -13,6 +13,10 @@ e idempotencia/lint (X, XII) son decisiones de proyecto más allá del brief ('s
 Sync Impact Report actualizado (plantillas ✅).
 v1.2.3 (PATCH): Docker + Docker Compose añadidos al stack para paridad de entornos (reproducibilidad,
 requisito 'install+test en limpio' y uso multi-persona); no es SOLID.
+v1.3.0 (MINOR): decisiones de fundación — PostgreSQL 16 (Prisma) en TODOS los entornos vía Docker
+(se descarta SQLite); auth JWT access+refresh/argon2id (ADR-0002); sección Convenciones (Result/Either
+en dominio, API /v1, Conventional Commits, Makefile). Roadmap: 001 se divide en 001 (auth+RBAC) y
+002 (dominio Order).
 
 Principios (14):
   I.    Spec-Driven, spec-first
@@ -118,8 +122,11 @@ Cada requisito se mapea a ≥1 endpoint, ≥1 tarea y ≥1 test nombrable.
 - **Rationale:** un requisito no verificable no está terminado.
 
 ### VII. TDD con fase Red verificable
-Los tests se escriben y **fallan (Red)** antes de implementar. Integración con **BD real** (SQLite de
-test o contenedor), nunca mocks del ORM; mocks solo para terceros/reloj/aleatoriedad.
+Los tests se escriben y **fallan (Red)** antes de implementar. Integración con **BD real: PostgreSQL
+vía docker-compose en una BD de test independiente**, nunca mocks del ORM; mocks solo para
+terceros/reloj/aleatoriedad. Pirámide: unit (dominio puro, sin BD) · integración (BD real) · contract
+(OpenAPI) · negativos de seguridad (RBAC). **E2E (Playwright) es *stretch* y de lanzamiento
+justificado** (no corre en el gate/CI por defecto, por coste). Detalle en `docs/12-estrategia-tests.md`.
 - **Verificación:** existe un **commit con el test en rojo previo** al commit de implementación en la
   misma rama; CI ejecuta unit + contract + integration en verde; cobertura como **gate duro por capa**
   (dominio ≥ 80% **y** servicios ≥ 80%) y 100% de contratos y de transiciones de estado.
@@ -192,7 +199,7 @@ G3 = G1 + G2 + `revisor-implementacion` + eval de objetivos (XIV). Un hallazgo e
 impide implementar/testear un requisito, abre un agujero de seguridad, o rompe un principio de esta
 constitution; ante discrepancia de severidad entre agentes **gana la más restrictiva**. Criterio de
 avance: **0 BLOQUEANTES**.
-- **Verificación:** existe un informe de gate por fase en `docs/gates/`; `scripts/gate.sh` devuelve exit
+- **Verificación:** existe un informe de gate por fase en `specs/<feature>/gates/`; `scripts/gate.sh` devuelve exit
   1 si hay bloqueantes; el flujo no avanza (ni commitea) con bloqueantes abiertos.
 - **Rationale:** poner en duda lo dado por sentado en cada punto reduce ambigüedad y caza errores de
   planteamiento e implementación; agentes especializados encadenados > un agente que abarca mucho.
@@ -210,7 +217,8 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Backend:** Express 4 sobre **arquitectura hexagonal** (`domain/`, `handlers/`, `infra/`).
 - **Validación:** Zod, derivado del contrato OpenAPI.
 - **Contrato:** OpenAPI 3.1 en `contracts/`.
-- **Persistencia:** Prisma con SQLite (dev/test) → PostgreSQL (producción).
+- **Persistencia:** **PostgreSQL 16 (Prisma) en todos los entornos vía Docker** (paridad
+  dev=test=prod, sin divergencia de motor; migraciones con Prisma Migrate).
 - **Frontend:** React 18 + Vite (mínimo, consumiendo el contrato).
 - **Tests:** Vitest (unit) · Supertest (integración/contrato).
 - **IA:** SDK del proveedor tras un puerto de dominio; eval en `/evals`.
@@ -239,6 +247,18 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Definición de "hecho":** frontend + backend + tests en verde **a la vez**, en máquina limpia, **con
   el gate adversarial en 0 bloqueantes y la eval de objetivos/IA en umbral**.
 
+## Convenciones (buenas prácticas)
+
+- **Autenticación:** JWT **access** (corto, en memoria) + **refresh** opaco en cookie HttpOnly
+  (revocable); hashing **argon2id**. Cumple el ciclo de sesión del Principio IV (ver `docs/adr/0002`).
+- **Errores de dominio con `Result`/`Either`:** el dominio **no lanza excepciones** para errores de
+  negocio; devuelve un `Result<Ok, Error>` tipado que los handlers mapean al contrato de errores (X).
+- **Versionado de API:** rutas/contrato bajo prefijo **`/v1`** para evolucionar sin romper consumidores.
+- **Conventional Commits:** mensajes `tipo(scope): resumen` (feat/fix/docs/chore/test/refactor…),
+  coherentes con los commits de la extensión git.
+- **Un comando para todo:** `Makefile` (o scripts npm) envuelve `install` / `test` / `up` / `gate`,
+  reforzando "install + test en máquina limpia".
+
 ## Governance
 
 - Esta constitution **prevalece** sobre plantillas, skills y decisiones de implementación. Jerarquía:
@@ -253,4 +273,4 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.2.3 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.3.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10

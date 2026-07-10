@@ -11,7 +11,7 @@ set -euo pipefail
 
 PHASE=""
 FEATURE_DIR=""
-REPORTS_DIR="docs/gates"
+REPORTS_DIR=""   # por defecto: <feature-dir>/gates (co-localizado con la feature)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -26,6 +26,7 @@ command -v claude >/dev/null || { echo "ERROR: 'claude' no está en PATH" >&2; e
 command -v jq >/dev/null || { echo "ERROR: 'jq' no está en PATH" >&2; exit 2; }
 [[ -n "$PHASE" && -n "$FEATURE_DIR" ]] || { echo "ERROR: --phase y --feature-dir son obligatorios" >&2; exit 2; }
 [[ -d "$FEATURE_DIR" ]] || { echo "ERROR: no existe $FEATURE_DIR" >&2; exit 2; }
+[[ -z "$REPORTS_DIR" ]] && REPORTS_DIR="$FEATURE_DIR/gates"
 
 AGENTS_DIR=".claude/agents"
 

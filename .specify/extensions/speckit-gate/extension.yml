@@ -40,4 +40,4 @@ tags:
 config:
   defaults:
     block_on: BLOQUEANTE          # severidad que detiene el avance
-    reports_dir: "docs/gates"
+    reports_dir: "specs/<feature>/gates"   # informes de gate, co-localizados con su feature

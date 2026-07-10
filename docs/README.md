@@ -41,8 +41,11 @@ Tres pilares:
 | [09-glossary.md](09-glossary.md) | Lenguaje ubicuo del dominio (anti-ambigüedad). |
 | [10-evals-promptfoo.md](10-evals-promptfoo.md) | Decisión build-vs-buy: evals con promptfoo. |
 | [11-eficiencia-tokens.md](11-eficiencia-tokens.md) | Ahorro de tokens: deterministic-first, model tiering, RTK (fase implementación). |
-| [adr/](adr/) | Architecture Decision Records (0000 plantilla, 0001 arquitectura y stack). |
-| `gates/` | Informes de cada ejecución de gate (se generan durante el flujo). |
+| [12-estrategia-tests.md](12-estrategia-tests.md) | Pirámide de test, profundidad/umbrales, BD en tests, E2E gated. |
+| [adr/](adr/) | ADRs (0000 plantilla · 0001 arquitectura y stack · 0002 auth · 0003 persistencia y tests). |
+
+> Los **informes generados** viven fuera de `docs/`: los de **tokens** en `informes/` (analítica); los
+> de **gate** en `specs/<feature>/gates/` (co-localizados con su feature, son artefactos de trabajo).
 
 ## Los agentes del panel (`.claude/agents/`)
 
@@ -144,6 +147,26 @@ CI (gitleaks + install/lint/test/eval), README, PR template, CODEOWNERS, lint co
 
 **Backlog (fase de implementación):** agentes especializados por lenguaje/front/back en G3; adaptador
 MCP sobre promptfoo si se quiere reutilizar fuera de Claude.
+
+**B17 · Decisiones de fundación (constitution v1.3.0).**
+Postgres 16 en Docker en todos los entornos (se descarta SQLite); auth JWT access+refresh/argon2id
+(ADR-0002); persistencia y BD de test (ADR-0003); sección Convenciones (Result/Either en dominio,
+API `/v1`, Conventional Commits, Makefile). *Por qué:* el brief no fija tecnología → se elige el
+estándar más común y con paridad de entornos (Docker), documentando que son decisiones de proyecto.
+
+**B18 · Estrategia de test explícita (docs/12).**
+Pirámide unit(dominio)/integración(BD real)/contract/seguridad + evals; umbrales por capa; TDD fase Red;
+Postgres docker-compose con BD de test independiente y seed para POV; **E2E stretch de lanzamiento
+justificado** (coste). *Por qué:* fijar profundidad riesgo-dirigida sin gold-plating ni gasto innecesario.
+
+**B19 · Organización de carpetas por propósito.**
+`docs/` = documentación escrita a mano; `informes/` = analítica (tokens); `specs/<feature>/gates/` =
+informes de gate (artefactos de trabajo, co-localizados con su feature). *Por qué:* separar generados de
+documentación, pero manteniendo en el flujo lo que speckit/claude usan al trabajar.
+
+**B20 · CLAUDE.md operativo.**
+Guía de trabajo en el repo (reglas de oro, stack, flujo con gates, sin API, no-hacer) que apunta a la
+constitution. *Por qué:* que cada sesión futura arranque alineada sin releer todo.
 
 ---
 

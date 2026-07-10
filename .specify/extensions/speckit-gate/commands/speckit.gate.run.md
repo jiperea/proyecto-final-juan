@@ -33,7 +33,7 @@ para obtener las métricas; si algún umbral no se cumple, cuenta como bloqueant
 Fusiona los informes: deduplica solapamientos (unifica IDs), ordena por severidad, y fija el
 **veredicto global = el más restrictivo**. Cuenta los BLOQUEANTES.
 
-Escribe el informe en `docs/gates/gate-G{n}-{feature}.json` y un resumen `.md` con la tabla de huecos.
+Escribe el informe en `specs/<feature>/gates/gate-G{n}-{feature}.json` y un resumen `.md` con la tabla de huecos.
 
 ## 4. Decidir
 
@@ -41,7 +41,7 @@ Escribe el informe en `docs/gates/gate-G{n}-{feature}.json` y un resumen `.md` c
   procede).
 - **≥1 BLOQUEANTE →** GATE **FAIL**. Invoca el agente **`remediador`** con el informe consolidado + los
   artefactos para producir un plan de propuestas, y guárdalo en
-  `docs/gates/gate-G{n}-{feature}-propuestas.md`. **Detén el avance**: no se continúa ni se commitea
+  `specs/<feature>/gates/gate-G{n}-{feature}-propuestas.md`. **Detén el avance**: no se continúa ni se commitea
   hasta resolver los bloqueantes y re-ejecutar el gate.
 
 ## 5. Reglas

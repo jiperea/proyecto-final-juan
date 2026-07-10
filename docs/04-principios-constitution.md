@@ -69,8 +69,8 @@ su test, el requisito no es suficientemente preciso ni está "hecho".
 - **Rationale:** un requisito no verificable no está terminado.
 
 ### VII. TDD con fase Red obligatoria
-Los tests se escriben y fallan (Red) antes de implementar. La integración usa **BD real** (contenedor
-o SQLite de test), nunca mocks del ORM; mocks solo para terceros/reloj/aleatoriedad. Cobertura
+Los tests se escriben y fallan (Red) antes de implementar. La integración usa **BD real** (PostgreSQL
+vía docker-compose, BD de test independiente), nunca mocks del ORM; mocks solo para terceros/reloj/aleatoriedad. Cobertura
 objetivo: **≥80% en dominio/servicios** y **100% de contratos** y transiciones de estado.
 - **Verificación:** CI ejecuta unit + contract + integration en verde; informe de cobertura cumple umbrales.
 - **Rationale:** el test primero fuerza diseño y evita regresiones.
@@ -131,7 +131,7 @@ avance: **0 hallazgos BLOQUEANTES** (no exigimos 0 hallazgos).
 | Backend | Express 4 · arquitectura hexagonal |
 | Validación | Zod (derivado del contrato) |
 | Contrato | OpenAPI 3.1 (`contracts/`) |
-| ORM / BD | Prisma · SQLite (dev/test) → PostgreSQL (prod) |
+| ORM / BD | Prisma · PostgreSQL 16 en todos los entornos (Docker) |
 | Frontend | React 18 + Vite (mínimo, consumiendo el contrato) |
 | Tests | Vitest (unit) · Supertest (integración/contrato) |
 | IA | SDK del proveedor tras un puerto de dominio + eval en `/evals` |
