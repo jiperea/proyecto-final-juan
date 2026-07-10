@@ -83,3 +83,28 @@ Estas son las decisiones que **damos por correctas sin haberlas validado**. El a
 
 > Cada `AS-xx` es una hipótesis, no un hecho. El revisor cínico debe generar una pregunta crítica por
 > cada una (y por lo que se nos haya escapado).
+
+---
+
+## D) Decisiones tras el pase adversarial nº1
+
+> Resueltas con el usuario a partir de `03-adversarial-reparto.md`. Sin cliente real: se resuelve con
+> **buenas prácticas de diseño (SOLID)** coherentes con el aplicativo. Cada decisión sustituye o
+> concreta la asunción original.
+
+| Ref | Decisión | Rationale (SOLID/buenas prácticas) |
+|---|---|---|
+| **U-01** (AS-18 nueva) | La **creación/asignación inicial** (draft→assigned) queda **fuera del slice**, declarada; se usan **datos semilla** para los tests end-to-end. | Es otra responsabilidad; mantener el slice enfocado (SRP a nivel de feature). |
+| **U-02** | **Inicio de trabajo explícito:** acción `iniciar orden` (assigned→in_progress) ejecutable solo por el técnico asignado. | Transición explícita y testeable; no acoplar "iniciar" con "subir evidencia" (SRP). |
+| **U-03 / U-12** (AS-03) | **Organización única** por ahora, pero **autorización centralizada** vía una **política de visibilidad inyectable** (matriz rol×alcance, mínimo privilegio). Extensible a equipos sin reescribir. | OCP + DIP; mínimo privilegio por defecto. → **principio de constitution**. |
+| **U-04** (AS-11 nueva) | El backend exige `assigned_to == usuario` además del rol (403 si no). | Evita escalada horizontal / IDOR. Seguridad no negociable. |
+| **U-09 / U-10 / U-11** (AS-01, AS-04) | Reasignable en `{assigned, in_progress}` (rechazo explícito en el resto). Rechazo del supervisor → `in_progress`. **Evidencia conservada, versionada por intento y con autoría.** | Trazabilidad/auditoría; inmutabilidad del histórico. |
+| **U-05** (AS-07) | "Rápido" = **P95 < 300 ms** en operaciones CRUD; la **subida de foto** tiene su propio umbral (P95 < 2 s). | NFR medible (test pass/fail). |
+| **U-06** (AS-05) | "Seguro" = **TLS 1.2+** obligatorio + **cifrado en reposo** de PII y fotos. | Condiciones binarias testeables. |
+| **U-07** | Foto **válida** = JPEG/PNG/HEIC, **≤ 10 MB** c/u, **1–10** por orden, decodificable (no corrupta). | Contrato de entrada testeable; fail-closed. |
+| **U-08** | IA "insuficiente" = **0 fotos válidas O notas < 20 caracteres** → declara y no resume. Anclado a **eval** (`faithfulness ≥ 0.90`, `tasa_alucinacion ≤ 0.05`). | La regla dura pasa a ser testeable vía eval. |
+| **U-13 / U-14 / U-23** | Aprobar/rechazar solo desde `pending_review`; fotos servidas tras autorización por-orden; `404` (no `403`) al pedir orden ajena por ID. | Guardas de estado + no filtrar existencia (defaults seguros). |
+
+Las asunciones no listadas (U-16 concurrencia, U-18 motivo, U-19 PII inventory, U-20 SLA IA,
+U-21 aviso, U-22 resumen obsoleto, U-24 i18n, U-25 bucle de rechazos) se abordan como **principios de
+solidez** en `04-principios-constitution.md` o se difieren a `/speckit-specify` según corresponda.
