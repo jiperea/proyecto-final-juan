@@ -23,7 +23,7 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 - [ ] T004 [P] Vitest (unit sin BD, integration/contract con Postgres docker) + umbrales cobertura (dominio ≥80%, servicios ≥80%) — `backend/vitest.config.ts`
 - [ ] T005 [P] `docker-compose.yml` con PostgreSQL 16 (BD dev + BD test) — `docker-compose.yml`
 - [ ] T006 [P] `Makefile`/scripts: install, up, test, gate — `Makefile`, `backend/package.json`
-- [ ] T007 [P] `.env.example` (JWT_SECRET, **CSRF_HMAC_SECRET ≠ JWT_SECRET**, DATABASE_URL, ACCESS_TTL=900, REFRESH_TTL_DAYS=7, **GRACE_MS=10000**, LOCKOUT_MAX=5, LOCKOUT_WINDOW_MIN=15) — `.env.example`
+- [ ] T007 [P] `.env.example` (JWT_SECRET, **CSRF_HMAC_SECRET ≠ JWT_SECRET**, **LOCKOUT_HMAC_SECRET ≠ ambos** (D7), DATABASE_URL, ACCESS_TTL=900, REFRESH_TTL_DAYS=7, **GRACE_MS=10000**, LOCKOUT_MAX=5, LOCKOUT_WINDOW_MIN=15); los 3 secretos validados en fail-fast (T015/T019) — `.env.example`
 
 ---
 
@@ -39,8 +39,8 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 
 ### Persistencia
 
-- [ ] T013 Esquema Prisma `User`/`Session`/`RefreshToken` (UUID v7, unicidad global, locked_until, disabled_at) + migración reversible — `backend/prisma/schema.prisma`, `backend/prisma/migrations/` (data-model)
-- [ ] T014 Seed: usuarios (3 roles, ≥12 argon2id) + **fixtures `ProbeResource` con pertenencia** (≥1 id en alcance dispatcher/supervisor; id inexistente para 404) — `backend/prisma/seed.ts` (FR-017b)
+- [ ] T013 Esquema Prisma `User`/`Session`/`RefreshToken` (UUID v7, `locked_until`, `disabled_at`) + **unicidad global email/username a nivel de ESQUEMA** (`identifier_norm` en índice/tabla único, no dos índices por columna — FR-001b/D11) + migración reversible — `backend/prisma/schema.prisma`, `backend/prisma/migrations/` (data-model)
+- [ ] T014 Seed: usuarios (3 roles, ≥12 argon2id; **incluir 1 usuario `disabled` y 1 con `locked_until`** para tests) + **fixtures `ProbeResource` (3 casos, FR-017b)**: probe-A in_scope [dispatcher,supervisor] (200 ambos), probe-B in_scope [supervisor] (200 supervisor / **404-por-alcance** dispatcher), + id inexistente (404) — `backend/prisma/seed.ts`
 
 ### Cross-cutting + tests Red
 
@@ -73,15 +73,15 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 - [ ] T029 [P] [US1] **[Red]** Contract test `me` 200/401 — `backend/tests/contract/me.contract.spec.ts` (FR-006)
 - [ ] T030 [P] [US1] **[Red]** Unit credenciales + resolución de identifier a único usuario (normalizado) — `backend/tests/unit/auth-credentials.spec.ts` (FR-001b/002)
 - [ ] T031 [P] [US1] **[Red]** Unit lockout 5/15min ventana fija + **reset al expirar/caducar** — `backend/tests/unit/lockout.spec.ts` (FR-011/SC-004)
-- [ ] T032 [P] [US1] **[Red]** Integration login/logout: válido→sesión; inválido→401 uniforme; logout revoca solo la actual; **2º logout con cookie revocada→401** (no idempotente) — `backend/tests/integration/login-logout.spec.ts` (FR-001/002/003/003b/018, SC-001)
+- [ ] T032 [P] [US1] **[Red]** Integration login/logout: válido→sesión; inválido→401 uniforme; **cuenta `disabled`→401 uniforme y NO se puede re-loguear + cuenta para el lockout (429 indistinguible)** (FR-002b); logout revoca solo la actual; **2º logout con cookie revocada→401** (no idempotente) — `backend/tests/integration/login-logout.spec.ts` (FR-001/002/002b/003/003b/018, SC-001)
 
 ### Implementación
 
 - [ ] T033 [P] [US1] Adaptador `PasswordHasher` argon2id (OWASP) + **hash dummy anti-timing** — `backend/src/infra/crypto/password-hasher.ts` (D4, FR-011)
 - [ ] T034 [P] [US1] Adaptador `TokenIssuer` (JWT HS256 sub/sid/role/exp; refresh opaco + hash SHA-256) — `backend/src/infra/crypto/token-issuer.ts` (D5)
-- [ ] T035 [P] [US1] Adaptador `RateLimit` in-memory (por usuario resuelto y por **HMAC-SHA256(identifier norm., secreto propio)**) — `backend/src/infra/ratelimit/in-memory.ts` (D7, FR-011)
+- [ ] T035 [P] [US1] Adaptador `RateLimit` in-memory (por usuario resuelto y por **HMAC-SHA256(identifier norm., `LOCKOUT_HMAC_SECRET`)**; los intentos contra cuenta `disabled` **cuentan** igual) — `backend/src/infra/ratelimit/in-memory.ts` (D7, FR-011/002b)
 - [ ] T036 [US1] Repos Prisma `User`/`Session`/`RefreshToken` — `backend/src/infra/repositories/*.ts` (data-model)
-- [ ] T037 [US1] Caso de uso `login` (credenciales→sesión, lockout, Result) — `backend/src/domain/auth/login.ts` (FR-001/002/011)
+- [ ] T037 [US1] Caso de uso `login` (credenciales→sesión, lockout, Result; **chequeo de `disabled` DESPUÉS del hash de contraseña** para no filtrar timing, 401 uniforme — FR-002b) — `backend/src/domain/auth/login.ts` (FR-001/002/002b/011)
 - [ ] T038 [US1] Caso de uso `logout` (revoca refresh de la sesión actual; no idempotente) — `backend/src/domain/auth/logout.ts` (FR-003/018)
 - [ ] T039 [US1] Handler `POST /v1/auth/login` (set-cookie refresh HttpOnly + csrf_token; access en body) — `backend/src/handlers/auth/login.ts` (FR-001, D1/D2)
 - [ ] T040 [US1] Handler `POST /v1/auth/logout` (204; limpia cookies) — `backend/src/handlers/auth/logout.ts` (FR-003)
@@ -99,7 +99,7 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 
 - [ ] T042 [P] [US3] **[Red]** Contract test `rbacProbe` 200/401/403/404 — `backend/tests/contract/rbac-probe.contract.spec.ts` (FR-007/008/009/017/017b)
 - [ ] T043 [P] [US3] **[Red]** Unit política rol×alcance + regla **orden rol(403)→pertenencia(404)** (technician→403; dispatcher/supervisor→200 en alcance/404 fuera) — `backend/tests/unit/rbac-policy.spec.ts` (FR-017/017b)
-- [ ] T044 [P] [US3] **[Red]** Integration RBAC: no-auth→401, rol sin permiso→403, recurso ajeno→404 (forzando la API) — `backend/tests/integration/rbac.spec.ts` (FR-007/008/009/010/017/017b, SC-002)
+- [ ] T044 [P] [US3] **[Red]** Integration RBAC: no-auth→401; technician→403; dispatcher/supervisor→200 (probe-A); **404-por-alcance** (dispatcher sobre probe-B) **distinto** de **404-por-inexistencia** (id inexistente); forzando la API — `backend/tests/integration/rbac.spec.ts` (FR-007/008/009/010/017/017b, SC-002)
 
 ### Implementación
 
@@ -120,7 +120,7 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 
 - [ ] T048 [P] [US2] **[Red]** Contract test `refresh` 200/401/403 — `backend/tests/contract/refresh.contract.spec.ts` (FR-004/005/012/018)
 - [ ] T049 [P] [US2] **[Red]** Unit rotación single-use atómica + gracia (mismo par) + reuso→familia + **relectura de rol** — `backend/tests/unit/refresh-rotation.spec.ts` (FR-004/004b/004d)
-- [ ] T050 [P] [US2] **[Red]** Integration refresh: rota; revocado/caducado→401; reuso→familia+access invalidado; reintento ≤10s→mismo par; disabled→401, locked_until no corta — `backend/tests/integration/refresh.spec.ts` (FR-004/004b/004c/004d/005, SC-003)
+- [ ] T050 [P] [US2] **[Red]** Integration refresh: rota; revocado/caducado→**401 uniforme** (sin distinguir causa, FR-005); reuso→**solo familia comprometida** revocada (otras sesiones concurrentes siguen) + **access de esa familia invalidado por-request (write-through, efectivo en la misma petición)** (FR-004b/004c); reintento ≤10s→mismo par; `disabled`→401 en validación/refresh, `locked_until` **no** corta sesiones activas — `backend/tests/integration/refresh.spec.ts` (FR-004/004b/004c/004d/005, SC-003)
 - [ ] T051 [P] [US2] **[Red]** Integration orden **401-antes-403** en refresh Y logout + CSRF double-submit (cabecera≠cookie o ausente→403 con sesión) — `backend/tests/integration/csrf-order.spec.ts` (FR-012/018, D2)
 - [ ] T052 [P] [US2] **[Red]** Contract test contenido `ErrorResponse.details` (401/429 sin oráculo; 403/404 sin propiedad/alcance) — `backend/tests/contract/error-details.contract.spec.ts` (FR-002/011/017, S-005/S-103)
 
@@ -137,8 +137,8 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T057 [P] **[Red→verde]** Perf SC-001/SC-005: N≥200, secuencial + warm-up descartado, **server-side** (P95<300ms auth; login<1s) — `backend/tests/integration/perf.spec.ts` (SC-001/005, D9)
-- [ ] T058 [P] **[Red→verde]** Anti-enumeración: |P95(inexistente)−P95(inválido)|<50ms, N≥200/grupo — `backend/tests/integration/enumeration-timing.spec.ts` (FR-011, D9)
+- [ ] T057 [P] **[Red→verde]** Perf SC-001/SC-005: N≥200, secuencial, **descartar las primeras 20 (warm-up)**, **server-side** (P95<300ms auth; login<1s) — `backend/tests/integration/perf.spec.ts` (SC-001/005, D9)
+- [ ] T058 [P] **[Red→verde]** Anti-enumeración: **|P95(causa_i)−P95(causa_j)|<50ms** entre las **3 causas** de 401 de login (inválidas / inexistente / **disabled**), N≥200/grupo, server-side — `backend/tests/integration/enumeration-timing.spec.ts` (FR-011/002b, D9)
 - [ ] T059 [P] Test de arquitectura: `domain/` no importa express/prisma/jsonwebtoken — `backend/tests/unit/architecture.spec.ts` (Const. III)
 - [ ] T060 [P] **[Red]** Integration reinicio: familia revocada sigue revocada (cache-miss→BD); cuenta bloqueada sigue (locked_until en BD) — `backend/tests/integration/restart-revocation.spec.ts` (D3, FR-004b)
 - [ ] T061 [P] **[Red]** Integration fail-closed: fallo/timeout de BD en cache-miss → 401/503, nunca 200 — `backend/tests/integration/fail-closed.spec.ts` (D3)
