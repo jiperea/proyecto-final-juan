@@ -28,6 +28,9 @@ technician explícita; NFR "rápido" obligatorio de cuantificar en los SC.
 v1.5.1 (PATCH): criterio de clasificación MVP/Stretch = "¿afecta a la base (schema/contrato/arquitectura)?".
 Lo base-afectante se diseña ahora (columna `version`, tabla de auditoría en 002) aunque el comportamiento
 sea stretch; lo aditivo se difiere. Regla: diseña la base para no reescribirla.
+v1.6.0 (MINOR): convenciones técnicas/producto (idioma código-EN/usuario-ES, npm, UUID v7, UTC/ISO-8601,
+paginación cursor, WCAG 2.1 AA) + principio de **Design System propio** (tokens, sin librería pesada) +
+convención **STRIDE** para features sensibles de seguridad.
 
 Principios (14):
   I.    Spec-Driven, spec-first
@@ -269,6 +272,20 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
   coherentes con los commits de la extensión git.
 - **Un comando para todo:** `Makefile` (o scripts npm) envuelve `install` / `test` / `up` / `gate`,
   reforzando "install + test en máquina limpia".
+- **Gestor de paquetes:** **npm**.
+- **Idioma:** código, identificadores y comentarios en **inglés**; textos de cara al usuario (UI y
+  `message` de error) en **español**; el `code` de error es estable en inglés (machine-readable). Un solo
+  idioma (i18n fuera de alcance).
+- **IDs:** **UUID v7** (ordenables por tiempo) para entidades.
+- **Fechas/horas:** **UTC + ISO-8601** en contrato, dominio y persistencia.
+- **Paginación:** **por cursor** (no offset) en los listados.
+- **Accesibilidad:** UI con objetivo **WCAG 2.1 AA**.
+- **Sistema de diseño (transversal):** la UI consume **tokens y componentes** de un design system propio
+  (`frontend/src/ui/`, CSS variables), **sin estilos sueltos** (nada de hex/px/font arbitrarios) y **sin
+  librería de componentes pesada**; los specs de UI lo **consumen**, no lo redefinen. Artefacto:
+  `docs/design-system.md` + `frontend/src/ui/`, se crea al llegar la primera UI.
+- **Threat modeling:** las features **sensibles de seguridad** incluyen un **STRIDE** que alimenta
+  requisitos y tests (p. ej. 001).
 
 ## Refuerzos de robustez y control de flujo
 
@@ -338,4 +355,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.5.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.6.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
