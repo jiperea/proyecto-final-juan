@@ -41,6 +41,8 @@ jobs:
       - name: Tests
         run: |
           if [ -f package.json ] && npm run | grep -q " test"; then npm test; else echo "sin tests todavía"; fi
-      - name: Eval (promptfoo)
-        run: |
-          if [ -f evals/promptfooconfig.yaml ]; then npx --yes promptfoo@latest eval -c evals/promptfooconfig.yaml; else echo "sin suite de eval todavía"; fi
+      # NOTA: las evals (promptfoo) NO corren en CI a propósito: llaman a un modelo y en CI
+      # requerirían API key (= coste), contra la regla "sin API". Se ejecutan EN LOCAL sobre el
+      # plan (claude -p) como parte del gate G3. El CI se mantiene determinista y token-free.
+      - name: Eval (promptfoo) — recordatorio
+        run: echo "Las evals se ejecutan en local (plan), no en CI (sin API / token-free)."
