@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jq:*)",
+      "Bash(npx promptfoo:*)",
+      "Bash(promptfoo:*)",
+      "Bash(bash scripts/gate.sh:*)",
+      "Bash(./scripts/gate.sh:*)",
+      "Bash(scripts/gate.sh:*)"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  secrets:
+    name: Escaneo de secretos (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-test:
+    name: install + lint + test + eval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependencias (si hay app)
+        run: |
+          if [ -f package.json ]; then npm ci || npm install; else echo "aún sin package.json (fase de fundación)"; fi
+      - name: Lint
+        run: |
+          if [ -f package.json ] && npm run | grep -q " lint"; then npm run lint; else echo "sin script lint todavía"; fi
+      - name: Tests
+        run: |
+          if [ -f package.json ] && npm run | grep -q " test"; then npm test; else echo "sin tests todavía"; fi
+      - name: Eval (promptfoo)
+        run: |
+          if [ -f evals/promptfooconfig.yaml ]; then npx --yes promptfoo@latest eval -c evals/promptfooconfig.yaml; else echo "sin suite de eval todavía"; fi

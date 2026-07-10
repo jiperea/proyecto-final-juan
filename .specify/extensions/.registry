@@ -14,6 +14,38 @@
       },
       "registered_skills": [],
       "installed_at": "2026-07-10T06:39:33.694773+00:00"
+    },
+    "git": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:local-install",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.git.feature",
+          "speckit.git.validate",
+          "speckit.git.remote",
+          "speckit.git.initialize",
+          "speckit.git.commit"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-07-10T00:00:00+00:00"
+    },
+    "speckit-gate": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:local-install",
+      "enabled": true,
+      "priority": 5,
+      "registered_commands": {
+        "claude": [
+          "speckit.gate.run"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-07-10T00:00:00+00:00"
     }
   }
 }

@@ -1,8 +1,99 @@
 installed:
 - agent-context
+- git
+- speckit-gate
 settings:
   auto_execute_hooks: true
 hooks:
+  # --- Git: repo + rama por spec (mandatorios) ---
+  before_constitution:
+  - extension: git
+    command: speckit.git.initialize
+    enabled: true
+    optional: false
+    priority: 10
+    description: Inicializa el repositorio git si no existe
+    condition: null
+  before_specify:
+  - extension: git
+    command: speckit.git.feature
+    enabled: true
+    optional: false
+    priority: 10
+    description: Crea la rama de feature (NNN-feature) antes de especificar
+    condition: null
+
+  # --- Commits sugeridos antes de pasos grandes (opcionales) ---
+  before_plan:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit del progreso antes de planificar?"
+    description: Auto-commit sugerido antes del plan
+    condition: null
+  before_implement:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit del progreso antes de implementar?"
+    description: Auto-commit sugerido antes de implementar
+    condition: null
+
+  # --- Gates adversariales (prioridad 5: ANTES del commit) + commit sugerido ---
+  after_clarify:
+  - extension: speckit-gate
+    command: speckit.gate.run
+    enabled: true
+    optional: false
+    priority: 5
+    description: "G1 · panel de calidad de spec"
+    condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit de la clarificación (gate G1 en verde)?"
+    description: Auto-commit sugerido tras clarify
+    condition: null
+  after_analyze:
+  - extension: speckit-gate
+    command: speckit.gate.run
+    enabled: true
+    optional: false
+    priority: 5
+    description: "G2 · G1 + consistencia"
+    condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit del análisis (gate G2 en verde)?"
+    description: Auto-commit sugerido tras analyze
+    condition: null
+  after_implement:
+  - extension: speckit-gate
+    command: speckit.gate.run
+    enabled: true
+    optional: false
+    priority: 5
+    description: "G3 · G1 + G2 + implementación + promptfoo"
+    condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit de la implementación (gate G3 en verde)?"
+    description: Auto-commit sugerido tras implement
+    condition: null
+
+  # --- agent-context (refresco) + commits sugeridos en otros puntos ---
   after_specify:
   - extension: agent-context
     command: speckit.agent-context.update
@@ -12,6 +103,14 @@ hooks:
     prompt: Execute speckit.agent-context.update?
     description: Refresh agent context after specification
     condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit de la especificación?"
+    description: Auto-commit sugerido tras specify
+    condition: null
   after_plan:
   - extension: agent-context
     command: speckit.agent-context.update
@@ -20,4 +119,30 @@ hooks:
     priority: 10
     prompt: Execute speckit.agent-context.update?
     description: Refresh agent context after planning
+    condition: null
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit del plan?"
+    description: Auto-commit sugerido tras plan
+    condition: null
+  after_tasks:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit de las tareas?"
+    description: Auto-commit sugerido tras tasks
+    condition: null
+  after_constitution:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 20
+    prompt: "¿Commit de la constitution?"
+    description: Auto-commit sugerido tras constitution
     condition: null

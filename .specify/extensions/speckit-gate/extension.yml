@@ -1,0 +1,43 @@
+schema_version: "1.0"
+
+extension:
+  id: speckit-gate
+  name: "Adversarial Quality Gates"
+  version: "1.0.0"
+  description: "Gates de revisión adversarial encadenados y acumulativos tras clarify (G1), analyze (G2) e implement (G3). Criterio: 0 BLOQUEANTES."
+  author: proyecto-final-juan
+  repository: https://github.com/sdd-talent-devops/proyecto-final-juan
+  license: MIT
+
+requires:
+  speckit_version: ">=0.2.0"
+
+provides:
+  commands:
+    - name: speckit.gate.run
+      file: commands/speckit.gate.run.md
+      description: "Ejecuta el panel adversarial acumulativo para la fase actual (G1/G2/G3)"
+
+hooks:
+  after_clarify:
+    command: speckit.gate.run
+    optional: false
+    description: "G1: panel de calidad de spec (cinico + spec-theater + rbac)"
+  after_analyze:
+    command: speckit.gate.run
+    optional: false
+    description: "G2: G1 + revisor-consistencia"
+  after_implement:
+    command: speckit.gate.run
+    optional: false
+    description: "G3: G1 + G2 + revisor-implementacion + eval-objetivos"
+
+tags:
+  - "gate"
+  - "adversarial"
+  - "quality"
+
+config:
+  defaults:
+    block_on: BLOQUEANTE          # severidad que detiene el avance
+    reports_dir: "docs/gates"

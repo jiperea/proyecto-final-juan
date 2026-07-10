@@ -1,0 +1,8 @@
+# Propietarios por defecto (gobernanza: la excepción la aprueba alguien distinto del autor)
+# Ajusta los usuarios/equipos reales de la organización.
+* @jiperea
+
+# Artefactos críticos (constitution, principios, gates) — revisión reforzada
+/.specify/memory/constitution.md   @jiperea
+/.specify/extensions/              @jiperea
+/.claude/agents/                   @jiperea

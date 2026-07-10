@@ -35,6 +35,12 @@ Tres pilares:
 | [03-adversarial-reparto.md](03-adversarial-reparto.md) | Informe consolidado del panel de 3 sobre el reparto (25 huecos únicos, 8 bloqueantes). |
 | [04-principios-constitution.md](04-principios-constitution.md) | Los 13 principios **verificables** destilados (input de `/speckit-constitution`) + stack + arquitectura. |
 | [05-automatizacion-sdd.md](05-automatizacion-sdd.md) | Rama por spec + los tres gates adversariales (clarify / analyze / implement) y su mecanismo. |
+| [06-roadmap.md](06-roadmap.md) | Descomposición del alcance en features/specs con orden y dependencias. |
+| [07-adversarial-constitution.md](07-adversarial-constitution.md) | Pases adversariales sobre la constitution (nº2 y nº2b) y convergencia a v1.2.x. |
+| [08-niveles-configuracion.md](08-niveles-configuracion.md) | Qué vive a nivel proyecto / usuario / organización. |
+| [09-glossary.md](09-glossary.md) | Lenguaje ubicuo del dominio (anti-ambigüedad). |
+| [10-evals-promptfoo.md](10-evals-promptfoo.md) | Decisión build-vs-buy: evals con promptfoo. |
+| [adr/](adr/) | Architecture Decision Records (0000 plantilla, 0001 arquitectura y stack). |
 | `gates/` | Informes de cada ejecución de gate (se generan durante el flujo). |
 
 ## Los agentes del panel (`.claude/agents/`)
@@ -44,6 +50,9 @@ Tres pilares:
 | `revisor-cinico` | Coherencia lógica, asunciones ocultas, edge cases funcionales, trazabilidad, requisitos faltantes | JSON `huecos[]` (H-###) |
 | `auditor-spec-theater` | Testeabilidad/mensurabilidad, medida con test objetivo (EARS / 2-implementaciones / pass-fail) | JSON `huecos[]` (T-###) |
 | `revisor-rbac-seguridad` | Control de acceso: privilegios, transiciones, 401/403/404, PII, fugas entre roles | JSON `huecos[]` (S-###) |
+| `revisor-consistencia` (G2) | Verificación **independiente** de consistencia spec↔plan↔tasks + trazabilidad (no repite `/speckit-analyze`) | JSON `huecos[]` (K-###) |
+| `revisor-implementacion` (G3) | Implementación vs spec + contrato + tests, controles de seguridad aplicados | JSON `huecos[]` (I-###) |
+| `remediador` | Proposer: propone cambios por hueco (no aplica; el que propone no valida) | JSON `propuestas[]` |
 
 Todos devuelven el mismo esquema (`huecos[]` + `veredicto` + `resumen`) para poder **consolidar**.
 
@@ -107,5 +116,34 @@ problema" queden como activo reutilizable.
 
 ---
 
-*(La bitácora se actualiza a medida que avanza el proyecto: constitution generada, specs, gates
-ejecutados, etc.)*
+**B12 · Constitution generada y endurecida por adversarial.**
+`/speckit-constitution` produjo v1.0.0 (13 principios). Dos pases adversariales (nº2 y nº2b, docs/07)
+la llevaron a **v1.2.1** (14 principios): resueltos retención-vs-auditoría, PII en egreso/campos, gate
+vs excepciones, organización única. *Por qué:* aplicar el adversarial a la propia constitution;
+convergencia en 0 bloqueantes (M8), no en 0 hallazgos.
+
+**B13 · Gates = verificación independiente, no duplicación.**
+Los agentes re-pasan lo que ya hacen `/speckit-analyze` y `/speckit-checklist`, pero su valor es ser una
+**segunda mirada neutral** (el que propone no valida). *Por qué:* el auto-análisis del autor está
+sesgado; un revisor hostil e independiente caza lo que aquél racionaliza.
+
+**B14 · Cierre del ciclo con el `remediador` (proposer).**
+Añadido el proposer del patrón M8: propone cambios por hueco, no los aplica. *Por qué:* separar proponer
+de validar acelera la convergencia sin auto-aprobación.
+
+**B15 · Build-vs-buy: evals con promptfoo, no motor propio.**
+Investigado (promptfoo/DeepEval/Ragas). Se adopta **promptfoo** (TS/Node, CI-first). *Por qué:* no
+reinventar tooling maduro; los agentes (prompts) sí son custom porque son baratos y específicos.
+
+**B16 · Automatización + entorno + calidad.**
+Extensión git (rama por spec) + extensión `speckit-gate` (hooks acumulativos, antes del commit) +
+`scripts/gate.sh`; plantillas Spec Kit personalizadas (EARS, contrato, trazabilidad, eval, gates);
+CI (gitleaks + install/lint/test/eval), README, PR template, CODEOWNERS, lint config (Principio XII),
+`.env.example`, ADRs. Niveles de config en docs/08.
+
+**Backlog (fase de implementación):** agentes especializados por lenguaje/front/back en G3; adaptador
+MCP sobre promptfoo si se quiere reutilizar fuera de Claude.
+
+---
+
+*(La bitácora se actualiza a medida que avanza el proyecto: specs, gates ejecutados, etc.)*

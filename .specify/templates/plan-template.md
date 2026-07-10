@@ -38,9 +38,32 @@
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+*GATE: debe pasar antes de Phase 0 y re-comprobarse tras Phase 1. Una casilla sin marcar bloquea el
+avance; una excepción requiere justificación (y NUNCA es válida para seguridad o bloqueantes).*
 
-[Gates determined based on constitution file]
+### Gate · Contract-First (Principio II)
+
+- [ ] Existe (o se creará en Phase 1) el contrato `contracts/*.openapi.yaml` (OpenAPI 3.1) **antes** del código.
+- [ ] Tipos/validación (Zod) **derivados** del contrato; `snake_case` externo / `camelCase` interno.
+- [ ] Cada `operationId` × código de respuesta documentado tendrá contract test (100%).
+
+### Gate · RBAC y seguridad (Principios IV, IX, XI)
+
+- [ ] Cada acción valida **rol + pertenencia** (`assigned_to == usuario`) **y estado de origen** en backend.
+- [ ] 401/403/404/409 distinguidos; test negativo por endpoint y rol no autorizado.
+- [ ] PII: cifrado en reposo, URLs firmadas ≤ 300 s, redacción en logs, minimización antes del proveedor IA.
+- [ ] Auditoría append-only (incl. accesos denegados); lectura por RBAC.
+
+### Gate · Arquitectura Hexagonal (Principio III)
+
+- [ ] Capas `domain/` (pura) · `handlers/` · `infra/`; el dominio no importa Express/Prisma/SDK-IA.
+- [ ] Dependencias por inyección (puertos); dominio testeable sin BD.
+
+### Gate · Calidad y verificación (Principios V, VI, VII, XIII, XIV)
+
+- [ ] FRs en EARS; trazabilidad RF→endpoint→tarea→test.
+- [ ] TDD con **commit de test en rojo** previo; cobertura dominio ≥80% y servicios ≥80%.
+- [ ] SC medibles con eval (**promptfoo**); gates adversariales G1/G2/G3 previstos (0 bloqueantes).
 
 ## Project Structure
 
@@ -77,13 +100,13 @@ tests/
 ├── integration/
 └── unit/
 
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
+# [DEFAULT en este proyecto] Option 2: Web app hexagonal (backend + frontend)
 backend/
 ├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
+│   ├── domain/         # lógica pura + puertos (NO importa Express/Prisma/SDK-IA)
+│   ├── handlers/       # orquestación HTTP (controllers, rutas)
+│   └── infra/          # Prisma, proveedor IA, adaptadores de puertos
+└── tests/              # unit (domain, sin BD) · integration (BD real) · contract
 
 frontend/
 ├── src/
