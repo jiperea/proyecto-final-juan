@@ -6,22 +6,31 @@ FR/test; lo no cubierto → backlog.
 
 ## Matriz STRIDE
 
-| Categoría | Amenaza | Mitigación | FR / test |
-|-----------|---------|------------|-----------|
-| **S**poofing (suplantación) | Robo de credenciales; adivinación; suplantar sesión | argon2id; login uniforme; lockout; refresh opaco HttpOnly | FR-001/002/011 |
-| **S**poofing | Reutilizar refresh robado | **Rotación single-use** + revocar familia en reuso | FR-004/004b |
-| **T**ampering (manipulación) | Alterar el token de acceso | JWT **firmado** (validación de firma) | FR-007 · test token manipulado→401 |
-| **T**ampering | CSRF sobre refresh/logout (cookie) | **Protección CSRF** + SameSite=Strict (técnica en /plan) | FR-012 · S-004(backlog) |
-| **R**epudiation (repudio) | Negar acciones / accesos | **Auditoría** (transición: actor/ts/motivo); **accesos denegados** (stretch); correlation-id | FR-014 · BL-002 |
-| **I**nfo disclosure (fuga) | **Enumeración de usuarios** (login/lockout/404) | 401 uniforme; lockout mismo timing para inexistentes; **404** recurso ajeno | FR-002/009/011 |
-| **I**nfo disclosure | PII (email) en logs/errores | Redacción de PII; identifier fuera del pipeline de logs | FR-014 · BL (S-007) |
-| **I**nfo disclosure | PII en reposo | Cifrado en reposo (constitution IX) — aplica más a 002+ (datos de cliente) | Constitution IX |
-| **D**oS | Fuerza bruta / spam de login | Lockout **ventana fija** (no extensible) + rate-limit | FR-011 |
-| **D**oS | **Lockout como DoS** dirigido a un usuario | Ventana fija que **no se extiende** con intentos; (throttle por IP → backlog) | FR-011 · BL |
-| **D**oS | Arranque en estado inconsistente | Config **fail-fast** al arrancar | FR-016 |
-| **E**levation (escalada) | Saltarse RBAC forzando la API | RBAC **en backend** (rechaza aunque se fuerce); 401/403/404 | FR-007/008/009/010 |
-| **E**levation | Usuario **bloqueado** sigue con sesión activa | Verificar **estado de cuenta** en refresh/validación de access | FR-004c |
-| **E**levation | 403 vs 404 inconsistente (fuga de existencia) | **Regla fundacional** 403 (rol) vs 404 (alcance) | FR-017 |
+> **Severidad** por amenaza (denominador del umbral de T065 = 100% de amenazas **BLOQUEANTE/ALTA** con
+> test `Txxx` asociado). Los `Txxx` refieren a tareas de `tasks.md`.
+
+| Categoría | Amenaza | Severidad | Mitigación | FR / test |
+|-----------|---------|-----------|------------|-----------|
+| **S**poofing | Robo de credenciales; adivinación; suplantar sesión | ALTA | argon2id; login uniforme; lockout; refresh opaco HttpOnly | FR-001/002/011 · T030/T031/T033 |
+| **S**poofing | Reutilizar refresh robado | BLOQUEANTE | Rotación single-use atómica + revocar familia comprometida | FR-004/004b · T049/T050 |
+| **S**poofing | Cuenta `disabled` se re-loguea | ALTA | Login verifica disabled (401 uniforme, cuenta para lockout) | FR-002b · T032 |
+| **T**ampering | Alterar el access token | ALTA | JWT firmado (validación de firma) | FR-007 · T025/T044 |
+| **T**ampering | CSRF sobre refresh/logout | ALTA | CSRF double-submit + SameSite=Strict; orden sesión→CSRF | FR-012/018 · T051/T055 |
+| **T**ampering | Doble rotación / falso reuso por carrera | ALTA | Rotación atómica `WHERE rotated_at IS NULL` + gracia | FR-004/004d · T049/T053 |
+| **R**epudiation | Negar acciones / accesos | MEDIA | Auditoría (stretch); correlation-id | FR-014 · BL-002 |
+| **I**nfo disclosure | Enumeración de usuarios (login/lockout/404) | ALTA | 401 uniforme; timing <50ms; 429 indistinguible; details sin oráculo | FR-002/002b/009/011 · T058/T052 |
+| **I**nfo disclosure | Tokens/secretos en logs o APM | ALTA | Redacción de Authorization/Set-Cookie/*_token/identifier | FR-014 · T017/T020 |
+| **I**nfo disclosure | Fuga de existencia/propiedad vía details (403/404) o causa 401 refresh | MEDIA | details sin ownerId/alcance; 401 refresh uniforme | FR-005/017 · T052 |
+| **I**nfo disclosure | PII en reposo | MEDIA | Cifrado en reposo (constitution IX) — más en 002+ | Constitution IX |
+| **D**oS | Fuerza bruta / spam de login | ALTA | Lockout ventana fija + rate-limit | FR-011 · T031/T062 |
+| **D**oS | Lockout como DoS dirigido | MEDIA | Ventana fija no extensible; throttle IP → BL-009 | FR-011 · BL-009 |
+| **D**oS | Arranque en estado inconsistente | ALTA | Config fail-fast | FR-016 · T015 |
+| **D**oS | Fallback a BD caído en validación por-request | MEDIA | Fail-closed (401/503) | FR-004c · T061 |
+| **E**levation | Saltarse RBAC forzando la API | BLOQUEANTE | RBAC en backend; 401/403/404 | FR-007/008/009/010 · T044 |
+| **E**levation | Regla de prueba RBAC ambigua (403 vs 404) | ALTA | Regla determinista FR-017b + fixture pertenencia | FR-017/017b · T043/T042 |
+| **E**levation | Sesión comprometida/`disabled` sigue con access vigente | ALTA | FR-004c per-request (disabled + familia revocada, write-through) | FR-004c/004b · T050/T060 |
+| **E**levation | 403 vs 404 inconsistente (fuga de existencia) | ALTA | Regla fundacional 403(rol)→404(alcance); orden 401→403 | FR-017/018 · T043/T051 |
+| **E**levation | Cambio de rol no se propaga | MEDIA | Relectura de rol en refresh (≤15 min); inmediato → BL-022 | FR-004 · T049 |
 
 ## Hallazgos nuevos del STRIDE → backlog
 
@@ -32,6 +41,8 @@ FR/test; lo no cubierto → backlog.
 
 ## Conclusión
 
-Las amenazas **críticas y altas** de STRIDE quedan cubiertas por FRs de esta spec (tras los fixes de G1).
-Las mitigaciones adicionales (binding, throttle IP, invalidación inmediata) son **stretch** → backlog.
-Este STRIDE alimenta los **tests de seguridad** (negativos) del gate G3.
+Las amenazas **BLOQUEANTE y ALTA** de STRIDE quedan cubiertas por FRs de esta spec con `Txxx` asociado
+(columna Severidad + FR/test); T065 verifica el **100%** de esas amenazas mapeadas a test. Las mitigaciones
+adicionales (binding de refresh, throttle por IP, invalidación inmediata en logout voluntario, invalidación
+inmediata de rol) son **stretch** → backlog (BL-008/009/010/022). Este STRIDE alimenta los **tests de
+seguridad negativos** del gate G3.
