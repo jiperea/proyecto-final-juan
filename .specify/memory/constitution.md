@@ -11,6 +11,8 @@ ver docs/10-evals-promptfoo.md.
 v1.2.2 (PATCH): auditoría NEUTRAL vs brief = A_LA_ALTURA (docs/07). Nota de honestidad: hexagonal (III)
 e idempotencia/lint (X, XII) son decisiones de proyecto más allá del brief ('stack libre'), ver ADR-0001.
 Sync Impact Report actualizado (plantillas ✅).
+v1.2.3 (PATCH): Docker + Docker Compose añadidos al stack para paridad de entornos (reproducibilidad,
+requisito 'install+test en limpio' y uso multi-persona); no es SOLID.
 
 Principios (14):
   I.    Spec-Driven, spec-first
@@ -213,7 +215,11 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Tests:** Vitest (unit) · Supertest (integración/contrato).
 - **IA:** SDK del proveedor tras un puerto de dominio; eval en `/evals`.
 - **Observabilidad:** pino (logging estructurado).
-- **Empaquetado:** un comando de instalación y uno de test (ejecutables en máquina limpia).
+- **Contenedores:** **Docker + Docker Compose** para **paridad de entornos** (dev/test reproducibles;
+  `docker compose up` levanta el entorno igual en cualquier máquina y para cualquier persona). Es
+  reproducibilidad/12-factor, no un principio SOLID.
+- **Empaquetado:** un comando de instalación y uno de test (ejecutables en máquina limpia; el camino
+  reproducible es vía contenedor).
 
 > El brief no fija tecnología; se adopta TS/Node por ser el más común y el mejor integrado con Claude y
 > Spec Kit. El stack es una restricción del proyecto, no un principio: puede evolucionar por enmienda.
@@ -247,4 +253,4 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.2.2 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.2.3 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10

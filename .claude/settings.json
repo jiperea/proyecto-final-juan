@@ -6,7 +6,23 @@
       "Bash(promptfoo:*)",
       "Bash(bash scripts/gate.sh:*)",
       "Bash(./scripts/gate.sh:*)",
-      "Bash(scripts/gate.sh:*)"
+      "Bash(scripts/gate.sh:*)",
+      "Bash(rtk gain:*)",
+      "Bash(rtk cc-economics:*)",
+      "Bash(ccusage:*)"
+    ]
+  },
+  "hooks": {
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/token-report.sh\""
+          }
+        ]
+      }
     ]
   }
 }

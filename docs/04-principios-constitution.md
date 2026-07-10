@@ -136,6 +136,7 @@ avance: **0 hallazgos BLOQUEANTES** (no exigimos 0 hallazgos).
 | Tests | Vitest (unit) · Supertest (integración/contrato) |
 | IA | SDK del proveedor tras un puerto de dominio + eval en `/evals` |
 | Logging | pino (estructurado) |
+| Contenedores | Docker + Docker Compose (paridad de entornos / reproducibilidad) |
 | Empaquetado | npm scripts: un comando `install`, un comando `test` |
 
 > Elección de stack: el brief no fija tecnología; se adopta TS/Node por ser el más común y el mejor

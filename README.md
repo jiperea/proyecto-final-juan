@@ -30,14 +30,20 @@ Cada gate (G1/G2/G3) ejecuta el panel adversarial de forma **acumulativa** y sol
 
 ## Cómo arrancar y verificar
 
-> Stack objetivo: **TypeScript/Node** (Express hexagonal, Prisma+SQLite, Zod, OpenAPI 3.1, Vitest).
-> La app se implementa feature a feature; cuando exista `package.json`:
+> Stack objetivo: **TypeScript/Node** (Express hexagonal, Prisma+SQLite, Zod, OpenAPI 3.1, Vitest) +
+> **Docker** para paridad de entornos. La app se implementa feature a feature; cuando exista `package.json`:
 
 ```bash
 npm install        # instalar dependencias
 npm test           # tests (unit + contract + integration) en verde
 npm run lint       # calidad de código (Constitution XII)
 npx promptfoo eval -c evals/promptfooconfig.yaml   # evals (IA + Success Criteria)
+```
+
+Entorno reproducible (cuando exista `docker-compose.yml`):
+
+```bash
+docker compose up        # levanta el entorno igual en cualquier máquina
 ```
 
 Gate adversarial a demanda (headless):
