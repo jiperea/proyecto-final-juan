@@ -4,9 +4,11 @@ info:
   version: 1.0.0
   description: >
     Fundación de identidad de FieldOps (feature 001): autenticación, ciclo de sesión y RBAC.
-    Contract-first (Constitution II). Nombres externos en snake_case; internos camelCase.
-    Access token = JWT corto en el cuerpo (Bearer, en memoria del cliente).
-    Refresh token = opaco en cookie HttpOnly/Secure/SameSite=Strict (revocable, single-use).
+    Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
+    Access = JWT corto en el cuerpo (Bearer, en memoria del cliente).
+    Refresh = opaco en cookie HttpOnly/Secure/SameSite=Strict (revocable, single-use con rotación).
+    CSRF double-submit (X-CSRF-Token == cookie csrf_token) solo en endpoints de cookie (refresh/logout);
+    orden de comprobación: sesión (401) antes que CSRF (403) — FR-018.
 servers:
   - url: /v1
     description: API versionada (auth). /health y /ready se sirven fuera de /v1.
@@ -27,11 +29,10 @@ paths:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
+            schema: { $ref: '#/components/schemas/LoginRequest' }
       responses:
         '200':
-          description: Sesión creada. Devuelve access token en el cuerpo; refresh y csrf_token en cookies.
+          description: Sesión creada. Access en el cuerpo; refresh y csrf_token en cookies.
           headers:
             Set-Cookie:
               description: >
@@ -44,13 +45,11 @@ paths:
         '401':
           description: Credenciales inválidas (mensaje uniforme, no revela existencia).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '422':
           description: Cuerpo mal formado (validación Zod del contrato).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '429':
           description: >
             Umbral de lockout superado (5 intentos/15 min) — uniforme para cuenta bloqueada e
@@ -60,8 +59,7 @@ paths:
               description: Segundos hasta que expira el bloqueo (ventana fija).
               schema: { type: integer }
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
   /auth/refresh:
     post:
@@ -69,33 +67,32 @@ paths:
       tags: [auth]
       summary: Rotar el refresh (single-use) y emitir un nuevo access token
       description: >
-        Usa la cookie refresh_token. Requiere protección CSRF (double-submit: cabecera
-        X-CSRF-Token == cookie csrf_token). Rota el refresh; reuso fuera de la ventana de gracia
-        revoca toda la familia de sesión.
+        Usa la cookie refresh_token. Requiere CSRF double-submit. Rota el refresh (single-use, atómica);
+        reintento del mismo token dentro de la ventana de gracia (≤10 s) devuelve el mismo par ya emitido;
+        reuso fuera de gracia revoca la familia. Al rotar, relee el rol de BD (FR-004).
       security:
         - refreshCookie: []
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '200':
-          description: Nuevo access token; refresh rotado (nueva cookie).
+          description: Nuevo access token; refresh y csrf_token rotados (nuevas cookies).
           headers:
             Set-Cookie:
-              description: Nuevo refresh_token rotado (single-use).
+              description: Reemite AMBAS cookies — refresh_token rotado (single-use) y csrf_token rotado.
               schema: { type: string }
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/LoginResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } }
         '401':
-          description: Refresh caducado, revocado o reuso detectado (familia revocada); o cuenta inactiva.
+          description: >
+            Refresh caducado/revocado/reuso detectado (familia revocada), o cuenta disabled. Sin cookie de
+            sesión válida = 401, comprobado ANTES que el CSRF (FR-018).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '403':
-          description: Falla la validación CSRF (double-submit no coincide).
+          description: Sesión válida pero la validación CSRF (double-submit) falla o falta la cabecera.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
   /auth/logout:
     post:
@@ -103,24 +100,28 @@ paths:
       tags: [auth]
       summary: Cerrar la sesión actual (revoca solo su refresh)
       description: >
-        Revoca únicamente el refresh de la sesión actual (las demás sesiones siguen vigentes).
-        Idempotente. Requiere CSRF (double-submit). El access vigente expira por su TTL corto.
+        Revoca únicamente el refresh de la sesión actual (las demás siguen vigentes). Requiere CSRF.
+        NO idempotente a nivel de token: un 2º logout con la misma cookie ya revocada → 401 (FR-018).
+        El access vigente expira por su TTL corto (invalidación inmediata en logout = stretch, FR-003).
       security:
         - refreshCookie: []
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '204':
-          description: Sesión revocada (o ya revocada — idempotente). Limpia las cookies.
+          description: Sesión revocada. Limpia las cookies (refresh_token y csrf_token, Max-Age=0).
           headers:
             Set-Cookie:
               description: refresh_token y csrf_token expiradas (Max-Age=0).
               schema: { type: string }
         '401':
-          description: No autenticado (sin sesión válida).
+          description: Sin cookie de sesión válida (ausente/caducada/ya revocada). Comprobado antes del CSRF.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Sesión válida pero la validación CSRF falla o falta la cabecera.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
   /auth/me:
     get:
@@ -133,21 +134,23 @@ paths:
         '200':
           description: Identidad del usuario autenticado.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/MeResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/MeResponse' } }
         '401':
-          description: Sin access token válido, o sesión revocada/cuenta inactiva.
+          description: Sin access token válido, o sesión revocada/cuenta disabled.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
-  # Ejemplo de recurso protegido para ejercitar RBAC (401/403/404) a nivel de API.
-  # No es dominio real (Order llega en 002); sirve como doble de prueba del middleware.
   /rbac/probe/{id}:
     get:
       operationId: rbacProbe
       tags: [auth]
       summary: Recurso protegido de ejemplo para verificar RBAC (401/403/404)
+      description: >
+        Doble de prueba del middleware RBAC (no es dominio real; Order llega en 002). Regla determinista
+        (FR-017/017b), orden rol→pertenencia:
+        - technician → 403 SIEMPRE (rol que nunca puede esta acción, sin consultar la instancia).
+        - dispatcher | supervisor → 200 si el id ∈ conjunto semilla en alcance; 404 si no existe o está
+          fuera de alcance (no revela existencia).
       security:
         - bearerAuth: []
       parameters:
@@ -157,29 +160,24 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         '200':
-          description: El rol tiene permiso y el recurso está en su alcance.
+          description: El rol puede la acción y el recurso está en su alcance.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ProbeResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ProbeResponse' } }
         '401':
           description: No autenticado.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '403':
-          description: Autenticado, pero el rol nunca puede esta acción (regla FR-017).
+          description: El rol nunca puede esta acción (evaluado antes que la pertenencia — FR-017).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '404':
-          description: Recurso fuera del alcance/propiedad del usuario (no revela existencia).
+          description: Recurso fuera del alcance/propiedad o inexistente (no revela existencia).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
   /health:
-    servers:
-      - url: /
+    servers: [{ url: / }]
     get:
       operationId: health
       tags: [ops]
@@ -189,12 +187,10 @@ paths:
         '200':
           description: Vivo.
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/HealthResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/HealthResponse' } }
 
   /ready:
-    servers:
-      - url: /
+    servers: [{ url: / }]
     get:
       operationId: ready
       tags: [ops]
@@ -204,13 +200,11 @@ paths:
         '200':
           description: Listo (dependencias OK).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ReadyResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ReadyResponse' } }
         '503':
-          description: No listo (alguna dependencia no disponible).
+          description: No listo (alguna dependencia no disponible; también fail-closed de la validación).
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ReadyResponse' }
+            application/json: { schema: { $ref: '#/components/schemas/ReadyResponse' } }
 
 components:
   securitySchemes:
@@ -218,7 +212,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Access token corto (JWT HS256) en el header Authorization. No CSRF (no ambiental).
+      description: Access JWT HS256 en Authorization. No CSRF (no ambiental).
     refreshCookie:
       type: apiKey
       in: cookie
@@ -229,8 +223,11 @@ components:
     CsrfToken:
       name: X-CSRF-Token
       in: header
-      required: true
-      description: Debe coincidir con la cookie csrf_token (double-submit).
+      required: false
+      description: >
+        Debe coincidir con la cookie csrf_token (double-submit). NO se marca `required` a propósito: su
+        ausencia la valida el middleware CSRF (→ 403 tras confirmar sesión), no la validación de esquema
+        (evitaría un 400 que enmascararía el camino CSRF).
       schema: { type: string }
 
   schemas:
@@ -248,12 +245,11 @@ components:
           type: string
           minLength: 1
           maxLength: 320
-          description: Email o username (espacio de unicidad global, resuelve a un único usuario).
+          description: Email o username (espacio de unicidad global; normalizado minúsculas+trim).
         password:
           type: string
           minLength: 12
           maxLength: 200
-          description: Contraseña (política mín. 12 chars; NIST).
 
     LoginResponse:
       type: object
@@ -263,22 +259,16 @@ components:
         access_token:
           type: string
           description: JWT de vida corta. El cliente lo guarda en memoria (no localStorage).
-        token_type:
-          type: string
-          const: Bearer
-        expires_in:
-          type: integer
-          description: Segundos de validez del access token (p. ej. 900 = 15 min).
-        user:
-          $ref: '#/components/schemas/UserIdentity'
+        token_type: { type: string, const: Bearer }
+        expires_in: { type: integer, description: Segundos de validez del access (p. ej. 900). }
+        user: { $ref: '#/components/schemas/UserIdentity' }
 
     MeResponse:
       type: object
       additionalProperties: false
       required: [user]
       properties:
-        user:
-          $ref: '#/components/schemas/UserIdentity'
+        user: { $ref: '#/components/schemas/UserIdentity' }
 
     UserIdentity:
       type: object
@@ -310,9 +300,7 @@ components:
       additionalProperties: false
       required: [status, checks]
       properties:
-        status:
-          type: string
-          enum: [ready, not_ready]
+        status: { type: string, enum: [ready, not_ready] }
         checks:
           type: object
           additionalProperties: { type: string, enum: [up, down] }
@@ -322,18 +310,25 @@ components:
       type: object
       additionalProperties: false
       required: [code, message]
-      description: Contrato de error accionable (Constitution X). 'code' estable en inglés; 'message' en español.
+      description: >
+        Contrato de error accionable (Constitution X). 'code' estable en inglés; 'message' en español.
+        Códigos usados en 001: 401/403/404/422/429/503 (400/409 llegan con el dominio en 002).
       properties:
         code:
           type: string
-          description: Código estable machine-readable (p. ej. INVALID_CREDENTIALS, FORBIDDEN, NOT_FOUND).
+          description: Código estable machine-readable (p. ej. INVALID_CREDENTIALS, FORBIDDEN, NOT_FOUND, CSRF_INVALID).
         message:
           type: string
           description: Mensaje para el usuario (español).
         details:
           type: object
           additionalProperties: true
-          description: Detalles opcionales (p. ej. campos de validación).
+          description: >
+            Detalles opcionales (p. ej. campos de validación de un 422). Restricciones anti-fuga
+            (verificadas por contract test de contenido): en errores de autenticación (login/refresh
+            401/429) NO debe distinguir "cuenta inexistente" de "credenciales inválidas" ni incluir el
+            identifier/email/username; en 403/404 (rbacProbe y dominio 002+) NO debe revelar
+            propiedad/alcance del recurso (ownerId, motivo de fuera-de-alcance).
         agent_action:
           type: string
-          description: Pista accionable opcional para un agente/cliente (qué hacer a continuación).
+          description: Pista accionable opcional para un agente/cliente.

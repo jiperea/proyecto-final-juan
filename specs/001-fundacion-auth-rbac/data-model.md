@@ -1,107 +1,110 @@
 # Data Model — 001 Fundación Auth/Sesión/RBAC (Phase 1)
 
-> Entidades, atributos, reglas de validación e invariantes derivadas de la spec (FR/Key Entities) y del
-> research. Persistencia: PostgreSQL 16 (Prisma). IDs **UUID v7**; tiempos **UTC/ISO-8601**.
-> **Base-ready (Constitution v1.5.1):** el esquema admite añadir la tabla de auditoría de accesos
-> denegados por FK **sin ALTER destructivo**.
+> Entidades, atributos, reglas e invariantes derivadas de la spec (FR/Key Entities) y del research.
+> PostgreSQL 16 (Prisma). IDs **UUID v7**; tiempos **UTC/ISO-8601**.
+> **Base-ready (Constitution v1.5.1):** admite la tabla de auditoría de accesos denegados por FK **sin
+> ALTER destructivo**.
 
-## Entidad: `User`
+## `User`
 
-| Campo | Tipo | Reglas / Notas |
+| Campo | Tipo | Reglas |
 |---|---|---|
-| `id` | UUID v7 (PK) | Identidad estable, ordenable por tiempo. |
-| `email` | string | **Único** (case-insensitive). Parte del espacio de unicidad global (FR-001b). |
-| `username` | string | **Único** (case-insensitive). Mismo espacio de unicidad que `email`. |
+| `id` | UUID v7 (PK) | Ordenable por tiempo. |
+| `email` | string | **Único** (case-insensitive). Espacio de unicidad global (FR-001b). |
+| `username` | string | **Único** (case-insensitive). Mismo espacio que `email`. |
 | `password_hash` | string | argon2id (D4). Nunca sale del dominio ni se loguea. |
-| `role` | enum | `dispatcher | technician | supervisor` (FR-006). |
-| `locked_until` | timestamptz? | Bloqueo **temporal** por lockout; `null` = no bloqueado. Auto-expira (FR-011). |
-| `disabled_at` | timestamptz? | Bloqueo **administrativo** permanente (gestión fuera de alcance). |
-| `created_at` / `updated_at` | timestamptz | Auditoría técnica. |
+| `role` | enum | `dispatcher | technician | supervisor` (FR-006). Se relee en cada rotación (FR-004). |
+| `locked_until` | timestamptz? | Lockout **temporal** (FR-011). Afecta solo al **login**, no a sesiones activas (FR-004c). |
+| `disabled_at` | timestamptz? | Bloqueo **administrativo** permanente → corta refresh/validación (FR-004c). |
+| `created_at`/`updated_at` | timestamptz | |
 
-**Reglas de unicidad (FR-001b):** email y username comparten un **espacio de unicidad global**: un
-`identifier` resuelve a **un único** usuario o a ninguno. Se garantiza con índices únicos + normalización
-(lowercase) y una comprobación de que ningún `username` colisiona con un `email` ajeno.
+- **Unicidad global (FR-001b):** índices únicos + normalización (minúsculas+trim); ningún `username`
+  colisiona con un `email` ajeno; un `identifier` resuelve a un único usuario o ninguno.
+- **Estados:** `active` = `disabled_at IS NULL AND (locked_until IS NULL OR locked_until < now())`.
 
-**Estados derivados:**
-- `active` = `disabled_at IS NULL AND (locked_until IS NULL OR locked_until < now())`.
-- `locked` = `locked_until >= now()` → login/refresh/validación responden según FR-011/FR-004c.
-- `disabled` = `disabled_at IS NOT NULL` → 401 en refresh/validación (FR-004c).
+## `Session` (familia de refresh)
 
-## Entidad: `Session` (familia de refresh)
-
-| Campo | Tipo | Reglas / Notas |
+| Campo | Tipo | Reglas |
 |---|---|---|
-| `id` (`sid`) | UUID v7 (PK) | **Familia** de sesión; va como claim `sid` en el access token. |
-| `user_id` | UUID v7 (FK→User) | Dueño de la sesión. |
-| `device_label` | string? | Etiqueta/origen informativo (no binding fuerte; BL-008 stretch). |
-| `created_at` | timestamptz | Emisión. |
-| `revoked_at` | timestamptz? | `null` = vigente; set en logout (esta sesión) o revocación de familia (FR-004b). |
+| `id` (`sid`) | UUID v7 (PK) | **Familia**; claim `sid` del access. |
+| `user_id` | UUID v7 (FK→User) | |
+| `device_label` | string? | Informativo (binding fuerte = BL-008). |
+| `created_at` | timestamptz | |
+| `revoked_at` | timestamptz? | `null`=vigente; set en logout (esta sesión) o revocación de familia (FR-004b). **Durable** → sobrevive reinicios (D3). |
 
-- Un usuario puede tener **varias** sesiones vigentes (concurrentes, una por dispositivo — FR-003b).
-- `logout` revoca **solo** la sesión actual (FR-003). `FR-004b` revoca **todas** las del usuario.
+- Varias sesiones vigentes por usuario (concurrentes, FR-003b). Logout revoca **solo** la actual (FR-003);
+  FR-004b revoca **todas** (familia).
 
-## Entidad: `RefreshToken` (rotación single-use dentro de una familia)
+## `RefreshToken` (rotación single-use)
 
-| Campo | Tipo | Reglas / Notas |
+| Campo | Tipo | Reglas |
 |---|---|---|
 | `id` | UUID v7 (PK) | |
-| `session_id` (`sid`) | UUID v7 (FK→Session) | Familia a la que pertenece. |
-| `token_hash` | string | **SHA-256** del token opaco (nunca se guarda el token en claro). |
-| `expires_at` | timestamptz | TTL refresh (7 días por defecto). |
-| `rotated_at` | timestamptz? | Set al rotar (single-use). Un token con `rotated_at` presentado fuera de gracia = reuso (FR-004b). |
-| `replaced_by` | UUID? (FK→RefreshToken) | Enlace al sucesor (traza de rotación; soporta ventana de gracia FR-004d). |
+| `session_id` (`sid`) | UUID v7 (FK→Session) | |
+| `token_hash` | string | **SHA-256** del token opaco (nunca en claro en BD). |
+| `expires_at` | timestamptz | TTL refresh (7 días). |
+| `rotated_at` | timestamptz? | Set al rotar (single-use). |
+| `replaced_by` | UUID? (FK→RefreshToken) | Sucesor (traza de rotación). |
 | `created_at` | timestamptz | |
 
 **Invariantes:**
-- Rotación **single-use** (FR-004): al usar un refresh vigente, se marca `rotated_at` y se crea el sucesor.
-- **Reuso** de un token con `rotated_at` **fuera** de la ventana de gracia (10 s) → **revoca la familia**
-  (Session.revoked_at) + añade `sid` al set de revocación en memoria (FR-004b).
-- **Reintento dentro de gracia** (mismo token, ≤10 s tras `rotated_at`) → devuelve el resultado ya
-  emitido vía `replaced_by` (idempotente, no revoca — FR-004d).
+- Rotación **single-use atómica** (FR-004/H-006): `UPDATE RefreshToken SET rotated_at=now(), replaced_by=?
+  WHERE id=? AND rotated_at IS NULL` — solo una petición concurrente gana (filas=1).
+- **Reuso fuera de gracia** (token con `rotated_at`, >10 s) → **revoca familia** + `add(sid)` al set de
+  revocación en memoria (FR-004b).
+- **Reintento dentro de gracia** (≤10 s inclusive, o la petición perdedora de la carrera) → devuelve el
+  sucesor desde la **caché de gracia** (idempotente), sin revocar (FR-004d).
 
-## Entidad: `LoginAttempt` (lockout / anti-enumeración)  *(puede ser tabla o store en memoria)*
+## `LoginAttempt` (lockout / anti-enumeración) — store lógico
 
-| Campo | Tipo | Reglas / Notas |
+| Campo | Tipo | Reglas |
 |---|---|---|
-| `key` | string (PK lógica) | `user_id` resuelto **o** hash del `identifier` no resuelto (FR-011). |
-| `window_start` | timestamptz | Inicio de la ventana fija de 15 min. |
-| `count` | int | Intentos fallidos en la ventana. |
-| `locked_until` | timestamptz? | Set al superar el umbral (5). Los intentos durante el bloqueo no lo extienden. |
+| `key` | string | `user_id` resuelto **o** **HMAC-SHA256(identifier normalizado, secreto propio ≠ JWT)** si no resuelto (D7/S-104). |
+| `window_start` | timestamptz | Ventana fija 15 min; se resetea al caducar o tras expirar el bloqueo (FR-011). |
+| `count` | int | Fallos en la ventana. |
+| `locked_until` | timestamptz? | Set al superar el umbral (5). No se extiende durante el bloqueo. |
 
-> Implementación: puerto `RateLimitPort` con adaptador **in-memory** en el slice (D7). La forma de datos
-> anterior documenta el contrato lógico; no exige tabla física en 001 (single-instance).
+> Puerto `RateLimitPort`, adaptador **in-memory** (slice). Atomicidad ante concurrencia → BL-020;
+> Redis multi-instancia → BL-018.
 
-## Base-ready: `DeniedAccessAudit` *(NO se implementa en 001 — diseño para no reescribir)*
+## Caché de revocación (session-state) — en memoria, no persistida
 
-Constitution XI (auditoría de accesos denegados) es **stretch/base-ready**. El esquema queda preparado
-para añadir esta tabla por FK a `User` **sin** ALTER destructivo:
+Soporta D3/FR-004b/004c. Set de `sid` revocados + usuarios `disabled`; invalidada **por evento**
+(logout, revocación de familia), **TTL de seguridad ≤30 s**, **cache-miss → fallback a BD**, **fail-closed**
+ante fallo de BD. Puerto `SessionStatePort`.
 
-| Campo (futuro) | Tipo | Notas |
+## Caché de gracia de refresh — efímera, en memoria, no persistida
+
+Soporta FR-004d/R2-B1. Mapa `hash(token) → { access_token, refresh_token (claro), expira_en }`, **TTL =
+ventana de gracia (≤10 s)**. Re-sirve el mismo par a un reintento legítimo; **no** persiste el token en
+claro en BD. Si la entrada se pierde dentro de la gracia (reinicio/eviction) → se responde **401** (re-login),
+**no** se revoca familia (evita falso positivo).
+
+## `ProbeResource` (fixture de RBAC — seed, no dominio real)
+
+Soporta FR-017b (200/403/404 deterministas). Fixture de seed, no tabla de dominio.
+
+| Campo | Tipo | Notas |
 |---|---|---|
-| `id` | UUID v7 (PK) | |
-| `actor_id` | UUID? (FK→User) | `null` si no autenticado (401). |
-| `outcome` | enum | `401 | 403 | 404`. |
-| `endpoint` | string | Ruta (sin PII). |
-| `resource_ref` | string? | Identificador **opaco** (no PII cruda). |
-| `at` | timestamptz | |
+| `id` | UUID v7 (PK) | Id de `GET /v1/rbac/probe/{id}`. |
+| `in_scope_roles` | enum[] | Roles para los que el id está "en alcance" → 200. Semilla: `[dispatcher, supervisor]`. |
 
-> No se crea la migración en 001; se documenta para que el modelo actual la admita (regla "diseña la base
-> para no reescribirla"). Se materializa cuando el backlog la promueva (BL-002).
+Regla (orden rol→pertenencia): technician → **403**; dispatcher/supervisor → **200** si `id` existe y su
+rol ∈ `in_scope_roles`, **404** si no. Seed: ≥1 id en alcance + id inexistente para el 404.
 
-## Diagrama de relaciones (textual)
+## Base-ready: `DeniedAccessAudit` *(NO se implementa en 001)*
 
-```
-User 1───* Session 1───* RefreshToken
-  │                          └─ replaced_by ─┐ (cadena de rotación)
-  └─(futuro)─* DeniedAccessAudit   ◄──────────┘
-```
+El esquema admite añadir por FK a `User` **sin** ALTER destructivo: `id`, `actor_id?` (null si 401),
+`outcome` (401|403|404), `endpoint`, `resource_ref?` (opaco, no PII), `at`. Se materializa con BL-002.
 
 ## Mapa entidad → FR
 
 | Entidad | FRs |
 |---|---|
-| User | FR-001, FR-001b, FR-002, FR-006, FR-004c, FR-011 |
-| Session | FR-001, FR-003, FR-003b, FR-004b |
-| RefreshToken | FR-004, FR-004b, FR-004d, FR-005 |
+| User | FR-001/001b/002/006/004/004c/011 |
+| Session | FR-001/003/003b/004b |
+| RefreshToken | FR-004/004b/004d/005 |
 | LoginAttempt | FR-011 |
-| DeniedAccessAudit (base-ready) | Constitution XI / BL-002 |
+| Caché revocación | FR-004b/004c |
+| Caché gracia | FR-004d |
+| ProbeResource | FR-017/017b |
