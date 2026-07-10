@@ -32,8 +32,11 @@ v1.6.0 (MINOR): convenciones técnicas/producto (idioma código-EN/usuario-ES, n
 paginación cursor, WCAG 2.1 AA) + principio de **Design System propio** (tokens, sin librería pesada) +
 convención **STRIDE** para features sensibles de seguridad.
 v1.6.1 (PATCH): convención de **migraciones reversibles / plan de rollback** (M10). Foundation cerrada.
+v1.7.0 (MINOR): principio nuevo **XV. Specs pequeñas y de alcance concreto** (slice pequeño/demostrable;
+señal de "demasiado grande" en clarify/gates; regla de no-rollback → implementar por user story). Origen:
+retro de la feature 001 (sobredimensionada); 001 queda grandfathered. Plantilla `spec-template` ✅.
 
-Principios (14):
+Principios (15):
   I.    Spec-Driven, spec-first
   II.   Contract-First con OpenAPI
   III.  Arquitectura Hexagonal (puertos y adaptadores)
@@ -47,7 +50,8 @@ Principios (14):
   XI.   Auditoría append-only (metadatos inmutables + accesos denegados)      [ampliado]
   XII.  Simplicidad, SOLID y límites de código (reglas de lint)              [ampliado]
   XIII. Gates de revisión adversarial encadenados y acumulativos             [ampliado]
-  XIV.  Objetivos evaluables por métricas (Success Criteria + eval)           [NUEVO]
+  XIV.  Objetivos evaluables por métricas (Success Criteria + eval)
+  XV.   Specs pequeñas y de alcance concreto (slice pequeño; no-rollback)      [NUEVO]
 
 Cambios v1.0.0 → v1.1.0:
   - VIII: umbrales concretos movidos a la spec; añadido "no filtrar PII en la salida".
@@ -226,6 +230,21 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
   gate falla si algún SC obligatorio o umbral de eval no se cumple.
 - **Rationale:** medir el cumplimiento de los objetivos de cada spec, no solo que "los tests pasan".
 
+### XV. Specs pequeñas y de alcance concreto
+Cada spec es un **slice pequeño, demostrable e independiente**, para una tarea muy concreta; el cluster
+**complejo/de robustez** se aísla en una spec posterior en vez de meterlo todo en una. El dimensionado es
+una decisión **de origen** (roadmap + `/speckit-specify`).
+- **Verificación (señal de "demasiado grande"):** si en `/speckit-clarify` o en los gates una feature
+  genera **muchísimos hallazgos** o un `tasks.md` **desproporcionado**, es indicio de que debió partirse;
+  el roadmap se ajusta para las siguientes.
+- **Regla de rollback:** una feature que **ya pasó G1/G2 NO se re-parte** (el coste de re-especificar
+  supera el beneficio); se **implementa incrementalmente por user story** (MVP primero). Partir es de
+  origen, no un rollback.
+- **Rationale:** coherente con "slice pequeño y bien hecho" y "difiere lo no esencial"; una superficie
+  grande hace que el panel adversarial encuentre más y retrasa un MVP demostrable. Lección de la retro de
+  la **feature 001** (sobredimensionada: ~10 rondas de gate, 66 tareas); 001 queda **grandfathered** —se
+  entrega por user story, no se re-parte— por esta misma regla de rollback.
+
 ## Stack Tecnológico y Arquitectura
 
 - **Runtime / Lenguaje:** Node.js 18+ · TypeScript 5 (`strict`).
@@ -358,4 +377,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.6.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.7.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-11
