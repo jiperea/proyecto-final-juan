@@ -47,6 +47,16 @@ como base transversal sobre la que se construyen las features de dominio (Order,
 - Q: ¿La regla 403-vs-404 (FR-017) es verificable? → A: debe ser **determinista y testeable con datos
   semilla** (la técnica/fixture concreta es de `/plan`) (FR-017).
 
+**Gate G2 post-regeneración (2ª tanda de decisiones spec):**
+- Q: ¿Una cuenta `disabled` puede re-loguearse? → A: **No** — el login verifica `disabled` y lo rechaza
+  con **401 uniforme** (mismo timing/mensaje que credenciales inválidas) (**FR-002b**, B1 seguridad).
+- Q: ¿Reuso de refresh revoca todas las sesiones del usuario o solo la comprometida? → A: **solo la familia
+  comprometida** (el `sid`); las demás sesiones concurrentes siguen vigentes (FR-004b vs FR-003b) (B2).
+- Q: ¿La regla del recurso de prueba RBAC es un requisito formal? → A: **sí, FR-017b** (technician→403;
+  dispatcher/supervisor→200 en alcance/404 fuera o inexistente; rol→pertenencia; semilla con 404-por-alcance) (B3).
+- Q: ¿El 401 de refresh distingue la causa? → A: **No** — 401 **uniforme** de cara al cliente; la causa
+  solo en logs internos (FR-005, S-003).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar y cerrar sesión (Priority: P1)
@@ -130,12 +140,23 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 ### Functional Requirements
 
 - **FR-001**: WHEN un usuario envía credenciales válidas (**identifier = email o username** + contraseña)
-  al login THE sistema SHALL crear una sesión y devolver un **access token de vida corta** y un
-  **refresh token** en cookie HttpOnly/SameSite=Strict.
+  al login THE sistema SHALL crear una sesión y devolver un **access token de vida corta** (en el cuerpo),
+  un **refresh token** en cookie HttpOnly/SameSite=Strict, y un **token/cookie CSRF** (`csrf_token`) para el
+  double-submit que exigen FR-012/FR-018 en `refresh`/`logout` (técnica concreta en `/plan`).
 - **FR-001b**: THE sistema SHALL tratar **email y username en un espacio de unicidad global**, de modo
   que un `identifier` resuelva a un único usuario (o ninguno).
 - **FR-002**: WHEN un usuario envía credenciales inválidas THE sistema SHALL rechazar el login con **401**
   y un mensaje uniforme, sin crear sesión ni revelar si el usuario existe.
+- **FR-002b (estado de cuenta en login, resuelve B1/G2)**: WHEN un usuario con credenciales válidas pero
+  cuenta **`disabled`** (bloqueo administrativo) intenta login THE sistema SHALL rechazarlo con el **mismo
+  401 uniforme** que credenciales inválidas, **no** creando sesión, de modo que una cuenta deshabilitada
+  **no puede re-loguearse**. Para no reintroducir oráculo: (a) el chequeo de `disabled` se evalúa **después**
+  de la verificación completa de contraseña (real o dummy), (b) la **diferencia de timing** entre "disabled
+  con credenciales válidas" y "credenciales inválidas" cumple el **mismo umbral < 50 ms (P95)** de FR-011, y
+  (c) los intentos contra una cuenta `disabled` **cuentan para el contador de lockout** (FR-011) igual que
+  cualquier fallo, de modo que la aparición del 429 es **indistinguible** (no hay oráculo por conteo). El
+  umbral **< 50 ms (P95)** aplica **mutuamente** entre las tres causas de 401 de login (credenciales
+  inválidas, identifier inexistente, cuenta `disabled`), no solo por pares contra "credenciales inválidas".
 - **FR-003**: WHEN un usuario autenticado hace logout THE sistema SHALL **revocar solo el refresh token de
   la sesión actual** (las demás sesiones del usuario siguen vigentes), de modo que su reutilización
   posterior se rechace. En el **logout voluntario** el **access token vigente expira por su TTL corto**
@@ -146,26 +167,38 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   coherente con FR-018); la idempotencia por request-id queda diferida a backlog.
 - **FR-003b**: THE sistema SHALL permitir **sesiones concurrentes** por usuario (un refresh por dispositivo).
 - **FR-004**: WHEN un usuario presenta un refresh token válido y vigente THE sistema SHALL emitir un nuevo
-  access token **y rotar el refresh** (single-use: el refresh anterior queda invalidado), sin requerir
-  credenciales. Al reemitir el access, THE sistema SHALL **releer el rol actual del usuario en BD** (para
+  access token **y rotar el refresh** (single-use **atómico**: el refresh anterior queda invalidado en la
+  misma operación, de modo que dos peticiones concurrentes con el mismo token no produzcan dos rotaciones
+  válidas — mecánica en `/plan`), sin requerir credenciales. Al reemitir el access, THE sistema SHALL
+  **releer el rol actual del usuario en BD** (para
   que un cambio de rol se propague en el siguiente refresh; mínimo privilegio, Constitution IV). Un cambio
   de rol se propaga como **máximo en ≤15 min** (TTL del access ya emitido); la **invalidación inmediata
   del rol** (cortar el access en curso) es *stretch* → backlog (BL-022).
 - **FR-004b**: WHEN se presenta un refresh token **ya rotado/revocado fuera de una ventana de gracia
-  breve** (posible robo) THE sistema SHALL rechazarlo, **revocar todas las sesiones del usuario** (familia)
-  e **invalidar de forma inmediata los access tokens vigentes** (compromiso confirmado ≠ logout voluntario).
+  breve** (posible robo) THE sistema SHALL rechazarlo, **revocar la familia de sesión comprometida** (el
+  `sid` de esa cadena de refresh) e **invalidar de forma inmediata los access tokens de esa familia**
+  (compromiso confirmado ≠ logout voluntario). **No** se revocan las **demás sesiones concurrentes** del
+  usuario (otros dispositivos, FR-003b): el robo de un dispositivo no desloguea los legítimos.
 - **FR-004d**: WHEN se **reintenta el mismo refresh dentro de la ventana de gracia** (idempotencia por
   reintento: timeout de red, doble envío) THE sistema SHALL tratarlo como **el mismo uso legítimo** (no
   como reuso) y **no** revocar la familia, **devolviendo el MISMO par access/refresh ya emitido**
   (respuesta idempotente, no una nueva rotación) — así dos reintentos casi simultáneos no crean dos
   refresh válidos (se respeta single-use).
-- **FR-004c**: WHEN se renueva o se valida un access token THE sistema SHALL verificar que el usuario no
-  está **`disabled`** (bloqueo administrativo permanente); si lo está, responde 401. El **lockout temporal
-  por fuerza bruta** (`locked_until`, FR-011) afecta **solo al login**, **no** corta las sesiones activas
-  ya emitidas — así fallar la contraseña de un tercero **no** puede desloguear sus sesiones (evita
-  DoS-logout). El estado autoritativo se comprueba contra BD en `refresh` (la mecánica por-request es de `/plan`).
+- **FR-004c**: WHEN se renueva o se valida un access token THE sistema SHALL verificar **dos** condiciones,
+  **ambas contra la misma caché de revocación en memoria** (sin round-trip a BD en el camino caliente):
+  (1) que el usuario no está **`disabled`** (bloqueo administrativo); y (2) que la **familia de sesión
+  (`sid`) del token no está revocada por compromiso confirmado** (FR-004b). Si falla cualquiera, responde
+  **401**. Esta comprobación por-request es lo que hace efectiva la "invalidación inmediata del access" de
+  FR-004b: la revocación se escribe en la caché **de forma síncrona (write-through)** dentro de la misma
+  petición que la detecta, por lo que "inmediata" = efectiva desde esa petición (el TTL ≤30 s es solo red
+  de contención). **El logout voluntario NO entra aquí**: revoca el refresh, pero **no** corta el access por
+  request (eso es *stretch*, FR-003/SC-003). El **lockout temporal** (`locked_until`, FR-011) afecta **solo
+  al login**, **no** corta sesiones activas (evita DoS-logout). El estado autoritativo se comprueba contra
+  BD en `refresh`; la mecánica per-request (caché + fallback a BD + fail-closed) es de `/plan`.
 - **FR-005**: WHEN un refresh token está **caducado o revocado** THE sistema SHALL responder **401** y no
-  emitir access token.
+  emitir access token. El **401 de refresh es uniforme** de cara al cliente (resuelve S-003/G2): no
+  distingue caducado / revocado por logout / reuso-detectado / cuenta `disabled`; la causa concreta vive
+  **solo en los logs internos** (correlation-id), para no dar pistas a un atacante con un refresh robado.
 - **FR-006**: WHILE una sesión está activa THE sistema SHALL exponer un endpoint "me" que devuelve la
   identidad del usuario y su **rol** (dispatcher | technician | supervisor).
 - **FR-007**: WHEN una petición a un recurso protegido llega sin autenticación válida THE sistema SHALL
@@ -208,6 +241,15 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   la instancia (fuera de alcance/inexistente → **404**). Esta regla SHALL ser **determinista y verificable
   con datos semilla** que modelen pertenencia (fixture concreta en `/plan`), de modo que 403 y 404 tengan
   casos de prueba objetivos.
+- **FR-017b (recurso de prueba RBAC determinista, contraparte testeable de FR-017, resuelve B3/G2)**: THE
+  sistema SHALL exponer un recurso de prueba `GET /v1/rbac/probe/{id}` que aplique FR-017 con una regla
+  **determinista y verificable con datos semilla**: **technician → 403 siempre** (rol que nunca puede esa
+  acción); **dispatcher | supervisor → 200** si el `id` existe y está en su alcance semilla, **404** si el
+  `id` no existe o está fuera de su alcance (sin revelar existencia). Se evalúa **rol antes que pertenencia**
+  (FR-017). Los datos semilla incluyen ≥1 id en alcance y ≥1 id **existente pero fuera de alcance** de algún
+  rol (para distinguir 404-por-alcance de 404-por-inexistencia). La fixture concreta vive en `/plan`.
+  *Nota: la asignación de roles del `rbacProbe` es un **fixture sintético de prueba**, NO la política real
+  de permisos de dominio (que llega en 002); no debe usarse como referencia normativa.*
 - **FR-018 (autenticación antes que autorización — 401 antes que 403)**: THE sistema SHALL comprobar la
   **autenticación antes que la autorización** en **todos** los endpoints protegidos: sin credencial válida
   → **401**; con credencial válida pero sin permiso/CSRF → **403**. En particular, en `refresh`/`logout`
@@ -223,8 +265,11 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   **administrativo** permanente, gestión fuera de alcance). *(Base-ready: el modelo permite añadir una
   tabla de auditoría por FK sin ALTER destructivo sobre Usuario.)*
 - **Sesión / Refresh token**: vínculo revocable entre usuario y su acceso; **varias por usuario (una por
-  dispositivo)**; atributos: referencia opaca (hash), dispositivo/origen, emisión, expiración, estado
-  (vigente/revocada). El logout revoca **solo la sesión actual**.
+  dispositivo)**. La **Sesión = familia** identificada por **`sid`** (va como claim del access token);
+  agrupa la **cadena de refresh tokens** que se van rotando (single-use). Atributos de sesión: `sid`,
+  usuario, dispositivo/origen, emisión, estado (vigente/revocada). Atributos de cada refresh: referencia
+  opaca (hash), expiración, marca de rotado, sucesor. El logout revoca **solo la sesión (`sid`) actual**;
+  el compromiso confirmado (FR-004b) revoca **esa familia `sid`**, no las demás sesiones del usuario.
 - **Rol**: `dispatcher | technician | supervisor` (enum cerrado); base de la matriz rol×alcance.
 
 ## Success Criteria *(mandatory)*
@@ -265,8 +310,9 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 | FR | Endpoint(s) | Test(s) |
 |----|-------------|---------|
 | FR-001/002 | `login` | `should issue session when valid creds` · `should 401 uniform when invalid` |
+| FR-002b | `login` | `should 401 uniform when account disabled (no re-login)` |
 | FR-003 | `logout` | `should revoke refresh on logout` · `should 401 on 2nd logout with revoked cookie (not idempotent)` |
-| FR-004/005 | `refresh` | `should refresh when valid` · `should 401 when revoked/expired` · `should re-read role from DB on rotation` |
+| FR-004 | `refresh` | `should refresh when valid (atomic single-use)` · `should re-read role from DB on rotation` |
 | FR-006 | `me` | `should return identity and role` |
 | FR-007/008/009/010 | (middleware) | `should 401/403/404 by auth+role+scope at API level` |
 | FR-011 | `login` | `should lock account after N failed attempts` · `should reset window on expiry (no perpetual lock)` |
@@ -277,8 +323,10 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 | FR-016 | (arranque) | `should fail-fast on invalid config (names missing var)` |
 | FR-001b | `login` | `should resolve identifier to a single user (email/username global uniqueness)` |
 | FR-003b/004d | `refresh`/`login` | `should allow concurrent sessions` · `should treat refresh retry within grace as same use` |
-| FR-004b/004c | `refresh` | `should revoke family + invalidate access on reuse` · `should 401 when account disabled/locked` |
+| FR-004b/004c | `refresh` | `should revoke compromised family only (not other sessions) + invalidate its access on reuse` · `should 401 when account disabled` · `should keep other concurrent sessions on family revocation` |
+| FR-005 | `refresh` | `should return uniform 401 (no cause oracle) on expired/revoked/reuse/disabled` |
 | FR-017 | (middleware) | `should 403 for role-forbidden action` · `should 404 for out-of-scope resource` (regla determinista, fixture en /plan) |
+| FR-017b | `rbacProbe` | `should 403 for technician` · `should 200 for dispatcher/supervisor in-scope` · `should 404 for out-of-scope (existing)` · `should 404 for non-existent` |
 | FR-018 | `refresh`/`logout` | `should 401 (no session) checked before CSRF` · `should 403 only when session valid and CSRF fails` |
 
 ## Eval de objetivos *(Constitution XIV)*
