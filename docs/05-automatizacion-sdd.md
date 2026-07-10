@@ -128,6 +128,10 @@ Distinto del panel adversarial (independiente): `clarify` y `analyze` son del pr
 - **`/speckit-analyze` — umbral de avance**: se continúa **mientras no haya findings CRITICAL ni HIGH**.
   Los **MEDIUM/LOW no bloquean** y se recogen en `docs/backlog.md` (con origen/feature/severidad).
 - Tras ambos, el **panel adversarial** (G1/G2) verifica de forma independiente (0 BLOQUEANTES).
+- **`auditor-brief` (neutral) = chequeo de FUNDACIÓN**, no de cada feature: valida la **constitution vs
+  brief** (al crearla o enmendarla). Una vez fiel, **la constitution es la fuente de verdad** y las specs
+  se validan **contra la constitution** con el panel adversarial + `/speckit-analyze` (no re-auditando
+  contra el brief).
 
 > Automatización: el **bucle** (re-ejecutar hasta convergencia) y la **auto-resolución desde contexto**
 > se orquestan; el **juicio en bifurcaciones reales** queda con el usuario.
