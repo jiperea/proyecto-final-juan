@@ -35,6 +35,8 @@ v1.6.1 (PATCH): convención de **migraciones reversibles / plan de rollback** (M
 v1.7.0 (MINOR): principio nuevo **XV. Specs pequeñas y de alcance concreto** (slice pequeño/demostrable;
 señal de "demasiado grande" en clarify/gates; regla de no-rollback → implementar por user story). Origen:
 retro de la feature 001 (sobredimensionada); 001 queda grandfathered. Plantilla `spec-template` ✅.
+v1.7.1 (PATCH): Governance — regla de **enmiendas aisladas** (constitution/fundación en rama/tarea
+dedicada, no en ramas de feature; ADR-0004).
 
 Principios (15):
   I.    Spec-Driven, spec-first
@@ -369,6 +371,10 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
   Constitución > plantillas Spec Kit > decisiones de implementación.
 - **Enmiendas:** se proponen por escrito, se versionan por **SemVer** (MAJOR: cambios incompatibles;
   MINOR: nuevo principio o guía ampliada; PATCH: aclaraciones) y generan un Sync Impact Report.
+- **Enmiendas aisladas (ADR-0004):** una vez iniciadas las specs, toda enmienda a esta constitution (y los
+  cambios de **fundación transversal**: roadmap, agentes, plantillas, extensiones) se hace en una
+  **rama/tarea dedicada** (p. ej. `chore/foundation-governance`), se **mergea a `main`** y **NUNCA se mezcla
+  con una rama de feature**. Los cambios de gran calado no se cuelan en el trabajo de una spec.
 - **Excepciones:** una violación requiere justificación explícita **aprobada por alguien distinto de
   quien la introduce y con competencia en el área afectada**, con evidencia en el PR; nunca
   autoaprobación. **Un hallazgo BLOQUEANTE del gate (XIII) y los principios de seguridad (IV, IX, XI)
@@ -377,4 +383,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.7.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-11
+**Version**: 1.7.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-11
