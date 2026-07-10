@@ -45,3 +45,10 @@ de seguridad/base en la spec y el resto → backlog:
   "base-ready" no testeable (T-002).
 
 **G1 cerrado.** Siguiente: `/speckit-checklist` → `/speckit-plan` (G2 tras `/speckit-analyze`).
+
+## Supervisión neutral (auditor-brief vs brief) — ✅ A_LA_ALTURA
+
+Complementaria a la adversarial: cobertura fiel de la parte auth/RBAC del brief (RBAC doble capa,
+401/403, "rápido y seguro" cuantificado); sin contradecir "stack libre"; proporcionada (rotación/
+anti-enumeración/cabeceras = "cómo" justificado; resto en backlog/stretch). Único PARCIAL esperado:
+"ver sus órdenes" → diferido a 002 (001 es fundación de identidad). **Veredicto: lista para /plan.**
