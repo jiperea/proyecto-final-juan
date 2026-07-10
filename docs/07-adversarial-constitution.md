@@ -94,3 +94,32 @@ resueltos. El panel, como es su naturaleza, encontró capas más profundas:
 > demás mejoras a v1.2.0 o a backlog de spec, **damos la constitution por convergida en v1.2.0**. Las
 > MEDIAS residuales se abordan cuando se redacten las specs (donde de hecho pertenecen).
 
+---
+
+## Pase nº3 — auditoría NEUTRAL contra el brief (agente `auditor-brief`)
+
+A petición de "estar seguros de que la constitution está a la altura", se creó un agente **neutral**
+(`auditor-brief`) que contrasta la constitution contra el **brief** (fuente de verdad), midiendo
+cobertura, fidelidad y proporcionalidad. No ataca ni defiende: contrasta y cita el brief.
+
+### 🟢 Veredicto: A_LA_ALTURA
+
+- **Cobertura:** los 5 puntos del slice + RBAC (401/403/404/409) + contract-first + trazabilidad +
+  IA-con-fallback+eval + "install/test en limpio" + fuera-de-alcance declarado → **CUBIERTO**.
+  Único PARCIAL: "rápido" no cuantificado en la constitution → **delegado a los Success Criteria de la
+  spec** (decisión del usuario; es su sitio en el flujo).
+- **Fidelidad:** fiel al brief; **alcance 1:1** con el enunciado (ninguna feature de más).
+- **Proporcionalidad:** hexagonal (III), idempotencia/concurrencia (X) y lint (XII) van *más allá* de lo
+  que el brief exige ("stack libre"), pero son **"cómo"/calidad, no alcance**, y responden a la dirección
+  explícita del usuario (SOLID). Se **mantienen como principios** y se documenta su naturaleza de
+  decisión de proyecto (nota de honestidad en la constitution + ADR-0001).
+
+### Acciones derivadas (v1.2.2)
+
+- Nota de honestidad añadida (hexagonal/robustez/lint = decisiones de proyecto, ADR-0001).
+- Sync Impact Report corregido (plantillas ✅, infraestructura en su sitio).
+- "Rápido" se deja para los SC de la spec (no se cuantifica en la constitution).
+
+> Con esto damos la constitution por **validada contra el brief** y estable en **v1.2.2**.
+
+

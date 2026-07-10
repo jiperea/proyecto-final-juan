@@ -8,6 +8,9 @@ a la IA y en campos de auditoría, y delega el plazo de retención a la spec.
 Ver docs/07-adversarial-constitution.md.
 v1.2.1 (PATCH): XIV referencia el framework de eval adoptado (promptfoo) en vez de un MCP propio;
 ver docs/10-evals-promptfoo.md.
+v1.2.2 (PATCH): auditoría NEUTRAL vs brief = A_LA_ALTURA (docs/07). Nota de honestidad: hexagonal (III)
+e idempotencia/lint (X, XII) son decisiones de proyecto más allá del brief ('stack libre'), ver ADR-0001.
+Sync Impact Report actualizado (plantillas ✅).
 
 Principios (14):
   I.    Spec-Driven, spec-first
@@ -36,8 +39,10 @@ Cambios v1.0.0 → v1.1.0:
   - Alcance: multi-tenant declarado fuera; nota de auditoría del estado seed.
   - Governance: definición de BLOQUEANTE + arbitraje; autoridad de excepciones; definición de "hecho" ampliada.
 
-Plantillas dependientes (⚠ pendientes de personalización):
-  - .specify/templates/spec-template.md, plan-template.md, tasks-template.md, checklist-template.md
+Plantillas dependientes (✅ personalizadas):
+  - .specify/templates/{spec,plan,tasks,checklist}-template.md — EARS, contrato, trazabilidad, eval, gates.
+Infraestructura en su sitio: agentes (.claude/agents/), extensiones git + speckit-gate, scripts/gate.sh,
+CI (.github/workflows/ci.yml), evals con promptfoo (docs/10).
 -->
 
 # FieldOps Constitution
@@ -212,6 +217,12 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 
 > El brief no fija tecnología; se adopta TS/Node por ser el más común y el mejor integrado con Claude y
 > Spec Kit. El stack es una restricción del proyecto, no un principio: puede evolucionar por enmienda.
+>
+> **Nota de honestidad (auditoría neutral vs brief, docs/07).** El brief dice *"stack libre; importa la
+> disciplina, no la tecnología"*. Por tanto la **arquitectura hexagonal (III)** y las disciplinas de
+> **robustez/idempotencia (X)** y **lint estricto (XII)** son **decisiones de proyecto** que van más allá
+> de lo que el brief exige; se adoptan por criterio de diseño (SOLID) — no inflan el alcance funcional —
+> y quedan registradas en `docs/adr/0001-arquitectura-y-stack.md`. Revisables por enmienda.
 
 ## Flujo de Desarrollo y Gates de Calidad
 
@@ -236,4 +247,4 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.2.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.2.2 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
