@@ -17,13 +17,13 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 
 ## Phase 1: Setup
 
-- [ ] T001 Crear estructura hexagonal `backend/src/{domain/{auth,rbac,ports},handlers/middleware,infra}` y `backend/tests/{unit,integration,contract}` — `backend/`
-- [ ] T002 Init Node/TS strict + deps (express, prisma, zod, argon2, jsonwebtoken, helmet, pino, cookie-parser) y devDeps (vitest, supertest, coverage) — `backend/package.json`, `backend/tsconfig.json`
-- [ ] T003 [P] ESLint (cero `any` sin justificación, ≤50 líneas/func, ≤300/fichero, named exports) + Prettier — `backend/eslint.config.mjs`
-- [ ] T004 [P] Vitest (unit sin BD, integration/contract con Postgres docker) + umbrales cobertura (dominio ≥80%, servicios ≥80%) — `backend/vitest.config.ts`
-- [ ] T005 [P] `docker-compose.yml` con PostgreSQL 16 (BD dev + BD test) — `docker-compose.yml`
-- [ ] T006 [P] `Makefile`/scripts: install, up, test, gate — `Makefile`, `backend/package.json`
-- [ ] T007 [P] `.env.example` (JWT_SECRET, **CSRF_HMAC_SECRET ≠ JWT_SECRET**, **LOCKOUT_HMAC_SECRET ≠ ambos** (D7), DATABASE_URL, ACCESS_TTL=900, REFRESH_TTL_DAYS=7, **GRACE_MS=10000**, LOCKOUT_MAX=5, LOCKOUT_WINDOW_MIN=15); los 3 secretos validados en fail-fast (T015/T019) — `.env.example`
+- [x] T001 Crear estructura hexagonal `backend/src/{domain/{auth,rbac,ports},handlers/middleware,infra}` y `backend/tests/{unit,integration,contract}` — `backend/`
+- [x] T002 Init Node/TS strict + deps (express, prisma, zod, argon2, jsonwebtoken, helmet, pino, cookie-parser) y devDeps (vitest, supertest, coverage) — `backend/package.json`, `backend/tsconfig.json`
+- [x] T003 [P] ESLint (cero `any` sin justificación, ≤50 líneas/func, ≤300/fichero, named exports) + Prettier — `backend/eslint.config.mjs`
+- [x] T004 [P] Vitest (unit sin BD, integration/contract con Postgres docker) + umbrales cobertura (dominio ≥80%, servicios ≥80%) — `backend/vitest.config.ts`
+- [x] T005 [P] `docker-compose.yml` con PostgreSQL 16 (BD dev + BD test) — `docker-compose.yml`
+- [x] T006 [P] `Makefile`/scripts: install, up, test, gate — `Makefile`, `backend/package.json`
+- [x] T007 [P] `.env.example` (JWT_SECRET, **CSRF_HMAC_SECRET ≠ JWT_SECRET**, **LOCKOUT_HMAC_SECRET ≠ ambos** (D7), DATABASE_URL, ACCESS_TTL=900, REFRESH_TTL_DAYS=7, **GRACE_MS=10000**, LOCKOUT_MAX=5, LOCKOUT_WINDOW_MIN=15); los 3 secretos validados en fail-fast (T015/T019) — `.env.example`
 
 ---
 

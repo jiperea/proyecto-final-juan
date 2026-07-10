@@ -1,0 +1,39 @@
+# FieldOps 001 — Postgres 16 (paridad dev=test=prod, Constitution §Stack).
+# BD dev y BD de test independientes (Constitution VII: integración con BD real).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fieldops-db
+    environment:
+      POSTGRES_USER: fieldops
+      POSTGRES_PASSWORD: fieldops
+      POSTGRES_DB: fieldops
+    ports:
+      - '5432:5432'
+    volumes:
+      - fieldops-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fieldops -d fieldops']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  db-test:
+    image: postgres:16-alpine
+    container_name: fieldops-db-test
+    environment:
+      POSTGRES_USER: fieldops
+      POSTGRES_PASSWORD: fieldops
+      POSTGRES_DB: fieldops_test
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data # BD de test efímera (rápida, se recrea)
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fieldops -d fieldops_test']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  fieldops-db-data:
