@@ -48,6 +48,16 @@ la opción si el proyecto fuera Python; Ragas es demasiado específico de RAG.
 - **Reutilización:** promptfoo es genérico → esta configuración es un patrón reutilizable en otros
   proyectos (nivel usuario/organización, ver `docs/08`).
 
+## Sin gasto de API (plan de empresa)
+
+Regla del proyecto: **no usar la API de pago**; todo va por el plan de empresa (CLI de Claude Code).
+
+- **promptfoo** se configura con un **provider `exec`** que invoca **`claude -p`** (CLI del plan) como
+  modelo y como *LLM-judge*, en vez del provider de API con `AI_API_KEY`. Así las evals no generan gasto.
+- El **componente IA** en dev/demo usa `AI_PROVIDER=claude-cli` (`claude -p`); la API key solo se usa si
+  se despliega a producción.
+- Los **tests** mockean el proveedor de IA (Constitution VII: mocks solo para terceros) → tampoco gastan.
+
 ## Nota sobre el "MCP eval-objetivos"
 
 Se **descarta** construir un MCP de eval propio (habría sido reinventar promptfoo). Si en el futuro se
