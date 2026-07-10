@@ -92,4 +92,7 @@
 - **BL-025** (stretch · 001 · BAJA) — **Señal de auditoría** cuando una cuenta `disabled` ejecuta `logout`
   con éxito (204) — visibilidad forense sin filtrar nada al cliente (vía correlation-id/FR-014).
 
+- **BL-026** (001 · G2 · BAJA) — Cliente: ante 401 en reintento de `refresh` (gracia perdida por revocación
+  concurrente), re-loguear en vez de reintentar el mismo token (evitar bucle). Concierne al frontend.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

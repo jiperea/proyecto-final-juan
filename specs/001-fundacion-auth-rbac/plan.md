@@ -50,7 +50,7 @@ fundación (declarado en la spec), nunca para eludir seguridad.*
 
 - [x] `contracts/auth.openapi.yaml` (OpenAPI 3.1) creado **antes** del código.
 - [x] Tipos/validación (Zod) **derivados** del contrato; `snake_case` externo / `camelCase` interno.
-- [x] Contract test por `operationId`×código: login 200/401/422/429; refresh 200/401/403; logout 204/401/403;
+- [x] Contract test por `operationId`×código: login 200/401/422/429; refresh 200/401/403/503; logout 204/401/403/503;
   me 200/401; rbacProbe 200/401/403/404; health 200; ready 200/503.
 
 ### Gate · RBAC y seguridad (Principios IV, IX, XI)

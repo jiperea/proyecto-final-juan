@@ -75,6 +75,14 @@ como base transversal sobre la que se construyen las features de dominio (Order,
   para **familia revocada por compromiso** (FR-004b, en banda); `disabled` (fuera de banda) se propaga en
   hot path en ≤30s (TTL) e inmediato en refresh/BD (FR-004c, H-002).
 
+**Gate G2 (caché de gracia + fail-closed de logout):**
+- Q: ¿El hit de la caché de gracia puede servir tokens de una sesión ya revocada? → A: **No** — re-comprueba
+  `Session.revoked_at`/`disabled` antes de servir; si revocada→401 (FR-004d, S-001/H-005).
+- Q: ¿Qué responde `logout` si la BD cae al revocar? → A: **503** (fail-closed), nunca 204 sin persistir
+  (FR-003, S-002).
+- Q: ¿Topología asumida? → A: **un solo proceso** (sin cluster/multi-worker); multi-worker→BL-018 (H-004).
+- Q: ¿Re-habilitar una cuenta se propaga? → A: **sí, ≤30s** en hot path (caché por TTL re-evaluado, no add-only) (H-006).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar y cerrar sesión (Priority: P1)
@@ -191,6 +199,9 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   (marca `Session.revoked_at`), no de un token concreto; ante `refresh` y `logout` concurrentes sobre el
   mismo `sid`, el resultado es determinista: la sesión queda **revocada** y el perdedor recibe 401 (el
   access que hubiera emitido un refresh ganador expira por su TTL corto — límite ya conocido, stretch).
+  **Fail-closed (resuelve S-002):** `logout` persiste `Session.revoked_at`; si la BD no responde
+  (timeout/caída), responde **503** (coherente con FR-013), **nunca 204 sin persistir** la revocación (no
+  dar falsa sensación de sesión cerrada).
 - **FR-004**: WHEN un usuario presenta un refresh token válido y vigente THE sistema SHALL emitir un nuevo
   access token **y rotar el refresh** (single-use **atómico**: el refresh anterior queda invalidado en la
   misma operación, de modo que dos peticiones concurrentes con el mismo token no produzcan dos rotaciones
@@ -211,7 +222,15 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   reintento: timeout de red, doble envío) THE sistema SHALL tratarlo como **el mismo uso legítimo** (no
   como reuso) y **no** revocar la familia, **devolviendo el MISMO par access/refresh ya emitido**
   (respuesta idempotente, no una nueva rotación) — así dos reintentos casi simultáneos no crean dos
-  refresh válidos (se respeta single-use).
+  refresh válidos (se respeta single-use). **El hit de la caché de gracia re-comprueba `Session.revoked_at`
+  (y `disabled`) contra BD (régimen autoritativo de `refresh`, FR-004c-b — NO la caché del hot path) ANTES
+  de servir el par** (resuelve S-001/H-005/H-001/G2): si la sesión fue **revocada** en la ventana (p. ej.
+  por un `logout` concurrente) o la cuenta está `disabled`, responde **401** y **no** sirve el par cacheado
+  — respeta FR-003 ("cualquier refresh de la familia se rechaza tras el logout"). *(Si un reintento legítimo
+  cae tras una revocación concurrente, el cliente re-loguea: fail-secure intencional, H-002b.)* El re-check
+  se hace **inmediatamente antes de servir**; el residual TOCTOU (revocación 1 ms después del check) está
+  **acotado por el límite ya aceptado** de que el access emitido sigue válido ≤15 min tras logout (stretch,
+  FR-003) — no es un hueco nuevo (H-101).
 - **FR-004c**: WHEN se renueva o se valida un access token THE sistema SHALL verificar **dos** condiciones,
   **ambas contra la misma caché de revocación en memoria** (sin round-trip a BD en el camino caliente):
   (1) que el usuario no está **`disabled`** (bloqueo administrativo); y (2) que la **familia de sesión
@@ -237,7 +256,9 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   degradado). `/ready` reporta **503**. **Propagación de `disabled` fuera de banda** (un admin lo marca en
   BD, sin petición que dispare write-through): en el camino caliente se propaga como **máximo en el TTL de
   la caché (≤30 s)**; en `refresh` es **inmediata** (BD). La caché es **por-instancia** (slice
-  single-instance); multi-instancia (caché compartida) → backlog (BL-018). Mecánica de caché/fallback en `/plan`.
+  single-instance); multi-instancia (caché compartida) → backlog (BL-018). La caché de estado es por **TTL
+  re-evaluado** (no add-only): **re-habilitar** una cuenta (`disabled_at`→NULL) también se propaga en el hot
+  path en ≤30s (H-006). Mecánica de caché/fallback en `/plan`.
 - **FR-005**: WHEN un refresh token está **caducado o revocado** THE sistema SHALL responder **401** y no
   emitir access token. El **401 de refresh es uniforme** de cara al cliente (resuelve S-003/G2): no
   distingue caducado / revocado por logout / reuso-detectado / cuenta `disabled`; la causa concreta vive
@@ -313,7 +334,9 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   **antes** que el CSRF — una cuenta `disabled` da **401** en refresh aunque falte el CSRF. En **`logout`**,
   "sesión válida" = **solo cookie de refresh vigente** (presente/no caducada/no revocada); **no** se
   comprueba `disabled` (FR-003): con cookie vigente + CSRF ok → **204** (revoca), aunque la cuenta esté
-  disabled; sin cookie vigente → 401 (antes que CSRF).
+  disabled; sin cookie vigente → 401 (antes que CSRF). **Precedencia con fail-closed:** si la comprobación
+  de sesión requiere BD y ésta no responde, el **503** (fail-closed, FR-004c/FR-003) tiene **prioridad**
+  sobre el 403 de CSRF (primero se resuelve "sesión válida"; el CSRF no puede "tapar" una caída de BD).
 
 ### Key Entities
 
@@ -353,8 +376,8 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 - **Fichero**: `contracts/auth.openapi.yaml` (OpenAPI 3.1), rutas bajo **`/v1`**.
 - **Endpoints (operationId → método ruta → roles → respuestas):**
   - `login` — `POST /v1/auth/login` — público — 200 / 401 / 422 / 429
-  - `refresh` — `POST /v1/auth/refresh` — cookie refresh + CSRF — 200 / 401 / **403** (CSRF con sesión válida)
-  - `logout` — `POST /v1/auth/logout` — cookie refresh + CSRF — 204 / 401 / **403** (CSRF con sesión válida)
+  - `refresh` — `POST /v1/auth/refresh` — cookie refresh + CSRF — 200 / 401 / **403** (CSRF) / **503** (BD caída, fail-closed)
+  - `logout` — `POST /v1/auth/logout` — cookie refresh + CSRF — 204 / 401 / **403** (CSRF) / **503** (BD caída, fail-closed)
   - `me` — `GET /v1/auth/me` — Bearer — 200 / 401
   - `rbacProbe` — `GET /v1/rbac/probe/{id}` — Bearer — 200 / 401 / 403 / 404
   - `health` — `GET /health` — público — 200
@@ -369,7 +392,7 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 |----|-------------|---------|
 | FR-001/002 | `login` | `should issue session when valid creds` · `should 401 uniform when invalid` |
 | FR-002b | `login` | `should 401 uniform when account disabled (no re-login)` |
-| FR-003 | `logout` | `should revoke refresh on logout` · `should 401 on 2nd logout with revoked cookie (not idempotent)` · `should 204 on logout with valid cookie even if account disabled (no state check)` · `should 401 on logout when family already revoked (cookie not vigente)` |
+| FR-003 | `logout` | `should revoke refresh on logout` · `should 401 on 2nd logout with revoked cookie (not idempotent)` · `should 204 on logout with valid cookie even if account disabled (no state check)` · `should 401 on logout when family already revoked (cookie not vigente)` · `should 503 on logout when DB down (never 204 without persisting)` |
 | FR-004 | `refresh` | `should refresh when valid (atomic single-use)` · `should re-read role from DB on rotation` · `should reject refresh when logout revokes the session concurrently (atomic Session.revoked_at check, no tokens issued)` |
 | FR-006 | `me` | `should return identity and role` |
 | FR-007/008/009/010 | (middleware) | `should 401/403/404 by auth+role+scope at API level` |
@@ -408,6 +431,11 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 - **Origen de usuarios**: existen usuarios **semilla** (la creación/gestión de usuarios queda fuera de
   esta feature); no hay auto-registro.
 - **Organización única y plana** (multi-tenant fuera de alcance, YAGNI).
+- **Topología (H-004/G2):** "instancia" = **un solo proceso** Node (sin modo cluster/multi-worker en 001);
+  las cachés en memoria (revocación/gracia/rate-limit) son por-proceso. Multi-worker/instancia requiere
+  **store compartido** (Redis) → BL-018.
+- **Modelo de amenazas:** se **asume integridad de TLS** (cookies HttpOnly/Secure/SameSite=Strict); la
+  captura de tokens en tránsito queda fuera de alcance (ver threat-model.md).
 - Sin recuperación de contraseña ni verificación por email en esta feature (posible feature futura).
 - El "recurso protegido de ejemplo" para probar RBAC puede ser un endpoint mínimo o un doble de prueba;
   los recursos de dominio reales llegan con la feature 002+.

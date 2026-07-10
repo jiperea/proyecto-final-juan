@@ -69,7 +69,7 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 ### Tests Red ⚠️
 
 - [ ] T027 [P] [US1] **[Red]** Contract test `login` 200/401/422/429 — `backend/tests/contract/login.contract.spec.ts` (FR-001/002/011)
-- [ ] T028 [P] [US1] **[Red]** Contract test `logout` 204/401/403 — `backend/tests/contract/logout.contract.spec.ts` (FR-003/018)
+- [ ] T028 [P] [US1] **[Red]** Contract test `logout` 204/401/403/503 (503 = BD caída, fail-closed) — `backend/tests/contract/logout.contract.spec.ts` (FR-003/018)
 - [ ] T029 [P] [US1] **[Red]** Contract test `me` 200/401 — `backend/tests/contract/me.contract.spec.ts` (FR-006)
 - [ ] T030 [P] [US1] **[Red]** Unit credenciales + resolución de identifier a único usuario (normalizado) — `backend/tests/unit/auth-credentials.spec.ts` (FR-001b/002)
 - [ ] T031 [P] [US1] **[Red]** Unit lockout 5/15min ventana fija + **reset al expirar/caducar** — `backend/tests/unit/lockout.spec.ts` (FR-011/SC-004)
@@ -118,15 +118,15 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 
 ### Tests Red ⚠️
 
-- [ ] T048 [P] [US2] **[Red]** Contract test `refresh` 200/401/403 — `backend/tests/contract/refresh.contract.spec.ts` (FR-004/005/012/018)
+- [ ] T048 [P] [US2] **[Red]** Contract test `refresh` 200/401/403/503 (503 = BD caída, fail-closed) — `backend/tests/contract/refresh.contract.spec.ts` (FR-004/005/012/018)
 - [ ] T049 [P] [US2] **[Red]** Unit rotación single-use atómica + gracia (mismo par) + reuso→familia + **relectura de rol** — `backend/tests/unit/refresh-rotation.spec.ts` (FR-004/004b/004d)
-- [ ] T050 [P] [US2] **[Red]** Integration refresh: rota; revocado/caducado→**401 uniforme** (sin distinguir causa, FR-005); reuso→**solo familia comprometida** revocada (otras sesiones concurrentes siguen) + **access de esa familia invalidado por-request (write-through, efectivo en la misma petición)** (FR-004b/004c); reintento ≤10s→mismo par; `disabled`→401 en validación/refresh, `locked_until` **no** corta sesiones activas; **refresh rechazado si un `logout` concurrente revoca la sesión (rotación atómica, no emite tokens)** — `backend/tests/integration/refresh.spec.ts` (FR-004/004b/004c/004d/005, SC-003, H-001)
+- [ ] T050 [P] [US2] **[Red]** Integration refresh: rota; revocado/caducado→**401 uniforme** (sin distinguir causa, FR-005); reuso→**solo familia comprometida** revocada (otras sesiones concurrentes siguen) + **access de esa familia invalidado por-request (write-through, efectivo en la misma petición)** (FR-004b/004c); reintento ≤10s→mismo par; `disabled`→401 en validación/refresh, `locked_until` **no** corta sesiones activas; **refresh rechazado si un `logout` concurrente revoca la sesión (rotación atómica, no emite tokens)**; **hit de gracia tras revocación/disable concurrente → 401 (re-check BD, NO sirve el trío cacheado)** — `backend/tests/integration/refresh.spec.ts` (FR-004/004b/004c/004d/005, SC-003, H-001/H-005/S-001)
 - [ ] T051 [P] [US2] **[Red]** Integration orden **401-antes-403** en refresh Y logout + CSRF double-submit (cabecera≠cookie o ausente→403 con sesión) — `backend/tests/integration/csrf-order.spec.ts` (FR-012/018, D2)
 - [ ] T052 [P] [US2] **[Red]** Contract test contenido `ErrorResponse` (`details` allowlist + `message`): 401/429 sin oráculo; 403/404 sin propiedad/alcance; **nunca password/tokens/identifier, ni en un 422** — `backend/tests/contract/error-details.contract.spec.ts` (FR-002/011/014/017, S-001/S-005/S-103)
 
 ### Implementación
 
-- [ ] T053 [P] [US2] Adaptador `GraceCache` in-memory (hash token→**trío access+refresh+csrf en claro**, TTL=gracia; re-sirve el mismo trío en reintento; no persiste en BD) — `backend/src/infra/grace-cache/in-memory.ts` (D6, FR-004d, H-005)
+- [ ] T053 [P] [US2] Adaptador `GraceCache` in-memory (hash token→**trío access+refresh+csrf en claro**, TTL=gracia; **antes de servir, re-comprueba contra BD `Session.revoked_at`/`disabled`** → si revocada/disabled 401, no sirve; no persiste en BD) — `backend/src/infra/grace-cache/in-memory.ts` (D6, FR-004d, H-005/S-001)
 - [ ] T054 [US2] Caso de uso `refresh` (rotación **atómica exige sesión no revocada**: `WHERE rotated_at IS NULL AND` sesión no revocada / `SELECT … FOR UPDATE` → cierra TOCTOU logout↔refresh; gracia→GraceCache; reuso→revoca familia+SessionState; FR-004c disabled; **relee rol de BD**; fail-closed BD caída→503) — `backend/src/domain/auth/refresh.ts` (FR-004/004b/004c/004d/005, H-001)
 - [ ] T055 [US2] Middleware `csrf` double-submit (refresh Y logout; **sesión antes que CSRF**; tiempo constante) — `backend/src/handlers/middleware/csrf.ts` (D2, FR-012/018)
 - [ ] T056 [US2] Handler `POST /v1/auth/refresh` (rota refresh + csrf; access en body) — `backend/src/handlers/auth/refresh.ts` (FR-004/005)

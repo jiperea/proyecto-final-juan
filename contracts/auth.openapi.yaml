@@ -93,6 +93,10 @@ paths:
           description: Sesión válida pero la validación CSRF (double-submit) falla o falta la cabecera.
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: BD no disponible (régimen autoritativo de refresh; fail-closed, nunca fail-open).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
   /auth/logout:
     post:
@@ -121,6 +125,10 @@ paths:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '403':
           description: Sesión válida pero la validación CSRF falla o falta la cabecera.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: BD no disponible para persistir la revocación (fail-closed; nunca 204 sin persistir).
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
