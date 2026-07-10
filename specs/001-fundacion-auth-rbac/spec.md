@@ -9,6 +9,25 @@
 **Input**: Fundación A de FieldOps — autenticación, ciclo de sesión y control de acceso por rol (RBAC),
 como base transversal sobre la que se construyen las features de dominio (Order, ejecución, revisión, IA).
 
+## Clarifications
+
+### Session 2026-07-10
+
+**Pase 1:**
+- Q: ¿Con qué se identifica el usuario al hacer login? → A: **Email o username** (ambos válidos; cada uno único).
+- Q: ¿Alcance del logout / sesiones concurrentes? → A: **Solo la sesión actual**; se permiten sesiones
+  concurrentes (un refresh por dispositivo).
+- (auto) Política de contraseña → **mín. 12 caracteres, sin rotación forzada** (best practice NIST; el alta
+  de usuarios es fuera de alcance → aplica a los datos semilla).
+- (auto) Técnica CSRF concreta → **diferida a `/speckit-plan`** (candidato: double-submit cookie).
+- (auto) TTL access 15 min / refresh 7 días · lockout 5 intentos/15 min → confirmados (Assumptions).
+
+**Pase 2 (derivado del "email o username"):**
+- Q: ¿Y si un username coincide con el email de otro usuario? → A: **email y username comparten un espacio
+  de unicidad global**; un `identifier` resuelve a **un único usuario** (o ninguno) — sin ambigüedad.
+
+**Pase 3:** re-escaneo sin preguntas nuevas → **convergido**.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar y cerrar sesión (Priority: P1)
@@ -90,12 +109,17 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 
 ### Functional Requirements
 
-- **FR-001**: WHEN un usuario envía credenciales válidas al login THE sistema SHALL crear una sesión y
-  devolver un **access token de vida corta** y un **refresh token** en cookie HttpOnly/SameSite=Strict.
+- **FR-001**: WHEN un usuario envía credenciales válidas (**identifier = email o username** + contraseña)
+  al login THE sistema SHALL crear una sesión y devolver un **access token de vida corta** y un
+  **refresh token** en cookie HttpOnly/SameSite=Strict.
+- **FR-001b**: THE sistema SHALL tratar **email y username en un espacio de unicidad global**, de modo
+  que un `identifier` resuelva a un único usuario (o ninguno).
 - **FR-002**: WHEN un usuario envía credenciales inválidas THE sistema SHALL rechazar el login con **401**
   y un mensaje uniforme, sin crear sesión ni revelar si el usuario existe.
-- **FR-003**: WHEN un usuario autenticado hace logout THE sistema SHALL **revocar** su refresh token, de
-  modo que su reutilización posterior se rechace.
+- **FR-003**: WHEN un usuario autenticado hace logout THE sistema SHALL **revocar solo el refresh token de
+  la sesión actual** (las demás sesiones del usuario siguen vigentes), de modo que su reutilización
+  posterior se rechace.
+- **FR-003b**: THE sistema SHALL permitir **sesiones concurrentes** por usuario (un refresh por dispositivo).
 - **FR-004**: WHEN un usuario presenta un refresh token válido y vigente THE sistema SHALL emitir un nuevo
   access token sin requerir credenciales.
 - **FR-005**: WHEN un refresh token está **caducado o revocado** THE sistema SHALL responder **401** y no
@@ -124,11 +148,12 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 
 ### Key Entities
 
-- **Usuario**: identidad autenticable; atributos: identificador, credencial (hash argon2id), **rol**,
-  estado (activo/bloqueado). *(Base-ready para auditoría de accesos: el modelo debe permitir añadirla sin
-  reescritura.)*
-- **Sesión / Refresh token**: vínculo revocable entre usuario y su acceso; atributos: referencia opaca
-  (hash), emisión, expiración, estado (vigente/revocada).
+- **Usuario**: identidad autenticable; atributos: **email (único) y username (único)** en un **espacio de
+  unicidad global**, credencial (hash argon2id), **rol**, estado (activo/bloqueado). *(Base-ready para
+  auditoría de accesos: el modelo debe permitir añadirla sin reescritura.)*
+- **Sesión / Refresh token**: vínculo revocable entre usuario y su acceso; **varias por usuario (una por
+  dispositivo)**; atributos: referencia opaca (hash), dispositivo/origen, emisión, expiración, estado
+  (vigente/revocada). El logout revoca **solo la sesión actual**.
 - **Rol**: `dispatcher | technician | supervisor` (enum cerrado); base de la matriz rol×alcance.
 
 ## Success Criteria *(mandatory)*
@@ -157,8 +182,9 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   - `me` — `GET /v1/auth/me` — autenticado — 200 / 401
   - `health` — `GET /health` — público — 200
   - `ready` — `GET /ready` — público — 200 / 503
-- **Esquemas**: `Role` enum `[dispatcher, technician, supervisor]`; `ErrorResponse`
-  `{ code, message, details?, agent_action? }`. `snake_case` externo ↔ `camelCase` interno.
+- **Esquemas**: `LoginRequest` `{ identifier (email o username), password }`; `Role` enum
+  `[dispatcher, technician, supervisor]`; `ErrorResponse` `{ code, message, details?, agent_action? }`.
+  `snake_case` externo ↔ `camelCase` interno.
 
 ## Trazabilidad (RF → endpoint → test) *(obligatorio — Constitution VI)*
 
@@ -186,6 +212,10 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 
 - **TTL access token**: 15 min; **TTL refresh**: 7 días (valores por defecto razonables; ajustables por config).
 - **Lockout**: 5 intentos fallidos / ventana de 15 min (FR-011/SC-004).
+- **Política de contraseña**: mín. 12 caracteres, sin rotación forzada (best practice NIST); aplica al
+  alta de usuarios, que es **fuera de alcance** → se refleja en los datos semilla.
+- **Identidad**: login por **email o username** (espacio de unicidad global, FR-001b); **sesiones
+  concurrentes** permitidas, logout revoca solo la actual (FR-003/FR-003b).
 - **Origen de usuarios**: existen usuarios **semilla** (la creación/gestión de usuarios queda fuera de
   esta feature); no hay auto-registro.
 - **Organización única y plana** (multi-tenant fuera de alcance, YAGNI).
