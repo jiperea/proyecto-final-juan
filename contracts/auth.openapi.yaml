@@ -1,0 +1,339 @@
+openapi: 3.1.0
+info:
+  title: FieldOps — Auth / Session / RBAC API
+  version: 1.0.0
+  description: >
+    Fundación de identidad de FieldOps (feature 001): autenticación, ciclo de sesión y RBAC.
+    Contract-first (Constitution II). Nombres externos en snake_case; internos camelCase.
+    Access token = JWT corto en el cuerpo (Bearer, en memoria del cliente).
+    Refresh token = opaco en cookie HttpOnly/Secure/SameSite=Strict (revocable, single-use).
+servers:
+  - url: /v1
+    description: API versionada (auth). /health y /ready se sirven fuera de /v1.
+tags:
+  - name: auth
+    description: Autenticación, sesión y RBAC
+  - name: ops
+    description: Observabilidad / salud
+
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Autenticar por identifier (email o username) + contraseña
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Sesión creada. Devuelve access token en el cuerpo; refresh y csrf_token en cookies.
+          headers:
+            Set-Cookie:
+              description: >
+                refresh_token (HttpOnly, Secure, SameSite=Strict, Path=/v1/auth) y
+                csrf_token (Secure, SameSite=Strict, legible por JS para double-submit).
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: Credenciales inválidas (mensaje uniforme, no revela existencia).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Cuerpo mal formado (validación Zod del contrato).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429':
+          description: >
+            Umbral de lockout superado (5 intentos/15 min) — uniforme para cuenta bloqueada e
+            identifier inexistente (anti-enumeración).
+          headers:
+            Retry-After:
+              description: Segundos hasta que expira el bloqueo (ventana fija).
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/refresh:
+    post:
+      operationId: refresh
+      tags: [auth]
+      summary: Rotar el refresh (single-use) y emitir un nuevo access token
+      description: >
+        Usa la cookie refresh_token. Requiere protección CSRF (double-submit: cabecera
+        X-CSRF-Token == cookie csrf_token). Rota el refresh; reuso fuera de la ventana de gracia
+        revoca toda la familia de sesión.
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Nuevo access token; refresh rotado (nueva cookie).
+          headers:
+            Set-Cookie:
+              description: Nuevo refresh_token rotado (single-use).
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: Refresh caducado, revocado o reuso detectado (familia revocada); o cuenta inactiva.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Falla la validación CSRF (double-submit no coincide).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Cerrar la sesión actual (revoca solo su refresh)
+      description: >
+        Revoca únicamente el refresh de la sesión actual (las demás sesiones siguen vigentes).
+        Idempotente. Requiere CSRF (double-submit). El access vigente expira por su TTL corto.
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Sesión revocada (o ya revocada — idempotente). Limpia las cookies.
+          headers:
+            Set-Cookie:
+              description: refresh_token y csrf_token expiradas (Max-Age=0).
+              schema: { type: string }
+        '401':
+          description: No autenticado (sin sesión válida).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /auth/me:
+    get:
+      operationId: me
+      tags: [auth]
+      summary: Identidad y rol del usuario actual
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Identidad del usuario autenticado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '401':
+          description: Sin access token válido, o sesión revocada/cuenta inactiva.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # Ejemplo de recurso protegido para ejercitar RBAC (401/403/404) a nivel de API.
+  # No es dominio real (Order llega en 002); sirve como doble de prueba del middleware.
+  /rbac/probe/{id}:
+    get:
+      operationId: rbacProbe
+      tags: [auth]
+      summary: Recurso protegido de ejemplo para verificar RBAC (401/403/404)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: El rol tiene permiso y el recurso está en su alcance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProbeResponse' }
+        '401':
+          description: No autenticado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Autenticado, pero el rol nunca puede esta acción (regla FR-017).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Recurso fuera del alcance/propiedad del usuario (no revela existencia).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /health:
+    servers:
+      - url: /
+    get:
+      operationId: health
+      tags: [ops]
+      summary: Liveness (proceso vivo)
+      security: []
+      responses:
+        '200':
+          description: Vivo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+
+  /ready:
+    servers:
+      - url: /
+    get:
+      operationId: ready
+      tags: [ops]
+      summary: Readiness (dependencias listas, p. ej. BD)
+      security: []
+      responses:
+        '200':
+          description: Listo (dependencias OK).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReadyResponse' }
+        '503':
+          description: No listo (alguna dependencia no disponible).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReadyResponse' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token corto (JWT HS256) en el header Authorization. No CSRF (no ambiental).
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: Refresh opaco HttpOnly/Secure/SameSite=Strict. Protegido por CSRF double-submit.
+
+  parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: Debe coincidir con la cookie csrf_token (double-submit).
+      schema: { type: string }
+
+  schemas:
+    Role:
+      type: string
+      enum: [dispatcher, technician, supervisor]
+      description: Rol del sistema (enum cerrado).
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [identifier, password]
+      properties:
+        identifier:
+          type: string
+          minLength: 1
+          maxLength: 320
+          description: Email o username (espacio de unicidad global, resuelve a un único usuario).
+        password:
+          type: string
+          minLength: 12
+          maxLength: 200
+          description: Contraseña (política mín. 12 chars; NIST).
+
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [access_token, token_type, expires_in, user]
+      properties:
+        access_token:
+          type: string
+          description: JWT de vida corta. El cliente lo guarda en memoria (no localStorage).
+        token_type:
+          type: string
+          const: Bearer
+        expires_in:
+          type: integer
+          description: Segundos de validez del access token (p. ej. 900 = 15 min).
+        user:
+          $ref: '#/components/schemas/UserIdentity'
+
+    MeResponse:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserIdentity'
+
+    UserIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, email, username, role]
+      properties:
+        id: { type: string, format: uuid, description: UUID v7 }
+        email: { type: string, format: email }
+        username: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+
+    ProbeResponse:
+      type: object
+      additionalProperties: false
+      required: [id, ok]
+      properties:
+        id: { type: string, format: uuid }
+        ok: { type: boolean, const: true }
+
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, const: ok }
+
+    ReadyResponse:
+      type: object
+      additionalProperties: false
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        checks:
+          type: object
+          additionalProperties: { type: string, enum: [up, down] }
+          description: Estado por dependencia (p. ej. { database up }).
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      description: Contrato de error accionable (Constitution X). 'code' estable en inglés; 'message' en español.
+      properties:
+        code:
+          type: string
+          description: Código estable machine-readable (p. ej. INVALID_CREDENTIALS, FORBIDDEN, NOT_FOUND).
+        message:
+          type: string
+          description: Mensaje para el usuario (español).
+        details:
+          type: object
+          additionalProperties: true
+          description: Detalles opcionales (p. ej. campos de validación).
+        agent_action:
+          type: string
+          description: Pista accionable opcional para un agente/cliente (qué hacer a continuación).

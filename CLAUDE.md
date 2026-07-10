@@ -1,6 +1,6 @@
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+Plan activo: `specs/001-fundacion-auth-rbac/plan.md` (+ research.md, data-model.md, quickstart.md).
+Contrato: `contracts/auth.openapi.yaml` (OpenAPI 3.1). Para tecnologías, estructura y comandos, leer ese plan.
 <!-- SPECKIT END -->
 
 # FieldOps — Guía operativa para Claude
