@@ -31,6 +31,7 @@ sea stretch; lo aditivo se difiere. Regla: diseña la base para no reescribirla.
 v1.6.0 (MINOR): convenciones técnicas/producto (idioma código-EN/usuario-ES, npm, UUID v7, UTC/ISO-8601,
 paginación cursor, WCAG 2.1 AA) + principio de **Design System propio** (tokens, sin librería pesada) +
 convención **STRIDE** para features sensibles de seguridad.
+v1.6.1 (PATCH): convención de **migraciones reversibles / plan de rollback** (M10). Foundation cerrada.
 
 Principios (14):
   I.    Spec-Driven, spec-first
@@ -286,6 +287,8 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
   `docs/design-system.md` + `frontend/src/ui/`, se crea al llegar la primera UI.
 - **Threat modeling:** las features **sensibles de seguridad** incluyen un **STRIDE** que alimenta
   requisitos y tests (p. ej. 001).
+- **Migraciones reversibles / rollback (M10):** cada migración de BD tiene su **reverso**; el despliegue
+  contempla un **plan de rollback** (RTO objetivo se detalla en la fase DevOps). No romper datos existentes.
 
 ## Refuerzos de robustez y control de flujo
 
@@ -355,4 +358,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.6.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.6.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10

@@ -32,4 +32,12 @@
 - **BL-006** (idea · MEDIA) — Agentes de revisión especializados por lenguaje/front/back en G3.
 - **BL-007** (idea · BAJA) — Adaptador MCP sobre promptfoo si se quiere reutilizar la eval fuera de Claude.
 
+### Seguridad (stretch · de G1/STRIDE de 001)
+
+- **BL-008** (stretch · 001 · MEDIA) — Binding del refresh token a dispositivo/origen (mitiga robo).
+- **BL-009** (stretch · 001 · MEDIA) — Throttle por IP además del lockout por cuenta (anti-DoS).
+- **BL-010** (stretch · 001 · MEDIA) — Invalidación inmediata del access en logout (denylist/session-version).
+- **BL-011** (MEDIA · 001) — Idempotencia de logout (204); disparadores 429/422; verificación de política
+  de contraseña en el seed; técnica CSRF concreta (a decidir en /plan).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
