@@ -28,3 +28,20 @@
 ## Siguiente paso
 
 Aplicar B1–B3 + A1–A7 a la spec → **re-ejecutar G1** hasta 0 bloqueantes. MEDIAS en `docs/backlog.md`.
+
+---
+
+## Re-ejecución G1 (tras fixes + STRIDE) — ✅ PASS
+
+**Veredicto: 0 BLOQUEANTES** (los 3 previos resueltos). El panel sacó nuevas ALTAS; se resolvieron las
+de seguridad/base en la spec y el resto → backlog:
+
+- **Resueltas en spec (round 2):** oráculo de enumeración vía 429 (throttle también a identifiers
+  inexistentes + timing <50 ms) · carrera de rotación de refresh (ventana de gracia, FR-004d) ·
+  invalidación inmediata del access en compromiso confirmado (FR-004b) · modelo de estado
+  `locked_until`/`disabled` · filas de trazabilidad de FRs nuevos.
+- **→ backlog:** perf de verificación de estado por-request (H-004), wording "por dispositivo" sin
+  binding (H-005/BL-008), access en body vs cookie + alcance CSRF (H-007, decidir en /plan), nota
+  "base-ready" no testeable (T-002).
+
+**G1 cerrado.** Siguiente: `/speckit-checklist` → `/speckit-plan` (G2 tras `/speckit-analyze`).

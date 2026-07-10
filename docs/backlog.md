@@ -40,4 +40,13 @@
 - **BL-011** (MEDIA · 001) — Idempotencia de logout (204); disparadores 429/422; verificación de política
   de contraseña en el seed; técnica CSRF concreta (a decidir en /plan).
 
+### G1 round 2 (001) — diferidos
+
+- **BL-012** (001 · MEDIA) — Perf de verificación de estado de cuenta por-request vs solo en refresh
+  (FR-004c): definir mecanismo (cache/TTL) para no romper SC-005; decidir en /plan.
+- **BL-013** (001 · MEDIA) — Aclarar/quitar "por dispositivo" mientras no haya binding (H-005); hoy
+  "sesiones concurrentes" sin noción de dispositivo enforced.
+- **BL-014** (001 · MEDIA) — Access token en body (Bearer) vs cookie y alcance CSRF correspondiente
+  (H-007) → decidir en /plan (contrato).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

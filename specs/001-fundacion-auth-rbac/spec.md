@@ -132,8 +132,12 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 - **FR-003b**: THE sistema SHALL permitir **sesiones concurrentes** por usuario (un refresh por dispositivo).
 - **FR-004**: WHEN un usuario presenta un refresh token válido y vigente THE sistema SHALL emitir un nuevo
   access token **y rotar el refresh** (single-use: el refresh anterior queda invalidado), sin requerir credenciales.
-- **FR-004b**: WHEN se presenta un refresh token **ya usado/revocado** (posible robo) THE sistema SHALL
-  rechazarlo y **revocar todas las sesiones del usuario** (familia de tokens) como contención.
+- **FR-004b**: WHEN se presenta un refresh token **ya rotado/revocado fuera de una ventana de gracia
+  breve** (posible robo) THE sistema SHALL rechazarlo, **revocar todas las sesiones del usuario** (familia)
+  e **invalidar de forma inmediata los access tokens vigentes** (compromiso confirmado ≠ logout voluntario).
+- **FR-004d**: WHEN se **reintenta el mismo refresh dentro de la ventana de gracia** (idempotencia por
+  reintento: timeout de red, doble envío) THE sistema SHALL tratarlo como **el mismo uso legítimo** (no
+  como reuso) y **no** revocar la familia.
 - **FR-004c**: WHEN se renueva o se valida un access token THE sistema SHALL verificar que el usuario
   sigue **activo** (no bloqueado); si está bloqueado, responde 401.
 - **FR-005**: WHEN un refresh token está **caducado o revocado** THE sistema SHALL responder **401** y no
@@ -151,8 +155,10 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 - **FR-011**: WHEN un usuario acumula **5 intentos de login fallidos en 15 min** THE sistema SHALL
   **bloquear la cuenta 15 min** (ventana fija, auto-expira; los intentos durante el bloqueo **no la
   extienden**). El contador se lleva **por usuario resuelto** (email o username cuentan para la misma
-  cuenta). WHEN el `identifier` no resuelve a ningún usuario THE sistema SHALL responder con el **mismo
-  tiempo y forma** que un fallo de credenciales (sin diferenciar existencia).
+  cuenta) **y también por `identifier` no resuelto** (mismo umbral y misma respuesta **429**), de modo que
+  cuentas existentes e inexistentes son **indistinguibles** también al superar el umbral (no hay oráculo
+  de enumeración vía 429). La **diferencia de tiempo de respuesta** entre "usuario inexistente" y
+  "credenciales inválidas" debe ser **< 50 ms (P95)**.
 - **FR-012**: THE sistema SHALL emitir en todas las respuestas la **lista cerrada** de cabeceras:
   `Strict-Transport-Security` (max-age ≥ 15552000), `Content-Security-Policy` (default-src 'self'),
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`; y aplicar
@@ -172,8 +178,10 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 ### Key Entities
 
 - **Usuario**: identidad autenticable; atributos: **email (único) y username (único)** en un **espacio de
-  unicidad global**, credencial (hash argon2id), **rol**, estado (activo/bloqueado). *(Base-ready para
-  auditoría de accesos: el modelo debe permitir añadirla sin reescritura.)*
+  unicidad global**, credencial (hash argon2id), **rol**, y **dos estados distintos**: `locked_until`
+  (bloqueo **temporal** por lockout, con timestamp que auto-expira) y `disabled` (bloqueo
+  **administrativo** permanente, gestión fuera de alcance). *(Base-ready: el modelo permite añadir una
+  tabla de auditoría por FK sin ALTER destructivo sobre Usuario.)*
 - **Sesión / Refresh token**: vínculo revocable entre usuario y su acceso; **varias por usuario (una por
   dispositivo)**; atributos: referencia opaca (hash), dispositivo/origen, emisión, expiración, estado
   (vigente/revocada). El logout revoca **solo la sesión actual**.
@@ -223,7 +231,11 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 | FR-013 | (todas) | `should return error contract shape per code` |
 | FR-014 | (todas) | `should propagate correlation-id to logs` |
 | FR-015 | `health`/`ready` | `should report health and readiness` |
-| FR-016 | (arranque) | `should fail-fast on invalid config` |
+| FR-016 | (arranque) | `should fail-fast on invalid config (names missing var)` |
+| FR-001b | `login` | `should resolve identifier to a single user (email/username global uniqueness)` |
+| FR-003b/004d | `refresh`/`login` | `should allow concurrent sessions` · `should treat refresh retry within grace as same use` |
+| FR-004b/004c | `refresh` | `should revoke family + invalidate access on reuse` · `should 401 when account disabled/locked` |
+| FR-017 | (middleware) | `should 403 for role-forbidden action` · `should 404 for out-of-scope resource` |
 
 ## Eval de objetivos *(Constitution XIV)*
 
