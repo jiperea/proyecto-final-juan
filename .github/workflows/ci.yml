@@ -13,10 +13,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: gitleaks (CLI OSS, sin licencia)
+        run: |
+          set -euo pipefail
+          ver=$(curl -sSfL https://api.github.com/repos/gitleaks/gitleaks/releases/latest \
+            | grep -oE '"tag_name":[[:space:]]*"v[0-9.]+"' | grep -oE '[0-9.]+' | head -1)
+          ver="${ver:-8.18.4}"
+          echo "gitleaks v$ver"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${ver}/gitleaks_${ver}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --exit-code 1
 
   build-test:
     name: install + lint + test + eval
