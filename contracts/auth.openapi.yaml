@@ -100,9 +100,10 @@ paths:
       tags: [auth]
       summary: Cerrar la sesión actual (revoca solo su refresh)
       description: >
-        Revoca únicamente el refresh de la sesión actual (las demás siguen vigentes). Requiere CSRF.
-        NO idempotente a nivel de token: un 2º logout con la misma cookie ya revocada → 401 (FR-018).
-        El access vigente expira por su TTL corto (invalidación inmediata en logout = stretch, FR-003).
+        Revoca únicamente la sesión actual (marca Session.revoked_at; las demás siguen vigentes). Requiere
+        CSRF. **NO comprueba el estado de cuenta**: con cookie vigente + CSRF ok → 204 aunque la cuenta esté
+        disabled (revocación voluntaria segura, FR-003). NO idempotente a nivel de token: un 2º logout con
+        la misma cookie ya revocada → 401 (FR-018). El access vigente expira por su TTL corto (stretch, FR-003).
       security:
         - refreshCookie: []
       parameters:

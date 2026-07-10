@@ -51,8 +51,10 @@
 | `created_at` | timestamptz | |
 
 **Invariantes:**
-- Rotación **single-use atómica** (FR-004/H-006): `UPDATE RefreshToken SET rotated_at=now(), replaced_by=?
-  WHERE id=? AND rotated_at IS NULL` — solo una petición concurrente gana (filas=1).
+- Rotación **single-use atómica** (FR-004/H-006/H-001) **que además exige sesión no revocada**:
+  `UPDATE RefreshToken SET rotated_at=now(), replaced_by=? WHERE id=? AND rotated_at IS NULL AND EXISTS
+  (SELECT 1 FROM Session s WHERE s.id=session_id AND s.revoked_at IS NULL)` — una sola petición concurrente
+  gana (filas=1) y no emite tokens si un `logout` concurrente ya revocó la sesión (cierra TOCTOU).
 - **Reuso fuera de gracia** (token con `rotated_at`, >10 s) → **revoca familia** + `add(sid)` al set de
   revocación en memoria (FR-004b).
 - **Reintento dentro de gracia** (≤10 s inclusive, o la petición perdedora de la carrera) → devuelve el
@@ -82,8 +84,9 @@ por-request; solo revoca el refresh — invalidación en logout = stretch, FR-00
 
 ## Caché de gracia de refresh — efímera, en memoria, no persistida
 
-Soporta FR-004d/R2-B1. Mapa `hash(token) → { access_token, refresh_token (claro), expira_en }`, **TTL =
-ventana de gracia (≤10 s)**. Re-sirve el mismo par a un reintento legítimo; **no** persiste el token en
+Soporta FR-004d/R2-B1. Mapa `hash(token) → { access_token, refresh_token (claro), **csrf_token**, expira_en }`,
+**TTL = ventana de gracia (≤10 s)**. Un reintento de gracia re-sirve el **mismo** trío (access+refresh+csrf)
+para no desincronizar el double-submit del cliente (H-005). Re-sirve el mismo par a un reintento legítimo; **no** persiste el token en
 claro en BD. Si la entrada se pierde dentro de la gracia (reinicio/eviction) → se responde **401** (re-login),
 **no** se revoca familia (evita falso positivo).
 
@@ -118,7 +121,7 @@ El esquema admite añadir por FK a `User` **sin** ALTER destructivo: `id`, `acto
 | Entidad | FRs |
 |---|---|
 | User | FR-001/001b/002/002b/006/004/004c/011 |
-| Session | FR-001/003/003b/004b |
+| Session | FR-001/003/003b/004b/004c |
 | RefreshToken | FR-004/004b/004d/005 |
 | LoginAttempt | FR-011/002b |
 | Caché revocación | FR-004b/004c |

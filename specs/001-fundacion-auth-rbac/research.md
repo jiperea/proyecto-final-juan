@@ -45,8 +45,9 @@
   4. **Cache-miss / reinicio → fallback a BD** (consulta `Session.revoked_at`/familia **Y `User.disabled_at`**;
      `SessionStatePort.isUserActive(sub)` pega a BD en fallback): solo en miss, no en régimen estable. **Ambos**
      (revocación de familia y `disabled`) son **durables en BD** → sobreviven a reinicio/cache-miss (H-001).
-  5. **Fail-closed:** si el fallback a BD falla (timeout/BD caída) → **401** (o 503 en `/ready`), **nunca
-     fail-open**.
+  5. **Fail-closed (regla única):** si en un cache-miss la BD tampoco responde (timeout/caída): régimen (a)
+     per-request → **401** (denegar); régimen (b) `refresh` → **503** (servicio degradado); `/ready` → 503.
+     **Nunca fail-open.** `logout` queda fuera de este régimen (no chequea estado; solo vigencia de cookie).
   6. **Atomicidad:** el `add(sid)` al set en memoria es **síncrono** tras el commit de revocación.
 - **disabled vs locked_until (FR-004c):** `disabled` (bloqueo administrativo) **corta** refresh y
   validación → 401. `locked_until` (lockout por fuerza bruta, FR-011) afecta **solo al login**, **no**
@@ -83,8 +84,11 @@
 
 ## D6 · Rotación de refresh, gracia y concurrencia
 
-- **Decisión:** rotación **single-use atómica**: `UPDATE RefreshToken SET rotated_at=now(), replaced_by=?
-  WHERE id=? AND rotated_at IS NULL` — solo una petición concurrente gana (filas=1).
+- **Decisión:** rotación **single-use atómica**, que **además comprueba que la sesión no está revocada**:
+  `UPDATE RefreshToken SET rotated_at=now(), replaced_by=? WHERE id=? AND rotated_at IS NULL AND EXISTS
+  (SELECT 1 FROM Session s WHERE s.id=session_id AND s.revoked_at IS NULL)` (o transacción con
+  `SELECT … FOR UPDATE` sobre la sesión) — solo una petición concurrente gana (filas=1) **y** no se emiten
+  tokens para una sesión revocada por un `logout` concurrente (cierra la ventana TOCTOU logout↔refresh, H-001).
 - **Ventana de gracia (≤10 s inclusive, FR-004d):** una re-presentación del **mismo** token ya rotado
   dentro de la gracia (reintento de red, doble envío, o la petición **perdedora** de la carrera) → devuelve
   el **mismo par ya emitido** desde una **caché efímera en memoria** (clave = hash del token, TTL = gracia);
