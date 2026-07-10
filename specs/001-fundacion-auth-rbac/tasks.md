@@ -40,22 +40,22 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 ### Persistencia
 
 - [ ] T013 Esquema Prisma `User`/`Session`/`RefreshToken` (UUID v7, `locked_until`, `disabled_at`) + **unicidad global email/username a nivel de ESQUEMA** (`identifier_norm` en índice/tabla único, no dos índices por columna — FR-001b/D11) + migración reversible — `backend/prisma/schema.prisma`, `backend/prisma/migrations/` (data-model)
-- [ ] T014 Seed: usuarios (3 roles, ≥12 argon2id; **incluir 1 usuario `disabled` y 1 con `locked_until`** para tests) + **fixtures `ProbeResource` (3 casos, FR-017b)**: probe-A in_scope [dispatcher,supervisor] (200 ambos), probe-B in_scope [supervisor] (200 supervisor / **404-por-alcance** dispatcher), + id inexistente (404) — `backend/prisma/seed.ts`
+- [ ] T014 Seed: usuarios (3 roles, ≥12 argon2id; **incluir 1 usuario `disabled` y 1 con `locked_until`** para tests) + **fixtures `ProbeResource` (3 casos + inexistente, FR-017b/H-003)**: probe-A [dispatcher,supervisor] (200 ambos), probe-B [supervisor] (200 supervisor / **404-por-alcance** dispatcher), **probe-C [dispatcher] (200 dispatcher / 404-por-alcance supervisor)**, + id inexistente (404-por-inexistencia) — `backend/prisma/seed.ts`
 
 ### Cross-cutting + tests Red
 
-- [ ] T015 [P] **[Red]** unit config fail-fast (Zod, nombra variable faltante) — `backend/tests/unit/config.spec.ts` (FR-016/SC-006)
+- [ ] T015 [P] **[Red]** unit config fail-fast (Zod, nombra variable faltante) **+ caso pairwise-distinct: dos de los 3 secretos (JWT/CSRF/LOCKOUT HMAC) iguales → aborta nombrando el par** (S-002) — `backend/tests/unit/config.spec.ts` (FR-016/SC-006)
 - [ ] T016 [P] **[Red]** test cabeceras de seguridad (lista cerrada) — `backend/tests/integration/security-headers.spec.ts` (FR-012)
-- [ ] T017 [P] **[Red]** test correlation-id en logs sin PII **ni tokens** (Authorization/Set-Cookie/*_token redactados) — `backend/tests/integration/correlation-id.spec.ts` (FR-014)
+- [ ] T017 [P] **[Red]** test correlation-id en logs sin PII **ni tokens ni `password`** (Authorization/Set-Cookie/*_token/**password**/identifier redactados; correlación por user_id no-PII) — `backend/tests/integration/correlation-id.spec.ts` (FR-014, S-001)
 - [ ] T018 [P] **[Red]** contract test `health`/`ready` (200 / 200|503) — `backend/tests/contract/ops.contract.spec.ts` (FR-015)
-- [ ] T019 Config validada + arranque fail-fast — `backend/src/infra/config.ts` (FR-016)
-- [ ] T020 [P] Middleware correlation-id + pino con **redacción** (identifier, Authorization, Set-Cookie, access/refresh/csrf_token) — `backend/src/handlers/middleware/correlation.ts` (FR-014)
+- [ ] T019 Config validada + arranque fail-fast **(incluye chequeo pairwise-distinct de los 3 secretos, S-002)** — `backend/src/infra/config.ts` (FR-016)
+- [ ] T020 [P] Middleware correlation-id + pino con **redacción** (identifier, **password**, Authorization, Set-Cookie, access/refresh/csrf_token) — `backend/src/handlers/middleware/correlation.ts` (FR-014, S-001)
 - [ ] T021 [P] Middleware helmet (HSTS≥15552000, CSP default-src 'self', X-CTO nosniff, X-Frame DENY, Referrer no-referrer) — `backend/src/handlers/middleware/security-headers.ts` (FR-012)
 - [ ] T022 [P] `error-mapper` `Result`→`{code,message,details?,agent_action?}` + HTTP correcto — `backend/src/handlers/error-mapper.ts` (FR-013)
 - [ ] T023 Endpoints `/health` y `/ready` (check BD) — `backend/src/handlers/ops.ts` (FR-015)
-- [ ] T024 Adaptador `SessionState` in-memory (set revocación por sid + usuarios disabled, TTL≤30s, invalidación por evento, **fallback a BD en miss**, **fail-closed**) — `backend/src/infra/session-state/in-memory.ts` (research D3, FR-004b/c)
+- [ ] T024 Adaptador `SessionState` in-memory (set revocación por sid + usuarios disabled, TTL≤30s, write-through; **fallback a BD en miss consulta familia Y `User.disabled_at`**, **fail-closed** si BD cae; per-instancia) — `backend/src/infra/session-state/in-memory.ts` (research D3, FR-004b/c, H-001)
 - [ ] T025 **[Red]** unit middleware `authenticate` (JWT local; cache-miss→BD; **fail-closed** ante fallo BD) — `backend/tests/unit/authenticate.spec.ts` (research D3, FR-004c/007)
-- [ ] T026 Middleware `authenticate` (verifica JWT + `SessionStatePort`; disabled corta, locked_until no) — `backend/src/handlers/middleware/authenticate.ts` (FR-004c/007)
+- [ ] T026 Middleware `authenticate` (verifica JWT + `SessionStatePort`: **disabled Y familia revocada** por-request vía caché+fallback; disabled corta, locked_until no) — `backend/src/handlers/middleware/authenticate.ts` (FR-004c/007)
 
 **Checkpoint**: fundación lista (contrato, puertos, BD, cross-cutting, authenticate) → historias.
 
@@ -99,7 +99,7 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 
 - [ ] T042 [P] [US3] **[Red]** Contract test `rbacProbe` 200/401/403/404 — `backend/tests/contract/rbac-probe.contract.spec.ts` (FR-007/008/009/017/017b)
 - [ ] T043 [P] [US3] **[Red]** Unit política rol×alcance + regla **orden rol(403)→pertenencia(404)** (technician→403; dispatcher/supervisor→200 en alcance/404 fuera) — `backend/tests/unit/rbac-policy.spec.ts` (FR-017/017b)
-- [ ] T044 [P] [US3] **[Red]** Integration RBAC: no-auth→401; technician→403; dispatcher/supervisor→200 (probe-A); **404-por-alcance** (dispatcher sobre probe-B) **distinto** de **404-por-inexistencia** (id inexistente); forzando la API — `backend/tests/integration/rbac.spec.ts` (FR-007/008/009/010/017/017b, SC-002)
+- [ ] T044 [P] [US3] **[Red]** Integration RBAC: no-auth→401; technician→403; dispatcher/supervisor→200 (probe-A); **404-por-alcance para AMBOS roles** (dispatcher sobre probe-B, **supervisor sobre probe-C**) **distinto** de **404-por-inexistencia** (id inexistente); forzando la API — `backend/tests/integration/rbac.spec.ts` (FR-007/008/009/010/017/017b, SC-002)
 
 ### Implementación
 
@@ -122,7 +122,7 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 - [ ] T049 [P] [US2] **[Red]** Unit rotación single-use atómica + gracia (mismo par) + reuso→familia + **relectura de rol** — `backend/tests/unit/refresh-rotation.spec.ts` (FR-004/004b/004d)
 - [ ] T050 [P] [US2] **[Red]** Integration refresh: rota; revocado/caducado→**401 uniforme** (sin distinguir causa, FR-005); reuso→**solo familia comprometida** revocada (otras sesiones concurrentes siguen) + **access de esa familia invalidado por-request (write-through, efectivo en la misma petición)** (FR-004b/004c); reintento ≤10s→mismo par; `disabled`→401 en validación/refresh, `locked_until` **no** corta sesiones activas — `backend/tests/integration/refresh.spec.ts` (FR-004/004b/004c/004d/005, SC-003)
 - [ ] T051 [P] [US2] **[Red]** Integration orden **401-antes-403** en refresh Y logout + CSRF double-submit (cabecera≠cookie o ausente→403 con sesión) — `backend/tests/integration/csrf-order.spec.ts` (FR-012/018, D2)
-- [ ] T052 [P] [US2] **[Red]** Contract test contenido `ErrorResponse.details` (401/429 sin oráculo; 403/404 sin propiedad/alcance) — `backend/tests/contract/error-details.contract.spec.ts` (FR-002/011/017, S-005/S-103)
+- [ ] T052 [P] [US2] **[Red]** Contract test contenido `ErrorResponse` (`details` allowlist + `message`): 401/429 sin oráculo; 403/404 sin propiedad/alcance; **nunca password/tokens/identifier, ni en un 422** — `backend/tests/contract/error-details.contract.spec.ts` (FR-002/011/014/017, S-001/S-005/S-103)
 
 ### Implementación
 
@@ -140,8 +140,8 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 - [ ] T057 [P] **[Red→verde]** Perf SC-001/SC-005: N≥200, secuencial, **descartar las primeras 20 (warm-up)**, **server-side** (P95<300ms auth; login<1s) — `backend/tests/integration/perf.spec.ts` (SC-001/005, D9)
 - [ ] T058 [P] **[Red→verde]** Anti-enumeración: **|P95(causa_i)−P95(causa_j)|<50ms** entre las **3 causas** de 401 de login (inválidas / inexistente / **disabled**), N≥200/grupo, server-side — `backend/tests/integration/enumeration-timing.spec.ts` (FR-011/002b, D9)
 - [ ] T059 [P] Test de arquitectura: `domain/` no importa express/prisma/jsonwebtoken — `backend/tests/unit/architecture.spec.ts` (Const. III)
-- [ ] T060 [P] **[Red]** Integration reinicio: familia revocada sigue revocada (cache-miss→BD); cuenta bloqueada sigue (locked_until en BD) — `backend/tests/integration/restart-revocation.spec.ts` (D3, FR-004b)
-- [ ] T061 [P] **[Red]** Integration fail-closed: fallo/timeout de BD en cache-miss → 401/503, nunca 200 — `backend/tests/integration/fail-closed.spec.ts` (D3)
+- [ ] T060 [P] **[Red]** Integration reinicio/cache-miss: (a) familia revocada sigue revocada; **(b) usuario `disabled` sigue cortado (401) tras reinicio — no recupera acceso al expirar TTL≤30s**; (c) `locked_until` persiste en BD — todo vía fallback a BD — `backend/tests/integration/restart-revocation.spec.ts` (D3, FR-004b/004c, H-001)
+- [ ] T061 [P] **[Red]** Integration camino-caché per-request (régimen a): (a) `me`/`rbacProbe` con access **aún vigente** inmediatamente tras revocación de familia/disable → **401** (write-through efectivo en esa petición); (b) **fail-closed**: fallo/timeout de BD en cache-miss → 401/503, nunca 200 — `backend/tests/integration/session-state.spec.ts` (D3, FR-004b/004c, H-002/H-003)
 - [ ] T062 [P] **[Red]** Unit reset de ventana de lockout (5 fallos frescos tras desbloqueo; ventana caducada→nueva) — `backend/tests/unit/lockout-reset.spec.ts` (FR-011)
 - [ ] T063 [US2 impl] Wiring DI (puertos→adaptadores) + arranque servidor — `backend/src/infra/container.ts`, `backend/src/main.ts`
 - [ ] T064 [P] Actualizar `docs/traceability.md` con matriz RF→tarea→test de 001 — `docs/traceability.md` (Const. VI)
