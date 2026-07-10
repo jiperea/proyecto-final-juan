@@ -74,9 +74,11 @@
 
 Soporta D3/FR-004b/004c. **Ambas** condiciones en la misma caché: set de `sid` revocados **por compromiso
 confirmado** (FR-004b) + set de usuarios `disabled`. Actualización **write-through síncrona** desde la
-petición que la produce; **TTL de seguridad ≤30 s**, **cache-miss → fallback a BD**, **fail-closed** ante
-fallo de BD. **El logout voluntario NO añade el `sid` aquí** (no corta el access por-request; solo revoca el
-refresh — invalidación en logout = stretch, FR-003). Puerto `SessionStatePort`.
+petición que la produce; **TTL de seguridad ≤30 s**, **cache-miss → fallback a BD** (consulta
+`Session.revoked_at` **y `User.disabled_at`**, ambos durables → sobreviven a reinicio, H-001), **fail-closed**
+(401/503) si la BD tampoco responde. **El logout voluntario NO añade el `sid` aquí** (no corta el access
+por-request; solo revoca el refresh — invalidación en logout = stretch, FR-003). Puerto `SessionStatePort`
+(`isRevoked(sid)`, `isUserActive(sub)`). Es **por-instancia** (slice); multi-instancia → BL-018.
 
 ## Caché de gracia de refresh — efímera, en memoria, no persistida
 
@@ -99,9 +101,12 @@ rol ∈ `in_scope_roles`, **404** si no. **Seed (3 casos deterministas, FR-017b)
 - `probe-A` con `in_scope_roles=[dispatcher, supervisor]` → **200** para ambos.
 - `probe-B` con `in_scope_roles=[supervisor]` → **200** supervisor, **404-por-alcance** dispatcher (existe
   pero fuera de su alcance).
+- `probe-C` con `in_scope_roles=[dispatcher]` → **200** dispatcher, **404-por-alcance** supervisor
+  (cobertura simétrica del 404-por-alcance para ambos roles, H-003).
 - un id **inexistente** → **404-por-inexistencia**.
 
-Así los dos caminos de 404 (alcance vs inexistencia) tienen caso propio, y technician da 403 en todos.
+Así los dos caminos de 404 (alcance vs inexistencia) tienen caso propio para dispatcher **y** supervisor, y
+technician da 403 en todos.
 
 ## Base-ready: `DeniedAccessAudit` *(NO se implementa en 001)*
 
@@ -112,10 +117,10 @@ El esquema admite añadir por FK a `User` **sin** ALTER destructivo: `id`, `acto
 
 | Entidad | FRs |
 |---|---|
-| User | FR-001/001b/002/006/004/004c/011 |
+| User | FR-001/001b/002/002b/006/004/004c/011 |
 | Session | FR-001/003/003b/004b |
 | RefreshToken | FR-004/004b/004d/005 |
-| LoginAttempt | FR-011 |
+| LoginAttempt | FR-011/002b |
 | Caché revocación | FR-004b/004c |
 | Caché gracia | FR-004d |
 | ProbeResource | FR-017/017b |

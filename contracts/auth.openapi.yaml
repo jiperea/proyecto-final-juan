@@ -319,16 +319,25 @@ components:
           description: Código estable machine-readable (p. ej. INVALID_CREDENTIALS, FORBIDDEN, NOT_FOUND, CSRF_INVALID).
         message:
           type: string
-          description: Mensaje para el usuario (español).
+          description: >
+            Mensaje para el usuario (español). **No interpola valores recibidos**: nunca incluye
+            `password`, tokens/secretos ni el `identifier`/email/username (S-001/FR-014). P. ej. nada de
+            "identifier 'x@y.com' inválido".
         details:
           type: object
-          additionalProperties: true
+          additionalProperties: false
           description: >
-            Detalles opcionales (p. ej. campos de validación de un 422). Restricciones anti-fuga
-            (verificadas por contract test de contenido): en errores de autenticación (login/refresh
-            401/429) NO debe distinguir "cuenta inexistente" de "credenciales inválidas" ni incluir el
-            identifier/email/username; en 403/404 (rbacProbe y dominio 002+) NO debe revelar
-            propiedad/alcance del recurso (ownerId, motivo de fuera-de-alcance).
+            Detalles opcionales con **allowlist** de claves (additionalProperties:false; p. ej. `fields`
+            con los nombres de campo inválidos de un 422, NUNCA sus valores). Restricciones anti-fuga
+            (contract test de contenido): **nunca** contiene `password`, tokens/secretos ni el
+            identifier/email/username; en autenticación (login/refresh 401/429) NO distingue "cuenta
+            inexistente" de "credenciales inválidas"; en 403/404 (rbacProbe y dominio 002+) NO revela
+            propiedad/alcance (ownerId, motivo de fuera-de-alcance).
+          properties:
+            fields:
+              type: array
+              items: { type: string }
+              description: Nombres de campos inválidos (solo nombres, sin valores) — p. ej. en un 422.
         agent_action:
           type: string
           description: Pista accionable opcional para un agente/cliente.

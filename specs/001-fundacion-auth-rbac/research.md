@@ -42,8 +42,9 @@
      el **logout voluntario NO** añade el `sid` a este set (no corta el access por-request; solo revoca el
      refresh) — la invalidación inmediata en logout es *stretch* (FR-003). Solo el **compromiso confirmado**
      (FR-004b) y `disabled` cortan el access vigente.
-  4. **Cache-miss / reinicio → fallback a BD** (consulta `Session.revoked_at`/estado de la familia): solo
-     en miss, no en régimen estable. La revocación de familia es **durable en BD** → sobrevive a reinicios.
+  4. **Cache-miss / reinicio → fallback a BD** (consulta `Session.revoked_at`/familia **Y `User.disabled_at`**;
+     `SessionStatePort.isUserActive(sub)` pega a BD en fallback): solo en miss, no en régimen estable. **Ambos**
+     (revocación de familia y `disabled`) son **durables en BD** → sobreviven a reinicio/cache-miss (H-001).
   5. **Fail-closed:** si el fallback a BD falla (timeout/BD caída) → **401** (o 503 en `/ready`), **nunca
      fail-open**.
   6. **Atomicidad:** el `add(sid)` al set en memoria es **síncrono** tras el commit de revocación.
@@ -119,6 +120,9 @@
   **aborta** nombrando la variable, sin abrir el puerto HTTP. Variables: `JWT_SECRET`, `CSRF_HMAC_SECRET`
   (distinto), **`LOCKOUT_HMAC_SECRET`** (distinto de ambos, D7), `DATABASE_URL`, `ACCESS_TTL`,
   `REFRESH_TTL_DAYS`, `GRACE_MS`, `LOCKOUT_MAX`, `LOCKOUT_WINDOW_MIN`.
+- **Pairwise-distinct (S-002):** además de presencia/formato, la validación Zod comprueba que
+  `JWT_SECRET`, `CSRF_HMAC_SECRET` y `LOCKOUT_HMAC_SECRET` son **mutuamente distintos** (3 pares); si dos
+  coinciden, **aborta** nombrando el par en conflicto (aislamiento de dominios criptográficos).
 - **Rationale:** 12-factor + FR-016/SC-006.
 
 ## D9 · Método de medición de los P95 (SC-001/SC-005/FR-011)

@@ -10,8 +10,9 @@
 ## Arranque
 
 ```bash
-cp .env.example .env     # JWT_SECRET, CSRF_HMAC_SECRET (≠JWT), DATABASE_URL, ACCESS_TTL=900,
-                         # REFRESH_TTL_DAYS=7, GRACE_MS=10000, LOCKOUT_MAX=5, LOCKOUT_WINDOW_MIN=15
+cp .env.example .env     # JWT_SECRET, CSRF_HMAC_SECRET (≠JWT), LOCKOUT_HMAC_SECRET (≠ambos),
+                         # DATABASE_URL, ACCESS_TTL=900, REFRESH_TTL_DAYS=7, GRACE_MS=10000,
+                         # LOCKOUT_MAX=5, LOCKOUT_WINDOW_MIN=15  (los 3 secretos deben ser distintos)
 make up                  # docker compose (db) + migraciones Prisma + seed
 make install
 make test                # unit (sin BD) + integration (BD real) + contract (OpenAPI)
@@ -27,8 +28,10 @@ make test                # unit (sin BD) + integration (BD real) + contract (Ope
 | `tech@fieldops.test` / `tech` | technician | probe → 403 (rol nunca puede) |
 | `sup@fieldops.test` / `sup` | supervisor | probe en alcance → 200 |
 
-Fixtures `ProbeResource`: ≥1 id "en alcance" (dispatcher/supervisor → 200) + un id inexistente (→ 404).
-Contraseñas semilla ≥12 chars (argon2id).
+Fixtures `ProbeResource` (3 casos + inexistente): **probe-A** [dispatcher,supervisor]→200 ambos;
+**probe-B** [supervisor]→200 supervisor / 404-por-alcance dispatcher; **probe-C** [dispatcher]→200
+dispatcher / 404-por-alcance supervisor; **id inexistente**→404-por-inexistencia. Semilla incluye además
+**1 usuario `disabled`** y **1 con `locked_until`** para tests. Contraseñas semilla ≥12 chars (argon2id).
 
 ## Flujo manual (curl)
 

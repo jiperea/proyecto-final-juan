@@ -8,6 +8,14 @@ FR/test; lo no cubierto → backlog.
 
 > **Severidad** por amenaza (denominador del umbral de T065 = 100% de amenazas **BLOQUEANTE/ALTA** con
 > test `Txxx` asociado). Los `Txxx` refieren a tareas de `tasks.md`.
+>
+> **Rúbrica de severidad (objetiva, resuelve T-001/G2):**
+> - **BLOQUEANTE**: bypass de autenticación/autorización, escalada de rol, o exposición de
+>   credenciales/secretos; explotable sin autenticación o por cualquier autenticado sin restricción.
+> - **ALTA**: fuga de información sensible (PII, existencia de recursos, oráculo de timing) o DoS dirigido,
+>   pero requiere condiciones adicionales (ya autenticado, ventana temporal) y no compromete integridad.
+> - **MEDIA**: mitigable con higiene/observabilidad, o corresponde a un stretch/backlog explícito, sin
+>   impacto directo inmediato en confidencialidad/integridad/disponibilidad del núcleo.
 
 | Categoría | Amenaza | Severidad | Mitigación | FR / test |
 |-----------|---------|-----------|------------|-----------|

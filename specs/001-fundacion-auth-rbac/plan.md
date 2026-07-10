@@ -32,10 +32,11 @@ adaptadores **in-memory** tras puertos (slice single-instance).
 P95(inválido)| **< 50 ms** (FR-011). **Método de medición** (D9): N≥200, secuencial + warm-up descartado,
 instrumentación **server-side** (excluye red), aplica a SC-001 y SC-005.
 
-**Constraints**: sin round-trip a BD en el hot path (D3, fail-closed, write-through); argon2id calibrado
-(D4, `disabled` chequeado tras el hash); refresh solo como hash en BD; **3 secretos distintos**:
-`JWT_SECRET`, `CSRF_HMAC_SECRET`, `LOCKOUT_HMAC_SECRET` (D7); unicidad email/username por espacio único a
-nivel de esquema (D11).
+**Constraints**: sin round-trip a BD en el hot path (D3, fail-closed, write-through); el **fallback en
+cache-miss** consulta familia **y `disabled`** (H-001); argon2id calibrado (D4, `disabled` tras el hash);
+refresh solo como hash en BD; **3 secretos distintos** `JWT_SECRET`/`CSRF_HMAC_SECRET`/`LOCKOUT_HMAC_SECRET`
+con validación **pairwise-distinct** fail-fast (D7/D8/S-002); unicidad email/username por espacio único a
+nivel de esquema (D11); `ErrorResponse.details`/`message` sin credenciales/tokens/identifier (S-001).
 
 **Scale/Scope**: organización única y plana (multi-tenant fuera); usuarios semilla (sin auto-registro);
 endpoints login/refresh/logout/me/rbacProbe + /health + /ready.
