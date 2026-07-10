@@ -49,8 +49,8 @@ y se testea **sin mocks de infraestructura**.
 La autorización vive en el **backend** y rechaza aunque se fuerce la petición (ocultar un botón no es
 seguridad). Se distingue **401** (no autenticado), **403** (autenticado sin permiso) y **404** (recurso
 ajeno, para no filtrar existencia). Cada acción valida rol **y** pertenencia (`assigned_to == usuario`).
-La política de visibilidad es **centralizada e inyectable** (matriz rol×alcance), mínimo privilegio por
-defecto; hoy organización única, extensible a equipos sin reescribir.
+La política de visibilidad es **centralizada** (única fuente de verdad de autorización), mínimo
+privilegio por defecto; organización única y plana (multi-tenant fuera de alcance, YAGNI).
 - **Verificación:** test negativo por endpoint y rol no autorizado a nivel de API (no solo UI); tests
   de la matriz rol×alcance; test de acceso a recurso ajeno devuelve 404.
 - **Rationale:** el peor actor fuerza la API directamente; OCP para el aislamiento futuro.

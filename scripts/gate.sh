@@ -4,7 +4,7 @@
 # según el nº de BLOQUEANTES. Patrón Módulo 8 (claude -p --output-format json).
 #
 # Uso:
-#   scripts/gate.sh --phase G1|G2|G3 --feature-dir specs/NNN-feature [--reports-dir docs/gates]
+#   scripts/gate.sh --phase G1|G2|G3 --feature-dir specs/NNN-feature [--reports-dir specs/NNN-feature/gates]
 #
 # Requisitos: claude, jq
 set -euo pipefail

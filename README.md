@@ -8,7 +8,7 @@ Slice de **reasignación, ejecución y revisión de órdenes de trabajo** de Fie
 
 ## Cómo está organizado
 
-- **`.specify/memory/constitution.md`** — la constitution (14 principios verificables, v1.2.1).
+- **`.specify/memory/constitution.md`** — la constitution (14 principios verificables + refuerzos).
 - **`docs/`** — documentación y bitácora (empieza por [`docs/README.md`](docs/README.md)):
   brief, reparto, informes adversariales, principios, automatización, niveles, roadmap, glosario, evals.
 - **`.claude/agents/`** — panel de verificación independiente (revisor-cinico, auditor-spec-theater,

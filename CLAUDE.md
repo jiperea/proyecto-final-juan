@@ -5,7 +5,7 @@ shell commands, and other important information, read the current plan
 
 # FieldOps — Guía operativa para Claude
 
-> **La fuente de verdad es la constitution** (`.specify/memory/constitution.md`, v1.3.0). Ante conflicto,
+> **La fuente de verdad es la constitution** (`.specify/memory/constitution.md`). Ante conflicto,
 > manda la constitution. Esto es un resumen operativo para trabajar rápido y bien en este repo.
 
 ## Reglas de oro

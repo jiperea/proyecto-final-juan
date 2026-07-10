@@ -15,7 +15,7 @@
 
 ## Gates adversariales (Constitution XIII)
 
-- [ ] **G1** (tras clarify) — 0 bloqueantes · informe en `docs/gates/`
+- [ ] **G1** (tras clarify) — 0 bloqueantes · informe en `specs/<feature>/gates/`
 - [ ] **G2** (tras analyze) — 0 bloqueantes
 - [ ] **G3** (tras implement + tests) — 0 bloqueantes
 - [ ] Evals (promptfoo) en umbral (si aplica IA / SC)

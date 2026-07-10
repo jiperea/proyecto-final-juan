@@ -15,7 +15,7 @@ estándares de facto (contract-first, TDD, Spec Kit) y hemos aprendido el patró
 
 1. **Arquitectura hexagonal** (dominio puro / handlers / infra): el dominio no depende de infraestructura
    y se testea sin mocks (DIP + SRP).
-2. **Stack TS/Node** (Express, Prisma con SQLite→PostgreSQL, Zod, OpenAPI 3.1, Vitest, pino): el más
+2. **Stack TS/Node** (Express, Prisma con PostgreSQL en Docker, Zod, OpenAPI 3.1, Vitest, pino): el más
    común y mejor integrado con Claude y Spec Kit.
 3. **Verificación adversarial INDEPENDIENTE** como gates acumulativos (G1/G2/G3): agentes especializados
    que hacen de segunda mirada neutral sobre lo que produce el autor y Spec Kit (el que propone no valida).

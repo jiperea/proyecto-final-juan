@@ -30,7 +30,7 @@ hooks:
   after_implement:
     command: speckit.gate.run
     optional: false
-    description: "G3: G1 + G2 + revisor-implementacion + eval-objetivos"
+    description: "G3: G1 + G2 + revisor-implementacion + promptfoo (evals)"
 
 tags:
   - "gate"

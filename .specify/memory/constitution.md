@@ -52,7 +52,7 @@ Cambios v1.0.0 → v1.1.0:
   - IV: validación de estado de origen (403 vs 409) + ciclo de vida de sesión.
   - XII: reglas de lint concretas (any, tamaños).
   - XIII: encadenado acumulativo + agentes especializados por gate + definición de BLOQUEANTE.
-  - XIV nuevo: SC medibles evaluados como métricas (MCP eval-objetivos).
+  - XIV nuevo: SC medibles evaluados como métricas (MCP eval-objetivos → sustituido por promptfoo en v1.2.1).
   - Alcance: multi-tenant declarado fuera; nota de auditoría del estado seed.
   - Governance: definición de BLOQUEANTE + arbitraje; autoridad de excepciones; definición de "hecho" ampliada.
 
@@ -74,9 +74,8 @@ CI (.github/workflows/ci.yml), evals con promptfoo (docs/10).
   (technician); aprobar/rechazar en `pending_review` (supervisor); RBAC; asistente de IA que resume la
   incidencia de una orden.
 - **Fuera (declarado):** creación/alta inicial de órdenes (`draft→assigned`; datos semilla, ver nota de
-  auditoría en XI); **multi-tenant / multi-organización** (la política de visibilidad se diseña
-  inyectable para soportarlo en el futuro, pero el aislamiento entre organizaciones NO entra ni se
-  testea en el slice); dashboard de métricas; notificaciones push; i18n.
+  auditoría en XI); **multi-tenant / multi-organización** (organización única y plana; **no se diseña
+  para multi-tenant** — YAGNI, Principio XII); dashboard de métricas; notificaciones push; i18n.
 
 ## Core Principles
 

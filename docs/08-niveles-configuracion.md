@@ -27,7 +27,7 @@
 | `docs/glossary.md` (lenguaje ubicuo) | **Proyecto** | Términos del dominio de *este* producto. |
 | Roadmap, bitácora, informes de gate | **Proyecto** | Historia y planificación de *este* proyecto. |
 | **Agentes adversariales** (cinico, spec-theater, rbac, consistencia, implementacion) | **Proyecto ahora → Usuario/Org después** | Son genéricos (SDD, no FieldOps). En el repo para el entregable; candidatos a `~/.claude/agents` o a una plantilla de organización para reutilizarlos. |
-| **MCP `eval-objetivos`** | **Proyecto ahora → Usuario/Org después** | Función única y reutilizable (SC→métricas). Escalable a `~/.claude` o a un MCP de organización. |
+| **Config de evals (`promptfoo`)** | **Proyecto ahora → Usuario/Org después** | Framework reutilizable (SC→métricas + IA). El patrón de configuración es escalable a otros proyectos. (Se descartó un MCP propio, ver docs/10.) |
 | `.claude/settings.json` (allowlist del gate) | **Proyecto** (commiteado) | Reduce prompts al equipo; si fuera solo personal → `settings.local.json`. |
 | Claves/API del proveedor de IA | **Usuario/Local** | Secretos; nunca en el repo (`.env` gitignored, `.env.example` sí). |
 
@@ -38,5 +38,6 @@ Un agente o MCP sube de nivel (proyecto → usuario → organización) cuando:
 2. Tiene una **responsabilidad concreta y única** (buena práctica de diseño de agentes/MCP).
 3. Se prevé **reutilizarlo** en otros proyectos.
 
-Los 3 (+2) agentes del panel y el MCP `eval-objetivos` cumplen los tres criterios → se mantienen en el
-repo para el entregable, pero **documentados como promovibles** a `~/.claude` o a la organización.
+Los 3 (+2) agentes del panel y la config de evals (`promptfoo`) cumplen los tres criterios → se
+mantienen en el repo para el entregable, pero **documentados como promovibles** a `~/.claude` o a la
+organización.
