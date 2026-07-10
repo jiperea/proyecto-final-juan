@@ -73,7 +73,7 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 - [ ] T029 [P] [US1] **[Red]** Contract test `me` 200/401 — `backend/tests/contract/me.contract.spec.ts` (FR-006)
 - [ ] T030 [P] [US1] **[Red]** Unit credenciales + resolución de identifier a único usuario (normalizado) — `backend/tests/unit/auth-credentials.spec.ts` (FR-001b/002)
 - [ ] T031 [P] [US1] **[Red]** Unit lockout 5/15min ventana fija + **reset al expirar/caducar** — `backend/tests/unit/lockout.spec.ts` (FR-011/SC-004)
-- [ ] T032 [P] [US1] **[Red]** Integration login/logout: válido→sesión; inválido→401 uniforme; **cuenta `disabled`→401 uniforme y NO se puede re-loguear + cuenta para el lockout (429 indistinguible)** (FR-002b); logout revoca solo la actual; **2º logout con cookie revocada→401** (no idempotente) — `backend/tests/integration/login-logout.spec.ts` (FR-001/002/002b/003/003b/018, SC-001)
+- [ ] T032 [P] [US1] **[Red]** Integration login/logout: válido→sesión; inválido→401 uniforme; **cuenta `disabled`→401 uniforme y NO se puede re-loguear + cuenta para el lockout (429 indistinguible)** (FR-002b); logout revoca solo la actual; **2º logout con cookie revocada→401** (no idempotente); **logout de cuenta `disabled` con cookie vigente→204** (revoca, sin chequeo de estado); **logout con familia ya revocada→401** — `backend/tests/integration/login-logout.spec.ts` (FR-001/002/002b/003/003b/018, SC-001)
 
 ### Implementación
 
@@ -82,9 +82,9 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 - [ ] T035 [P] [US1] Adaptador `RateLimit` in-memory (por usuario resuelto y por **HMAC-SHA256(identifier norm., `LOCKOUT_HMAC_SECRET`)**; los intentos contra cuenta `disabled` **cuentan** igual) — `backend/src/infra/ratelimit/in-memory.ts` (D7, FR-011/002b)
 - [ ] T036 [US1] Repos Prisma `User`/`Session`/`RefreshToken` — `backend/src/infra/repositories/*.ts` (data-model)
 - [ ] T037 [US1] Caso de uso `login` (credenciales→sesión, lockout, Result; **chequeo de `disabled` DESPUÉS del hash de contraseña** para no filtrar timing, 401 uniforme — FR-002b) — `backend/src/domain/auth/login.ts` (FR-001/002/002b/011)
-- [ ] T038 [US1] Caso de uso `logout` (revoca refresh de la sesión actual; no idempotente) — `backend/src/domain/auth/logout.ts` (FR-003/018)
+- [ ] T038 [US1] Caso de uso `logout` (revoca a **nivel de sesión**: marca `Session.revoked_at` del sid; **NO comprueba estado de cuenta** → 204 con cookie vigente aunque disabled; no idempotente) — `backend/src/domain/auth/logout.ts` (FR-003/018)
 - [ ] T039 [US1] Handler `POST /v1/auth/login` (set-cookie refresh HttpOnly + csrf_token; access en body) — `backend/src/handlers/auth/login.ts` (FR-001, D1/D2)
-- [ ] T040 [US1] Handler `POST /v1/auth/logout` (204; limpia cookies) — `backend/src/handlers/auth/logout.ts` (FR-003)
+- [ ] T040 [US1] Handler `POST /v1/auth/logout` (204 con cookie vigente + CSRF ok, sin chequeo de estado; 401 si cookie no vigente —incl. familia revocada—; limpia cookies) — `backend/src/handlers/auth/logout.ts` (FR-003/018)
 - [ ] T041 [US1] Handler `GET /v1/auth/me` — `backend/src/handlers/auth/me.ts` (FR-006)
 
 **Checkpoint**: US1 funcional y testeable de forma independiente (login→me→logout).
@@ -120,14 +120,14 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 
 - [ ] T048 [P] [US2] **[Red]** Contract test `refresh` 200/401/403 — `backend/tests/contract/refresh.contract.spec.ts` (FR-004/005/012/018)
 - [ ] T049 [P] [US2] **[Red]** Unit rotación single-use atómica + gracia (mismo par) + reuso→familia + **relectura de rol** — `backend/tests/unit/refresh-rotation.spec.ts` (FR-004/004b/004d)
-- [ ] T050 [P] [US2] **[Red]** Integration refresh: rota; revocado/caducado→**401 uniforme** (sin distinguir causa, FR-005); reuso→**solo familia comprometida** revocada (otras sesiones concurrentes siguen) + **access de esa familia invalidado por-request (write-through, efectivo en la misma petición)** (FR-004b/004c); reintento ≤10s→mismo par; `disabled`→401 en validación/refresh, `locked_until` **no** corta sesiones activas — `backend/tests/integration/refresh.spec.ts` (FR-004/004b/004c/004d/005, SC-003)
+- [ ] T050 [P] [US2] **[Red]** Integration refresh: rota; revocado/caducado→**401 uniforme** (sin distinguir causa, FR-005); reuso→**solo familia comprometida** revocada (otras sesiones concurrentes siguen) + **access de esa familia invalidado por-request (write-through, efectivo en la misma petición)** (FR-004b/004c); reintento ≤10s→mismo par; `disabled`→401 en validación/refresh, `locked_until` **no** corta sesiones activas; **refresh rechazado si un `logout` concurrente revoca la sesión (rotación atómica, no emite tokens)** — `backend/tests/integration/refresh.spec.ts` (FR-004/004b/004c/004d/005, SC-003, H-001)
 - [ ] T051 [P] [US2] **[Red]** Integration orden **401-antes-403** en refresh Y logout + CSRF double-submit (cabecera≠cookie o ausente→403 con sesión) — `backend/tests/integration/csrf-order.spec.ts` (FR-012/018, D2)
 - [ ] T052 [P] [US2] **[Red]** Contract test contenido `ErrorResponse` (`details` allowlist + `message`): 401/429 sin oráculo; 403/404 sin propiedad/alcance; **nunca password/tokens/identifier, ni en un 422** — `backend/tests/contract/error-details.contract.spec.ts` (FR-002/011/014/017, S-001/S-005/S-103)
 
 ### Implementación
 
-- [ ] T053 [P] [US2] Adaptador `GraceCache` in-memory (hash token→par en claro, TTL=gracia; no persiste en BD) — `backend/src/infra/grace-cache/in-memory.ts` (D6, FR-004d)
-- [ ] T054 [US2] Caso de uso `refresh` (rotación atómica `WHERE rotated_at IS NULL`; gracia→GraceCache; reuso→revoca familia+SessionState; FR-004c disabled; **relee rol de BD**) — `backend/src/domain/auth/refresh.ts` (FR-004/004b/004c/004d/005)
+- [ ] T053 [P] [US2] Adaptador `GraceCache` in-memory (hash token→**trío access+refresh+csrf en claro**, TTL=gracia; re-sirve el mismo trío en reintento; no persiste en BD) — `backend/src/infra/grace-cache/in-memory.ts` (D6, FR-004d, H-005)
+- [ ] T054 [US2] Caso de uso `refresh` (rotación **atómica exige sesión no revocada**: `WHERE rotated_at IS NULL AND` sesión no revocada / `SELECT … FOR UPDATE` → cierra TOCTOU logout↔refresh; gracia→GraceCache; reuso→revoca familia+SessionState; FR-004c disabled; **relee rol de BD**; fail-closed BD caída→503) — `backend/src/domain/auth/refresh.ts` (FR-004/004b/004c/004d/005, H-001)
 - [ ] T055 [US2] Middleware `csrf` double-submit (refresh Y logout; **sesión antes que CSRF**; tiempo constante) — `backend/src/handlers/middleware/csrf.ts` (D2, FR-012/018)
 - [ ] T056 [US2] Handler `POST /v1/auth/refresh` (rota refresh + csrf; access en body) — `backend/src/handlers/auth/refresh.ts` (FR-004/005)
 
@@ -141,7 +141,7 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 - [ ] T058 [P] **[Red→verde]** Anti-enumeración: **|P95(causa_i)−P95(causa_j)|<50ms** entre las **3 causas** de 401 de login (inválidas / inexistente / **disabled**), N≥200/grupo, server-side — `backend/tests/integration/enumeration-timing.spec.ts` (FR-011/002b, D9)
 - [ ] T059 [P] Test de arquitectura: `domain/` no importa express/prisma/jsonwebtoken — `backend/tests/unit/architecture.spec.ts` (Const. III)
 - [ ] T060 [P] **[Red]** Integration reinicio/cache-miss: (a) familia revocada sigue revocada; **(b) usuario `disabled` sigue cortado (401) tras reinicio — no recupera acceso al expirar TTL≤30s**; (c) `locked_until` persiste en BD — todo vía fallback a BD — `backend/tests/integration/restart-revocation.spec.ts` (D3, FR-004b/004c, H-001)
-- [ ] T061 [P] **[Red]** Integration camino-caché per-request (régimen a): (a) `me`/`rbacProbe` con access **aún vigente** inmediatamente tras revocación de familia/disable → **401** (write-through efectivo en esa petición); (b) **fail-closed**: fallo/timeout de BD en cache-miss → 401/503, nunca 200 — `backend/tests/integration/session-state.spec.ts` (D3, FR-004b/004c, H-002/H-003)
+- [ ] T061 [P] **[Red]** Integration camino-caché per-request (régimen a): (a) `me`/`rbacProbe` con access **aún vigente** inmediatamente tras revocación de familia/disable → **401** (write-through efectivo en esa petición); (b) **fail-closed (regla única)**: fallo/timeout de BD en cache-miss → **401 en per-request** (Bearer) y **503 en `refresh`**, nunca 200 — `backend/tests/integration/session-state.spec.ts` (D3, FR-004b/004c, H-002/H-003/T-001)
 - [ ] T062 [P] **[Red]** Unit reset de ventana de lockout (5 fallos frescos tras desbloqueo; ventana caducada→nueva) — `backend/tests/unit/lockout-reset.spec.ts` (FR-011)
 - [ ] T063 [US2 impl] Wiring DI (puertos→adaptadores) + arranque servidor — `backend/src/infra/container.ts`, `backend/src/main.ts`
 - [ ] T064 [P] Actualizar `docs/traceability.md` con matriz RF→tarea→test de 001 — `docs/traceability.md` (Const. VI)
