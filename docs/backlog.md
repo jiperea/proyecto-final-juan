@@ -116,4 +116,10 @@
 - **BL-033** (stretch · UI 002+ · ALTA) — Garantizar en la futura UI que el **access vive en memoria** (no
   localStorage) — base del reparto XSS/CSRF (D1); test de arquitectura frontend cuando exista (cínico H-001).
 
+### Gobernanza (ADR-0004)
+
+- **BL-034** (DevOps/gobernanza · ALTA) — **Consolidación fundación→`main`**: llevar constitution, docs,
+  agentes, plantillas, extensiones y CI a `main`, y **re-basar `001`** desde `main` como feature pura
+  (salda la deuda de ramas; ver ADR-0004). Tarea propia, cuando se aparque el diseño de 001.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

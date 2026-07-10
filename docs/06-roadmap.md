@@ -4,11 +4,31 @@
 > (`NNN-feature`, creada por la extensión git). No se redactan las specs aquí (eso es la fase
 > siguiente); esto fija **qué specs hay, en qué orden y con qué dependencias**.
 
-## Principio de descomposición
+## Principio de descomposición (Constitution XV — specs pequeñas)
 
-Cada feature es un incremento **verticalmente testeable** (contrato + dominio + tests) y lo bastante
-pequeño para pasar los tres gates. La fundación se **divide en dos** (auth/RBAC y dominio Order) para
-mantener slices pequeños e independientemente testeables; el resto construye encima.
+Cada feature es un incremento **verticalmente testeable** (contrato + dominio + tests), **pequeño,
+demostrable e independiente**, y lo bastante acotado para pasar los tres gates sin turbulencia. El
+**cluster complejo/de robustez se aísla** en una spec posterior en vez de meterlo todo en una
+(**Principio XV**). El dimensionado es una decisión **de origen** (aquí y en `/speckit-specify`).
+
+> **Señal de "demasiado grande"** (XV): si en `/speckit-clarify` o en los gates una feature genera
+> muchísimos hallazgos o un `tasks.md` desproporcionado, debió partirse. **Chequeo de tamaño obligatorio
+> al entrar cada feature** (antes de `/speckit-specify`).
+
+### Retro de 001 (grandfathered)
+
+**001 quedó sobredimensionada** (~10 rondas de gate, 66 tareas): metió en una sola feature el cluster
+complejo (rotación single-use + familias + gracia + reuso/FR-004b + CSRF double-submit + caché de
+revocación). Por la **regla de no-rollback** (XV), **no se re-parte**: se **implementa por user story**
+como 3 sub-incrementos demostrables:
+
+| Sub | User story | Contenido | Demostrable |
+|-----|-----------|-----------|-------------|
+| 001·A | US1 (MVP) | login · logout · `me` · lockout · config fail-fast · cabeceras · correlation-id · /health-ready | "entro, sé quién soy, salgo" |
+| 001·B | US3 | RBAC 401/403/404 + `rbacProbe` (regla determinista) | "el RBAC rechaza correctamente" |
+| 001·C | US2 | refresh rotación single-use + familias + gracia + reuso + CSRF | "sesión robusta y renovable" |
+
+**Si 001 se hubiera dimensionado hoy** habría sido 001a (A+B) y 001b (C). Lección aplicada a las siguientes.
 
 ## Features
 
