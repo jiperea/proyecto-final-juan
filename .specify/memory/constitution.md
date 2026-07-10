@@ -25,6 +25,9 @@ v1.5.0 (MINOR): anti-scope-creep tras auditoría neutral (docs/07). Refuerzos cl
 idempotencia/concurrencia, auditoría forense y staleness IA pasan a **stretch** (no bloquean gate);
 auditoría **mínima** obligatoria. Multi-tenant ya **no se diseña para el futuro** (YAGNI). Visibilidad del
 technician explícita; NFR "rápido" obligatorio de cuantificar en los SC.
+v1.5.1 (PATCH): criterio de clasificación MVP/Stretch = "¿afecta a la base (schema/contrato/arquitectura)?".
+Lo base-afectante se diseña ahora (columna `version`, tabla de auditoría en 002) aunque el comportamiento
+sea stretch; lo aditivo se difiere. Regla: diseña la base para no reescribirla.
 
 Principios (14):
   I.    Spec-Driven, spec-first
@@ -285,8 +288,13 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
   concurrencia optimista (If-Match→409); **auditoría forense** (registro de accesos denegados,
   evidencia versionada por intento); procedencia + staleness del resumen de IA.
 
-> Los principios VIII/X/XI conservan su redacción, pero su parte marcada *stretch* **no es
-> gate-bloqueante** para el MVP del slice. Esto mantiene "pequeño y bien hecho" sin perder la ambición.
+> **Criterio para clasificar (clave):** ¿afecta a la **base** (schema, contrato, arquitectura), costoso
+> de *retrofitear*? → la **decisión de diseño se toma AHORA** en la feature que la posee — p. ej. la
+> columna `version` (concurrencia) y la **tabla de auditoría** se definen en el data model de 002,
+> **base-ready**, aunque el comportamiento completo (`If-Match→409`, auditoría forense) quede *stretch*.
+> Si es **aditivo/localizado** (se puede añadir luego sin reescribir), es *stretch* puro y se mejora más
+> adelante. Los principios VIII/X/XI conservan su redacción; su parte *stretch* **no bloquea el gate**.
+> **Regla: diseña la base para no reescribirla; difiere lo no esencial.**
 
 **Robustez de dominio**
 
@@ -331,4 +339,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.5.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.5.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
