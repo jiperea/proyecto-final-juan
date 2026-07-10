@@ -28,6 +28,15 @@ como base transversal sobre la que se construyen las features de dominio (Order,
 
 **Pase 3:** re-escaneo sin preguntas nuevas → **convergido**.
 
+**Gate G1 (fixes tras panel adversarial):**
+- Refresh **single-use con rotación**; reuso de refresh revocado → revoca familia de sesión (FR-004/004b).
+- Estado de cuenta (activo/bloqueado) verificado en refresh y validación de access (FR-004c).
+- Logout: revoca refresh de la sesión; access expira por TTL corto; invalidación inmediata → **stretch**.
+- Lockout **15 min ventana fija**, por usuario resuelto; identifiers inexistentes con **misma forma/tiempo** (anti-enumeración) (FR-011).
+- **Lista cerrada** de cabeceras de seguridad (FR-012); mensaje de arranque nombra la variable (FR-016).
+- **Regla 403 vs 404** fundacional para 002+ (FR-017).
+- MEDIA (idempotencia logout, técnica CSRF, binding refresh, PII en logs, política de contraseña en seed) → `docs/backlog.md`.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar y cerrar sesión (Priority: P1)
@@ -118,10 +127,15 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   y un mensaje uniforme, sin crear sesión ni revelar si el usuario existe.
 - **FR-003**: WHEN un usuario autenticado hace logout THE sistema SHALL **revocar solo el refresh token de
   la sesión actual** (las demás sesiones del usuario siguen vigentes), de modo que su reutilización
-  posterior se rechace.
+  posterior se rechace. El **access token vigente expira por su TTL corto** (≤15 min); la invalidación
+  inmediata del access (denylist/session-version) es **stretch** (backlog).
 - **FR-003b**: THE sistema SHALL permitir **sesiones concurrentes** por usuario (un refresh por dispositivo).
 - **FR-004**: WHEN un usuario presenta un refresh token válido y vigente THE sistema SHALL emitir un nuevo
-  access token sin requerir credenciales.
+  access token **y rotar el refresh** (single-use: el refresh anterior queda invalidado), sin requerir credenciales.
+- **FR-004b**: WHEN se presenta un refresh token **ya usado/revocado** (posible robo) THE sistema SHALL
+  rechazarlo y **revocar todas las sesiones del usuario** (familia de tokens) como contención.
+- **FR-004c**: WHEN se renueva o se valida un access token THE sistema SHALL verificar que el usuario
+  sigue **activo** (no bloqueado); si está bloqueado, responde 401.
 - **FR-005**: WHEN un refresh token está **caducado o revocado** THE sistema SHALL responder **401** y no
   emitir access token.
 - **FR-006**: WHILE una sesión está activa THE sistema SHALL exponer un endpoint "me" que devuelve la
@@ -134,17 +148,26 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   sistema SHALL responder **404** (sin revelar existencia).
 - **FR-010**: THE sistema SHALL aplicar la autorización en el **backend** (middleware centralizado), de
   modo que rechace la petición aunque se fuerce saltándose la interfaz.
-- **FR-011**: WHEN se superan **N intentos de login fallidos** en la ventana configurada THE sistema SHALL
-  **bloquear temporalmente** la cuenta y rechazar nuevos intentos de forma uniforme.
-- **FR-012**: THE sistema SHALL emitir **cabeceras de seguridad** (HSTS, CSP y equivalentes) en todas las
-  respuestas y aplicar **protección CSRF** en las operaciones que usan la cookie de refresh.
+- **FR-011**: WHEN un usuario acumula **5 intentos de login fallidos en 15 min** THE sistema SHALL
+  **bloquear la cuenta 15 min** (ventana fija, auto-expira; los intentos durante el bloqueo **no la
+  extienden**). El contador se lleva **por usuario resuelto** (email o username cuentan para la misma
+  cuenta). WHEN el `identifier` no resuelve a ningún usuario THE sistema SHALL responder con el **mismo
+  tiempo y forma** que un fallo de credenciales (sin diferenciar existencia).
+- **FR-012**: THE sistema SHALL emitir en todas las respuestas la **lista cerrada** de cabeceras:
+  `Strict-Transport-Security` (max-age ≥ 15552000), `Content-Security-Policy` (default-src 'self'),
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`; y aplicar
+  **protección CSRF** en las operaciones que usan la cookie de refresh (técnica concreta en `/plan`).
 - **FR-013**: WHEN se produce cualquier error THE sistema SHALL responder con el **contrato de error**
   `{ code, message, details?, agent_action? }` y el código HTTP correcto (400/401/403/404/409/422/429/503).
 - **FR-014**: THE sistema SHALL propagar un **correlation-id** por petición y registrarlo en el logging
   estructurado (sin PII).
 - **FR-015**: THE sistema SHALL exponer `/health` (vivo) y `/ready` (listo, con dependencias) diferenciados.
 - **FR-016**: WHEN el servicio arranca con configuración/entorno inválido o incompleto THE sistema SHALL
-  **abortar el arranque** (fail-fast) con un mensaje claro, sin escuchar peticiones.
+  **abortar el arranque** (fail-fast) con un mensaje que **nombre la(s) variable(s)** inválidas/faltantes,
+  sin escuchar peticiones.
+- **FR-017 (regla 403 vs 404, fundacional para 002+)**: THE sistema SHALL responder **403** cuando el rol
+  **nunca** puede ejecutar esa acción sobre ese tipo de recurso, y **404** cuando el recurso existe pero
+  está **fuera del alcance/propiedad** del usuario (no revelar su existencia).
 
 ### Key Entities
 
