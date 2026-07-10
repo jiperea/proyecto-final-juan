@@ -83,6 +83,13 @@ como base transversal sobre la que se construyen las features de dominio (Order,
 - Q: ¿Topología asumida? → A: **un solo proceso** (sin cluster/multi-worker); multi-worker→BL-018 (H-004).
 - Q: ¿Re-habilitar una cuenta se propaga? → A: **sí, ≤30s** en hot path (caché por TTL re-evaluado, no add-only) (H-006).
 
+**Gate G2 (semántica de logout con token rotado — decisión del usuario):**
+- Q: ¿Qué hace logout si el refresh presentado ya está rotado (no es el actual)? → A: **revoca la sesión
+  igual (204)** si el `sid` no está revocado; el usuario siempre puede cerrar su sesión (cerrar la propia
+  no escala; un token robado ya podría matarla vía refresh-reuse). Si el token rotado está **fuera de
+  gracia**, logout dispara además **FR-004b** (revoca familia = contención del compromiso). Cierra H-001 sin
+  bloquear al usuario legítimo (FR-003/FR-018).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar y cerrar sesión (Priority: P1)
@@ -192,9 +199,18 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   confirmado—; lo diferido es únicamente usarlo en el logout normal.)* **Logout NO es idempotente a
   nivel de token**: un 2º logout con la **misma cookie ya revocada** responde **401** (cookie no vigente,
   coherente con FR-018); la idempotencia por request-id queda diferida a backlog. **El logout NO comprueba
-  el estado de cuenta** (resuelve el cluster ALTA del G2): con una cookie de refresh **vigente** (presente,
-  no caducada, no revocada) y CSRF válido, **siempre revoca y responde 204**, aunque la cuenta esté
-  `disabled` — cerrar la propia sesión es una operación de limpieza segura que no debe bloquearse.
+  el estado de cuenta** (resuelve el cluster ALTA del G2): con una cookie de refresh cuya **sesión (`sid`)
+  no está revocada** y CSRF válido, **revoca la sesión y responde 204**, aunque la cuenta esté `disabled` o
+  el token presentado ya esté **rotado** (no sea el actual) — cerrar la propia sesión es una operación de
+  limpieza segura que no debe bloquearse, y el usuario siempre puede terminarla. **Token rotado como señal
+  de robo (cierra H-001):** si el refresh presentado ya está **rotado y FUERA de la ventana de gracia**,
+  logout lo trata además como **reuso** y **revoca la familia** (FR-004b) —contención del compromiso—,
+  respondiendo igualmente 204 (la sesión queda cerrada). Un 2º logout con la **sesión ya revocada** → **401**.
+  El chequeo de rotación/gracia en logout lee **BD (autoritativo, como `refresh`); si la BD no responde →
+  503** (fail-closed). El **401 de logout es uniforme de contenido** (no distingue cookie ausente / inválida
+  / sesión ya revocada), como el de refresh (FR-005). *(Nota: revocar familia por token rotado fuera de
+  gracia también invalida el access de otras pestañas propias de ese `sid` — aceptable, BL-027; retención de
+  hashes rotados durante el TTL para logout tardío → `/plan`.)*
   **Concurrencia (resuelve H-002):** logout revoca a **nivel de sesión (`sid`)** de forma **atómica**
   (marca `Session.revoked_at`), no de un token concreto; ante `refresh` y `logout` concurrentes sobre el
   mismo `sid`, el resultado es determinista: la sesión queda **revocada** y el perdedor recibe 401 (el
@@ -202,6 +218,9 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   **Fail-closed (resuelve S-002):** `logout` persiste `Session.revoked_at`; si la BD no responde
   (timeout/caída), responde **503** (coherente con FR-013), **nunca 204 sin persistir** la revocación (no
   dar falsa sensación de sesión cerrada).
+- **FR-003b**: THE sistema SHALL permitir **sesiones concurrentes** por usuario (una sesión/`sid` por
+  dispositivo, con su propia cadena de refresh); el logout de una revoca **solo** esa sesión y la
+  revocación de familia por compromiso (FR-004b) afecta **solo** al `sid` comprometido (no a las demás).
 - **FR-004**: WHEN un usuario presenta un refresh token válido y vigente THE sistema SHALL emitir un nuevo
   access token **y rotar el refresh** (single-use **atómico**: el refresh anterior queda invalidado en la
   misma operación, de modo que dos peticiones concurrentes con el mismo token no produzcan dos rotaciones
@@ -223,8 +242,9 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   como reuso) y **no** revocar la familia, **devolviendo el MISMO par access/refresh ya emitido**
   (respuesta idempotente, no una nueva rotación) — así dos reintentos casi simultáneos no crean dos
   refresh válidos (se respeta single-use). **El hit de la caché de gracia re-comprueba `Session.revoked_at`
-  (y `disabled`) contra BD (régimen autoritativo de `refresh`, FR-004c-b — NO la caché del hot path) ANTES
-  de servir el par** (resuelve S-001/H-005/H-001/G2): si la sesión fue **revocada** en la ventana (p. ej.
+  (y `disabled`) contra BD (régimen autoritativo de `refresh`, FR-004c régimen (b) — NO la caché del hot
+  path; si la BD no responde en ese re-check → **503**, fail-closed como el resto de `refresh`) ANTES
+  de servir el par** (resuelve S-001/H-005/T-001/G2): si la sesión fue **revocada** en la ventana (p. ej.
   por un `logout` concurrente) o la cuenta está `disabled`, responde **401** y **no** sirve el par cacheado
   — respeta FR-003 ("cualquier refresh de la familia se rechaza tras el logout"). *(Si un reintento legítimo
   cae tras una revocación concurrente, el cliente re-loguea: fail-secure intencional, H-002b.)* El re-check
@@ -293,7 +313,9 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 - **FR-013**: WHEN se produce cualquier error THE sistema SHALL responder con el **contrato de error**
   `{ code, message, details?, agent_action? }` y el código HTTP correcto. Códigos que **001 produce**:
   **401/403/404/422/429/503** (422 = validación de body). **400 y 409 NO aplican a 001** (llegan con las
-  transiciones/conflictos de dominio en 002) → no se testean como código en esta feature.
+  transiciones/conflictos de dominio en 002) → no se testean como código en esta feature. Un **cuerpo JSON
+  no parseable** (SyntaxError del body-parser) SHALL mapearse al contrato de error como **422** (no el 400/500
+  por defecto de Express) — un middleware de captura lo traduce (resuelve H-005/G2).
 - **FR-014**: THE sistema SHALL propagar un **correlation-id** por petición y registrarlo en el logging
   estructurado (sin PII). **Nunca** deben aparecer en logs **ni** en el campo `details` de un error (ni
   siquiera en un 422 de validación): **credenciales (`password`)**, tokens/secretos (`Authorization`,
@@ -332,8 +354,8 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   S-003 y el cluster ALTA del G2): en **`refresh`** incluye TODAS las condiciones de estado que producen
   401 según FR-004c/FR-005 (cookie ausente/caducada/revocada, familia revocada, **y `disabled`**), todas
   **antes** que el CSRF — una cuenta `disabled` da **401** en refresh aunque falte el CSRF. En **`logout`**,
-  "sesión válida" = **solo cookie de refresh vigente** (presente/no caducada/no revocada); **no** se
-  comprueba `disabled` (FR-003): con cookie vigente + CSRF ok → **204** (revoca), aunque la cuenta esté
+  "sesión válida" = **la sesión (`sid`) de la cookie no está revocada** (aunque el token esté rotado, H-001
+  → logout revoca igual; rotado fuera de gracia dispara además FR-004b); **no** se comprueba `disabled` (FR-003): con cookie vigente + CSRF ok → **204** (revoca), aunque la cuenta esté
   disabled; sin cookie vigente → 401 (antes que CSRF). **Precedencia con fail-closed:** si la comprobación
   de sesión requiere BD y ésta no responde, el **503** (fail-closed, FR-004c/FR-003) tiene **prioridad**
   sobre el 403 de CSRF (primero se resuelve "sesión válida"; el CSRF no puede "tapar" una caída de BD).
@@ -392,7 +414,7 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 |----|-------------|---------|
 | FR-001/002 | `login` | `should issue session when valid creds` · `should 401 uniform when invalid` |
 | FR-002b | `login` | `should 401 uniform when account disabled (no re-login)` |
-| FR-003 | `logout` | `should revoke refresh on logout` · `should 401 on 2nd logout with revoked cookie (not idempotent)` · `should 204 on logout with valid cookie even if account disabled (no state check)` · `should 401 on logout when family already revoked (cookie not vigente)` · `should 503 on logout when DB down (never 204 without persisting)` |
+| FR-003 | `logout` | `should revoke refresh on logout` · `should 401 on 2nd logout with revoked cookie (not idempotent)` · `should 204 on logout with valid cookie even if account disabled (no state check)` · `should 401 on logout when family already revoked (cookie not vigente)` · `should 503 on logout when DB down (never 204 without persisting)` · `should 204 on logout with a rotated refresh token (still revokes the session, H-001)` · `should also revoke family (FR-004b) on logout with rotated token outside grace (reuse signal)` · `should NOT revoke family on logout with rotated token WITHIN grace` |
 | FR-004 | `refresh` | `should refresh when valid (atomic single-use)` · `should re-read role from DB on rotation` · `should reject refresh when logout revokes the session concurrently (atomic Session.revoked_at check, no tokens issued)` |
 | FR-006 | `me` | `should return identity and role` |
 | FR-007/008/009/010 | (middleware) | `should 401/403/404 by auth+role+scope at API level` |
@@ -431,6 +453,8 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 - **Origen de usuarios**: existen usuarios **semilla** (la creación/gestión de usuarios queda fuera de
   esta feature); no hay auto-registro.
 - **Organización única y plana** (multi-tenant fuera de alcance, YAGNI).
+- **Timeout de BD (T-002/G2):** consultas a BD con **timeout de 2 s**; superarlo cuenta como "BD no
+  responde" → dispara el fail-closed (503 en refresh/logout/grace-recheck; 401 en per-request). Ajustable por config.
 - **Topología (H-004/G2):** "instancia" = **un solo proceso** Node (sin modo cluster/multi-worker en 001);
   las cachés en memoria (revocación/gracia/rate-limit) son por-proceso. Multi-worker/instancia requiere
   **store compartido** (Redis) → BL-018.

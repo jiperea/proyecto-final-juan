@@ -95,4 +95,11 @@
 - **BL-026** (001 · G2 · BAJA) — Cliente: ante 401 en reintento de `refresh` (gracia perdida por revocación
   concurrente), re-loguear en vez de reintentar el mismo token (evitar bucle). Concierne al frontend.
 
+- **BL-027** (001 · G2 · BAJA) — Logout que dispara FR-004b (token rotado fuera de gracia) invalida el
+  access de **otras pestañas propias** del mismo `sid` (falso positivo benigno en multi-tab tardío). Aceptado;
+  afinar señal si se añade monitorización. Etiquetar en logs "reuse vía logout" distinto de "vía refresh".
+- **BL-028** (001 · G2 · BAJA) — Documentar en threat-model el **vector real** que justifica detección de
+  reuso (dispositivo comprometido / robo físico / fuga de store), dado que la captura en tránsito se asume
+  fuera de alcance (TLS). No cambia 001; mejora la trazabilidad del modelo de amenazas.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
