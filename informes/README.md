@@ -46,3 +46,4 @@
 ## Índice de informes
 
 - [2026-07-10 · Fundación del proyecto](2026-07-10-tokens.md)
+- [2026-07-11 · Diseño de 001 + gobernanza](2026-07-11-tokens.md) — métricas pendientes (sandbox sin ccusage/rtk)
