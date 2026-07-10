@@ -36,8 +36,12 @@
 - **Decisión:** el hot path (validar access por request) **no** hace round-trip a BD:
   1. Verificación **JWT local** (firma + expiración), O(1).
   2. Claims `sub`, `sid` (familia/sesión), `role`.
-  3. **Caché de revocación en memoria** (session-version): set de `sid` revocados + usuarios `disabled`,
-     invalidada **por evento** (logout, revocación de familia FR-004b) con **TTL de seguridad ≤30 s**.
+  3. **Caché de revocación en memoria** (session-version): **ambas** condiciones de FR-004c contra la
+     **misma** caché — set de `sid` revocados **y** set de usuarios `disabled` — actualizada
+     **write-through síncrono** desde la petición que las produce, con **TTL de seguridad ≤30 s**. Nota:
+     el **logout voluntario NO** añade el `sid` a este set (no corta el access por-request; solo revoca el
+     refresh) — la invalidación inmediata en logout es *stretch* (FR-003). Solo el **compromiso confirmado**
+     (FR-004b) y `disabled` cortan el access vigente.
   4. **Cache-miss / reinicio → fallback a BD** (consulta `Session.revoked_at`/estado de la familia): solo
      en miss, no en régimen estable. La revocación de familia es **durable en BD** → sobrevive a reinicios.
   5. **Fail-closed:** si el fallback a BD falla (timeout/BD caída) → **401** (o 503 en `/ready`), **nunca
@@ -59,6 +63,10 @@
 - **Decisión:** **argon2id** (paquete `argon2`), parámetros OWASP (memoria ≥ 19 MiB, iteraciones ≥ 2,
   paralelismo 1) calibrados para que `verify` no domine el P95 de login (SC-005). Anti-timing (FR-011): al
   no existir el usuario se ejecuta un **hash dummy** de coste equivalente (diferencia <50 ms P95).
+- **Orden en login (FR-002b):** el chequeo de `disabled` se hace **después** de la verificación completa de
+  contraseña (real o dummy), para que "disabled con credenciales válidas" y "credenciales inválidas"
+  consuman el mismo cómputo; el 401 es uniforme y el intento **cuenta para el lockout** (FR-011). Umbral
+  <50 ms P95 **mutuo** entre las 3 causas (inválidas / inexistente / disabled).
 - **Rationale:** argon2id es el recomendado (resistente a GPU/side-channel); fijado en la constitution.
 - **Alternativas descartadas:** bcrypt (límite 72 bytes), scrypt (menos estándar).
 
@@ -96,9 +104,10 @@
   15 min; umbral 5 → bloqueo 15 min (no extensible durante el bloqueo). Respuesta **429** uniforme (bloqueo
   e identifier inexistente sobre umbral). Reset de contador/ventana al expirar el bloqueo **y** al caducar
   la ventana (evita bloqueo perpetuo). `identifier` **normalizado** (minúsculas + trim) antes de contar.
-- **Clave del identifier no resuelto:** **HMAC-SHA256 con un secreto de servidor propio** (variable de
-  entorno **distinta** del secreto JWT), no un hash simple → no reversible por diccionario si el store se
-  vuelca/replica.
+- **Clave del identifier no resuelto:** **HMAC-SHA256 con `LOCKOUT_HMAC_SECRET`** — variable de entorno
+  **dedicada y distinta** de `JWT_SECRET` y de `CSRF_HMAC_SECRET` (aislamiento de dominios criptográficos;
+  S-002). No un hash simple → no reversible por diccionario si el store se vuelca/replica. Validada en
+  fail-fast (D8).
 - **Store:** puerto `RateLimitPort`; adaptador in-memory (slice); atomicidad del contador ante concurrencia
   → BL-020; Redis multi-instancia → BL-018.
 - **Alternativas descartadas:** ventana deslizante (más compleja; ya se decidió fija); bloqueo por IP como
@@ -108,14 +117,16 @@
 
 - **Decisión:** validación de entorno con **Zod** al arrancar; si falta/está mal una variable, el proceso
   **aborta** nombrando la variable, sin abrir el puerto HTTP. Variables: `JWT_SECRET`, `CSRF_HMAC_SECRET`
-  (distinto), `DATABASE_URL`, `ACCESS_TTL`, `REFRESH_TTL_DAYS`, `GRACE_MS`, `LOCKOUT_MAX`, `LOCKOUT_WINDOW_MIN`.
+  (distinto), **`LOCKOUT_HMAC_SECRET`** (distinto de ambos, D7), `DATABASE_URL`, `ACCESS_TTL`,
+  `REFRESH_TTL_DAYS`, `GRACE_MS`, `LOCKOUT_MAX`, `LOCKOUT_WINDOW_MIN`.
 - **Rationale:** 12-factor + FR-016/SC-006.
 
 ## D9 · Método de medición de los P95 (SC-001/SC-005/FR-011)
 
-- **Decisión:** **N ≥ 200** peticiones por endpoint/grupo; **secuencial** con **warm-up descartado** (≥20);
-  **instrumentación server-side** (timestamp middleware entrada→salida) que **excluye la red**; aplica a
-  **SC-001 y SC-005**. Anti-enumeración = **|P95(inexistente) − P95(inválido)| < 50 ms** (N≥200 por grupo).
+- **Decisión:** **N ≥ 200** peticiones por endpoint/grupo; **secuencial**; se **descartan exactamente las
+  primeras 20** peticiones (warm-up) antes de medir; **instrumentación server-side** (timestamp middleware
+  entrada→salida) que **excluye la red**; aplica a **SC-001 y SC-005**. Anti-enumeración = **|P95(causa_i) −
+  P95(causa_j)| < 50 ms** para las 3 causas de 401 (inválidas / inexistente / disabled), N≥200 por grupo.
 - **Rationale:** hace los P95 reproducibles (cierra la ambigüedad estadística); carga concurrente = DevOps.
 
 ## D10 · Fixture del recurso de prueba RBAC (rbacProbe)
@@ -123,8 +134,22 @@
 - **Decisión:** fixture de seed `ProbeResource` con dimensión de **pertenencia/alcance**. Regla FR-017b
   determinista: **technician → 403** siempre (rol que nunca puede); **dispatcher/supervisor → 200** si el
   `id` está en su alcance semilla, **404** si no existe o está fuera de alcance. Orden: **rol (403) antes
-  que pertenencia (404)** (FR-017). Seed: ≥1 id "en alcance" + se prueba un id ajeno/inexistente (404).
+  que pertenencia (404)** (FR-017). Seed: **(a)** ≥1 id "en alcance" de dispatcher/supervisor (→200);
+  **(b)** ≥1 id **existente pero fuera de alcance** de un rol (p. ej. `in_scope_roles=[supervisor]`, de modo
+  que dispatcher reciba **404-por-alcance**); **(c)** un id inexistente (→404-por-inexistencia). Así los dos
+  caminos de 404 se testean por separado.
 - **Rationale:** hace testeable la regla fundacional 403/404 sin recurso de dominio real (Order llega en 002).
+
+## D11 · Unicidad global email/username a nivel de esquema (FR-001b)
+
+- **Decisión:** garantizar en **BD** (no solo con dos índices únicos por columna) que un `username` no
+  colisione con el `email` de otro usuario. Mecanismo: columna canónica **`identifier_norm`** por identidad
+  (minúsculas+trim) en una **tabla/índice único de identifiers** (o un índice único sobre la unión de
+  email y username normalizados), de modo que el espacio de unicidad sea **uno solo**. La inserción es
+  transaccional (evita la carrera de dos altas casi simultáneas).
+- **Rationale:** cierra el hueco de que dos índices independientes no impiden `username(A) == email(B)`
+  (FR-001b exige un único espacio de unicidad).
+- **Alternativas descartadas:** validación solo en aplicación (condición de carrera); no garantiza el invariante.
 
 ## Resumen de decisiones del G2 resueltas
 

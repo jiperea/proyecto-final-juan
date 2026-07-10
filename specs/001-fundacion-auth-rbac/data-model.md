@@ -18,8 +18,11 @@
 | `disabled_at` | timestamptz? | Bloqueo **administrativo** permanente → corta refresh/validación (FR-004c). |
 | `created_at`/`updated_at` | timestamptz | |
 
-- **Unicidad global (FR-001b):** índices únicos + normalización (minúsculas+trim); ningún `username`
-  colisiona con un `email` ajeno; un `identifier` resuelve a un único usuario o ninguno.
+- **Unicidad global a nivel de esquema (FR-001b, D11):** NO basta con dos índices únicos por columna (no
+  impiden `username(A)==email(B)`). Se garantiza con un **espacio de unicidad único**: cada identidad
+  aporta sus identifiers **normalizados** (`identifier_norm` = minúsculas+trim) a una **tabla/índice único
+  de identifiers** (o índice único sobre la unión email+username normalizados); inserción **transaccional**
+  (evita carrera de altas simultáneas). Un `identifier` resuelve a un único usuario o ninguno.
 - **Estados:** `active` = `disabled_at IS NULL AND (locked_until IS NULL OR locked_until < now())`.
 
 ## `Session` (familia de refresh)
@@ -32,8 +35,8 @@
 | `created_at` | timestamptz | |
 | `revoked_at` | timestamptz? | `null`=vigente; set en logout (esta sesión) o revocación de familia (FR-004b). **Durable** → sobrevive reinicios (D3). |
 
-- Varias sesiones vigentes por usuario (concurrentes, FR-003b). Logout revoca **solo** la actual (FR-003);
-  FR-004b revoca **todas** (familia).
+- Varias sesiones vigentes por usuario (concurrentes, FR-003b). Logout revoca **solo** la sesión actual
+  (FR-003); FR-004b revoca **solo la familia comprometida** (ese `sid`), **no** las demás sesiones del usuario.
 
 ## `RefreshToken` (rotación single-use)
 
@@ -59,7 +62,7 @@
 
 | Campo | Tipo | Reglas |
 |---|---|---|
-| `key` | string | `user_id` resuelto **o** **HMAC-SHA256(identifier normalizado, secreto propio ≠ JWT)** si no resuelto (D7/S-104). |
+| `key` | string | `user_id` resuelto **o** **HMAC-SHA256(identifier normalizado, `LOCKOUT_HMAC_SECRET`)** si no resuelto — secreto dedicado ≠ JWT_SECRET/CSRF_HMAC_SECRET (D7/S-002). Los intentos contra cuenta `disabled` también cuentan (FR-002b). |
 | `window_start` | timestamptz | Ventana fija 15 min; se resetea al caducar o tras expirar el bloqueo (FR-011). |
 | `count` | int | Fallos en la ventana. |
 | `locked_until` | timestamptz? | Set al superar el umbral (5). No se extiende durante el bloqueo. |
@@ -69,9 +72,11 @@
 
 ## Caché de revocación (session-state) — en memoria, no persistida
 
-Soporta D3/FR-004b/004c. Set de `sid` revocados + usuarios `disabled`; invalidada **por evento**
-(logout, revocación de familia), **TTL de seguridad ≤30 s**, **cache-miss → fallback a BD**, **fail-closed**
-ante fallo de BD. Puerto `SessionStatePort`.
+Soporta D3/FR-004b/004c. **Ambas** condiciones en la misma caché: set de `sid` revocados **por compromiso
+confirmado** (FR-004b) + set de usuarios `disabled`. Actualización **write-through síncrona** desde la
+petición que la produce; **TTL de seguridad ≤30 s**, **cache-miss → fallback a BD**, **fail-closed** ante
+fallo de BD. **El logout voluntario NO añade el `sid` aquí** (no corta el access por-request; solo revoca el
+refresh — invalidación en logout = stretch, FR-003). Puerto `SessionStatePort`.
 
 ## Caché de gracia de refresh — efímera, en memoria, no persistida
 
@@ -90,7 +95,13 @@ Soporta FR-017b (200/403/404 deterministas). Fixture de seed, no tabla de domini
 | `in_scope_roles` | enum[] | Roles para los que el id está "en alcance" → 200. Semilla: `[dispatcher, supervisor]`. |
 
 Regla (orden rol→pertenencia): technician → **403**; dispatcher/supervisor → **200** si `id` existe y su
-rol ∈ `in_scope_roles`, **404** si no. Seed: ≥1 id en alcance + id inexistente para el 404.
+rol ∈ `in_scope_roles`, **404** si no. **Seed (3 casos deterministas, FR-017b):**
+- `probe-A` con `in_scope_roles=[dispatcher, supervisor]` → **200** para ambos.
+- `probe-B` con `in_scope_roles=[supervisor]` → **200** supervisor, **404-por-alcance** dispatcher (existe
+  pero fuera de su alcance).
+- un id **inexistente** → **404-por-inexistencia**.
+
+Así los dos caminos de 404 (alcance vs inexistencia) tienen caso propio, y technician da 403 en todos.
 
 ## Base-ready: `DeniedAccessAudit` *(NO se implementa en 001)*
 

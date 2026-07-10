@@ -32,8 +32,10 @@ adaptadores **in-memory** tras puertos (slice single-instance).
 P95(inválido)| **< 50 ms** (FR-011). **Método de medición** (D9): N≥200, secuencial + warm-up descartado,
 instrumentación **server-side** (excluye red), aplica a SC-001 y SC-005.
 
-**Constraints**: sin round-trip a BD en el hot path (D3, fail-closed); argon2id calibrado (D4); refresh solo
-como hash en BD; secreto **HMAC del lockout distinto del JWT** (D7).
+**Constraints**: sin round-trip a BD en el hot path (D3, fail-closed, write-through); argon2id calibrado
+(D4, `disabled` chequeado tras el hash); refresh solo como hash en BD; **3 secretos distintos**:
+`JWT_SECRET`, `CSRF_HMAC_SECRET`, `LOCKOUT_HMAC_SECRET` (D7); unicidad email/username por espacio único a
+nivel de esquema (D11).
 
 **Scale/Scope**: organización única y plana (multi-tenant fuera); usuarios semilla (sin auto-registro);
 endpoints login/refresh/logout/me/rbacProbe + /health + /ready.
@@ -53,7 +55,8 @@ fundación (declarado en la spec), nunca para eludir seguridad.*
 ### Gate · RBAC y seguridad (Principios IV, IX, XI)
 
 - [x] Autorización en **backend** (middleware centralizado), rechaza aunque se fuerce (FR-010).
-- [x] **401/403/404** deterministas: orden **auth(401)→autorización(403)** (FR-018) y **rol(403)→pertenencia(404)** (FR-017); test por rol vía `rbacProbe` con fixture de pertenencia.
+- [x] **401/403/404** deterministas: orden **auth(401)→autorización(403)** (FR-018) y **rol(403)→pertenencia(404)** (FR-017); test por rol vía `rbacProbe` con fixture de pertenencia (incl. 404-por-alcance, FR-017b).
+- [x] **Estado de cuenta**: `disabled` corta **login** (FR-002b, 401 uniforme, cuenta para lockout) **y** validación/refresh por-request (FR-004c, con revocación de familia, write-through); `locked_until` solo login (no DoS-logout).
 - [~] **Pertenencia (`assigned_to`) y estado de origen**: **N/A en 001** (no hay dominio; 002+). El `rbacProbe` modela pertenencia solo para testear la regla; la regla queda **base-ready**.
 - [~] **PII/cifrado reposo/URLs firmadas/IA**: **N/A en 001** (sin fotos/notas/IA). Sensible: el `identifier` → **redactado en logs** junto con Authorization/Set-Cookie/tokens (FR-014). TLS + cabeceras (FR-012).
 - [~] **Auditoría de accesos denegados**: **base-ready** (`DeniedAccessAudit` sin ALTER destructivo); comportamiento = stretch (BL-002).
