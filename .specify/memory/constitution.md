@@ -21,6 +21,10 @@ v1.4.0 (MINOR): sección "Refuerzos de robustez y control de flujo" — FSM expl
 evidencia validada, IA con procedencia/staleness + rate-limit, seguridad web (helmet/CSRF/rate-limit/
 config fail-fast), correlation-ID, spec-freeze, catch-rate de gates, migraciones en CI. (CI/DevOps se
 implementa más adelante.)
+v1.5.0 (MINOR): anti-scope-creep tras auditoría neutral (docs/07). Refuerzos clasificados MVP vs Stretch:
+idempotencia/concurrencia, auditoría forense y staleness IA pasan a **stretch** (no bloquean gate);
+auditoría **mínima** obligatoria. Multi-tenant ya **no se diseña para el futuro** (YAGNI). Visibilidad del
+technician explícita; NFR "rápido" obligatorio de cuantificar en los SC.
 
 Principios (14):
   I.    Spec-Driven, spec-first
@@ -103,10 +107,11 @@ La autorización vive en el **backend** y rechaza aunque se fuerce la petición.
 autenticado o sesión caducada/revocada), **403** (autenticado sin permiso), **404** (recurso ajeno, no
 filtrar existencia) y **409/422** (estado de origen inválido para la transición). Cada acción valida
 **rol y pertenencia** (`assigned_to == usuario`) **y el estado de origen** de la transición. La política
-de visibilidad es **centralizada e inyectable** (matriz rol×alcance), mínimo privilegio por defecto. En
-el slice la organización es **única y plana** (sin equipos/regiones): el supervisor ve todas las órdenes
-en `pending_review` y el dispatcher todas las reasignables; no hay sub-ámbito intra-organización (el
-multi-tenant queda fuera de alcance y la matriz inyectable permite añadirlo sin reescribir). La sesión
+de visibilidad es **centralizada** (una única fuente de verdad de autorización), mínimo privilegio por
+defecto. En el slice la organización es **única y plana** (sin equipos/regiones): el **technician ve
+solo sus órdenes asignadas** (`assigned_to == usuario`), el **dispatcher** las reasignables y el
+**supervisor** todas las de `pending_review`. El **multi-tenant queda fuera de alcance y NO se diseña
+para él** (YAGNI, Principio XII). La sesión
 tiene **expiración y revocación** definidas; una sesión caducada/revocada devuelve 401.
 - **Verificación:** test negativo por endpoint y rol no autorizado a nivel de API; test de transición
   disparada desde estado inválido → 409/422; test de acceso a recurso ajeno → 404; test de sesión
@@ -265,8 +270,23 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 
 ## Refuerzos de robustez y control de flujo
 
-> Refuerzos transversales (v1.4.0) que concretan principios existentes. Los específicos de feature se
+> Refuerzos transversales que concretan principios existentes. Los específicos de feature se
 > materializan en su spec.
+
+### MVP vs Stretch (proporcionalidad — "slice pequeño y bien hecho")
+
+Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría neutral vs brief, docs/07):
+
+- **Obligatorio (MVP de cada feature):** FSM explícito; **auditoría mínima** (cada transición registra
+  actor/timestamp/motivo, atómica con la transición); evidencia validada; IA no-inventa + rate-limit;
+  seguridad web (helmet/CSRF/rate-limit/config fail-fast); correlation-ID; y **el NFR de rendimiento
+  ("rápido") cuantificado obligatoriamente en los Success Criteria de cada spec**.
+- **Stretch (opcional por feature; NO bloquea el gate; solo si da tiempo):** idempotency-key;
+  concurrencia optimista (If-Match→409); **auditoría forense** (registro de accesos denegados,
+  evidencia versionada por intento); procedencia + staleness del resumen de IA.
+
+> Los principios VIII/X/XI conservan su redacción, pero su parte marcada *stretch* **no es
+> gate-bloqueante** para el MVP del slice. Esto mantiene "pequeño y bien hecho" sin perder la ambición.
 
 **Robustez de dominio**
 
@@ -311,4 +331,4 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.4.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.5.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10

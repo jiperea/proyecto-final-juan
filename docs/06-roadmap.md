@@ -39,12 +39,21 @@ mantener slices pequeños e independientemente testeables; el resto construye en
 `/speckit-specify` (crea rama) → `/speckit-clarify` → **G1** → `/speckit-checklist` → `/speckit-plan`
 → `/speckit-tasks` → `/speckit-analyze` → **G2** → `/speckit-implement` + tests → **G3** → merge.
 
-## Refuerzos por feature (constitution v1.4.0)
+## Refuerzos por feature (MVP vs Stretch — constitution v1.5.0)
 
-- **002** (Order core): máquina de estados explícita (tabla de transiciones) + auditoría atómica.
-- **003/004**: evidencia validada antes de adjuntar; concurrencia If-Match→409; idempotencia.
-- **006** (IA): resumen con procedencia + staleness + rate-limit del endpoint.
-- **Transversal** (001+): helmet/CSRF/rate-limit en login, config fail-fast, correlation-ID.
+**MVP (obligatorio):**
+- **001** (auth+RBAC): visibilidad por rol (technician ve **sus órdenes asignadas**, dispatcher las
+  reasignables, supervisor las de `pending_review`) + seguridad web (helmet/CSRF/rate-limit/config fail-fast).
+- **002** (Order core): **FSM explícito** (tabla de transiciones) + **auditoría mínima** (transición:
+  actor/timestamp/motivo, atómica) + **listado de órdenes** (cubre "ver sus órdenes" del brief).
+- **004** (ejecución): evidencia **validada** antes de adjuntar.
+- **006** (IA): no-inventar + **rate-limit** del endpoint.
+- **Transversal:** correlation-ID; NFR "rápido" **cuantificado en los SC** de cada spec.
+
+**Stretch (opcional; no bloquea gate; solo si da tiempo):**
+- idempotency-key + concurrencia optimista (If-Match→409) — en 003/004.
+- auditoría **forense** (accesos denegados, evidencia versionada por intento) — en 002/004.
+- resumen IA con **procedencia + staleness** — en 006.
 
 ## Fuera de alcance (declarado)
 

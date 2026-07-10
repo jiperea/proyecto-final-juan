@@ -178,6 +178,13 @@ Arreglado gitleaks (binario OSS, sin licencia de organización) y sacadas las ev
 API/coste) → CI 100% determinista y token-free. La parte de CI/GitHub Actions se retoma en la fase
 DevOps. *Por qué:* "con poder subir vale"; DevOps no es prioridad ahora.
 
+**B23 · Anti-scope-creep tras auditoría neutral (constitution v1.5.0).**
+El `auditor-brief` confirmó cobertura 1:1 del brief pero detectó exceso de robustez ("cómo"). Se
+clasifican los refuerzos en **MVP vs Stretch**: idempotencia/concurrencia, auditoría forense y
+staleness IA → **stretch** (no bloquean gate); auditoría **mínima** obligatoria. Se quita el diseño
+"multi-tenant para el futuro" (YAGNI). Se cierran 2 huecos del brief: visibilidad del **technician** y
+NFR **"rápido"** obligatorio en los SC. *Por qué:* volver a "pequeño y bien hecho" sin perder ambición.
+
 ---
 
 *(La bitácora se actualiza a medida que avanza el proyecto: specs, gates ejecutados, etc.)*
