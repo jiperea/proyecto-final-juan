@@ -102,4 +102,18 @@
   reuso (dispositivo comprometido / robo físico / fuga de store), dado que la captura en tránsito se asume
   fuera de alcance (TLS). No cambia 001; mejora la trazabilidad del modelo de amenazas.
 
+### Gate G2 PASS (001) — residuales ALTA/MEDIA (no bloquean; a cerrar en /implement o enmienda menor)
+
+- **BL-029** (001 · G2 · ALTA) — Uniformidad del **401 en endpoints Bearer** (`me`/`rbacProbe`): que `code`/
+  `message` no distingan token expirado / firma inválida / familia revocada / disabled (oráculo para quien
+  ya posee un access robado). Extender la uniformidad de FR-005 al camino Bearer (rbac S-001).
+- **BL-030** (001 · G2 · ALTA) — Timing del **429 (lockout) vs 401**: fijar orden (locked_until antes/después
+  del hash) y paridad de timing 429↔401 para no reabrir oráculo por latencia (cínico H-002).
+- **BL-031** (001 · G2 · ALTA) — Alcance del **422 por JSON malformado**: aclarar si aplica solo a `login`
+  o a todo endpoint con body; si a todos, declarar 422 en el contrato de refresh/logout/me/rbacProbe (consistencia K-001).
+- **BL-032** (001 · G2 · MEDIA) — Tests de concurrencia/edge dirigidos: ventana commit-BD↔caché-gracia;
+  seed de cuenta disabled+locked combinada; descripción OpenAPI de logout que refleje D12 (token rotado→FR-004b).
+- **BL-033** (stretch · UI 002+ · ALTA) — Garantizar en la futura UI que el **access vive en memoria** (no
+  localStorage) — base del reparto XSS/CSRF (D1); test de arquitectura frontend cuando exista (cínico H-001).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
