@@ -30,6 +30,8 @@ shell commands, and other important information, read the current plan
 - **PostgreSQL 16 (Prisma) en todos los entornos vía Docker** (paridad; migraciones Prisma Migrate).
 - **Zod** derivado del contrato · **OpenAPI 3.1** en `contracts/` (contract-first, rutas bajo **`/v1`**).
 - **Vitest** + Supertest · **pino** · **Docker + Docker Compose**.
+- **Seguridad/robustez:** helmet (HSTS/CSP) + CSRF + rate-limit (login e IA); config validada al
+  arrancar (Zod, fail-fast); FSM explícito; auditoría atómica (misma transacción); correlation-ID.
 - **Auth:** JWT access (memoria) + refresh opaco (cookie HttpOnly, revocable), **argon2id** (ADR-0002).
 
 ## Cómo trabajar una feature

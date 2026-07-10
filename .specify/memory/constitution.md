@@ -17,6 +17,10 @@ v1.3.0 (MINOR): decisiones de fundación — PostgreSQL 16 (Prisma) en TODOS los
 (se descarta SQLite); auth JWT access+refresh/argon2id (ADR-0002); sección Convenciones (Result/Either
 en dominio, API /v1, Conventional Commits, Makefile). Roadmap: 001 se divide en 001 (auth+RBAC) y
 002 (dominio Order).
+v1.4.0 (MINOR): sección "Refuerzos de robustez y control de flujo" — FSM explícito, auditoría atómica,
+evidencia validada, IA con procedencia/staleness + rate-limit, seguridad web (helmet/CSRF/rate-limit/
+config fail-fast), correlation-ID, spec-freeze, catch-rate de gates, migraciones en CI. (CI/DevOps se
+implementa más adelante.)
 
 Principios (14):
   I.    Spec-Driven, spec-first
@@ -259,6 +263,40 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Un comando para todo:** `Makefile` (o scripts npm) envuelve `install` / `test` / `up` / `gate`,
   reforzando "install + test en máquina limpia".
 
+## Refuerzos de robustez y control de flujo
+
+> Refuerzos transversales (v1.4.0) que concretan principios existentes. Los específicos de feature se
+> materializan en su spec.
+
+**Robustez de dominio**
+
+- **Máquina de estados explícita (III):** una **tabla única de transiciones permitidas**; el dominio
+  rechaza **por construcción** toda transición ilegal (no `if` sueltos). → spec 002.
+- **Auditoría atómica (XI):** la transición de estado y su registro de auditoría se escriben en la
+  **misma transacción**; sin auditoría no hay cambio de estado.
+- **Evidencia validada (IX/X):** tipo/tamaño/decodificable **antes** de adjuntar; se rechazan subidas
+  corruptas o a medias. → spec 004.
+
+**Robustez del componente IA (VIII)**
+
+- **Procedencia + staleness:** el resumen guarda la **versión de evidencia** con la que se generó y se
+  marca **obsoleto** si la evidencia cambia después. → spec 006.
+- **Rate-limit** del endpoint de IA (coste/abuso).
+
+**Seguridad web (IV/IX)**
+
+- **Cabeceras de seguridad** (helmet: HSTS/CSP…) + **CSRF** (por la cookie de refresh) +
+  **rate-limit/lockout** en login (fuerza bruta).
+- **Validación de config al arrancar** (Zod, **fail-fast**: arranca o falla claro).
+
+**Control del flujo (SDD)**
+
+- **Correlation-ID** propagado punta a punta (request→logs→auditoría→IA) — refuerza X/XI.
+- **Spec-freeze:** una vez la spec pasa G1, **modificarla re-dispara G1** (la spec es contrato).
+- **Catch-rate de gates:** se registran los bloqueantes cazados por fase en `informes/` (mide el valor
+  del proceso).
+- **Migraciones probadas en CI** sobre BD limpia + seed (garantiza "install+test en limpio").
+
 ## Governance
 
 - Esta constitution **prevalece** sobre plantillas, skills y decisiones de implementación. Jerarquía:
@@ -273,4 +311,4 @@ cubierto) mediante el **framework de evaluación del proyecto (promptfoo)**. Un 
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.3.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10
+**Version**: 1.4.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-10

@@ -39,6 +39,13 @@ mantener slices pequeños e independientemente testeables; el resto construye en
 `/speckit-specify` (crea rama) → `/speckit-clarify` → **G1** → `/speckit-checklist` → `/speckit-plan`
 → `/speckit-tasks` → `/speckit-analyze` → **G2** → `/speckit-implement` + tests → **G3** → merge.
 
+## Refuerzos por feature (constitution v1.4.0)
+
+- **002** (Order core): máquina de estados explícita (tabla de transiciones) + auditoría atómica.
+- **003/004**: evidencia validada antes de adjuntar; concurrencia If-Match→409; idempotencia.
+- **006** (IA): resumen con procedencia + staleness + rate-limit del endpoint.
+- **Transversal** (001+): helmet/CSRF/rate-limit en login, config fail-fast, correlation-ID.
+
 ## Fuera de alcance (declarado)
 
 Creación/alta inicial de órdenes (draft→assigned; datos semilla), multi-tenant, dashboard de métricas,

@@ -168,6 +168,16 @@ documentación, pero manteniendo en el flujo lo que speckit/claude usan al traba
 Guía de trabajo en el repo (reglas de oro, stack, flujo con gates, sin API, no-hacer) que apunta a la
 constitution. *Por qué:* que cada sesión futura arranque alineada sin releer todo.
 
+**B21 · Refuerzos de robustez y flujo (constitution v1.4.0).**
+FSM explícito, auditoría atómica, evidencia validada, IA con procedencia/staleness + rate-limit,
+seguridad web (helmet/CSRF/rate-limit/config fail-fast), correlation-ID, spec-freeze, catch-rate de
+gates. *Por qué:* más control del flujo y robustez, anclado al brief, sin inflar el alcance funcional.
+
+**B22 · CI en verde y sin API; DevOps aparcado.**
+Arreglado gitleaks (binario OSS, sin licencia de organización) y sacadas las evals del CI (evitan
+API/coste) → CI 100% determinista y token-free. La parte de CI/GitHub Actions se retoma en la fase
+DevOps. *Por qué:* "con poder subir vale"; DevOps no es prioridad ahora.
+
 ---
 
 *(La bitácora se actualiza a medida que avanza el proyecto: specs, gates ejecutados, etc.)*
