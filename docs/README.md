@@ -40,6 +40,7 @@ Tres pilares:
 | [08-niveles-configuracion.md](08-niveles-configuracion.md) | Qué vive a nivel proyecto / usuario / organización. |
 | [09-glossary.md](09-glossary.md) | Lenguaje ubicuo del dominio (anti-ambigüedad). |
 | [10-evals-promptfoo.md](10-evals-promptfoo.md) | Decisión build-vs-buy: evals con promptfoo. |
+| [11-eficiencia-tokens.md](11-eficiencia-tokens.md) | Ahorro de tokens: deterministic-first, model tiering, RTK (fase implementación). |
 | [adr/](adr/) | Architecture Decision Records (0000 plantilla, 0001 arquitectura y stack). |
 | `gates/` | Informes de cada ejecución de gate (se generan durante el flujo). |
 
