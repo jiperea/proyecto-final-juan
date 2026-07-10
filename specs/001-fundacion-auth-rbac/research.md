@@ -159,6 +159,23 @@
   (FR-001b exige un único espacio de unicidad).
 - **Alternativas descartadas:** validación solo en aplicación (condición de carrera); no garantiza el invariante.
 
+## D12 · Semántica de logout (decisión del usuario, cierra H-001)
+
+- **Decisión:** `logout` **revoca la sesión (`sid`)** si no está ya revocada, **aunque el refresh
+  presentado esté rotado** (no sea el actual) o la cuenta esté `disabled` → **204**. Si el token está
+  **rotado y FUERA de la ventana de gracia**, lo trata además como **reuso** y dispara **FR-004b** (revoca
+  familia = contención del compromiso). El chequeo de rotación/gracia lee **BD (autoritativo, régimen (b));
+  fail-closed 503** si la BD no responde. El **401 de logout es uniforme** de contenido. 2º logout con la
+  sesión ya revocada → 401.
+- **Rationale:** cerrar la propia sesión no escala privilegios (solo afecta a la sesión de ese `sid`) y un
+  token robado ya podría terminarla vía refresh-reuso; por tanto aceptar un token rotado en logout no añade
+  superficie. A cambio, el usuario legítimo **siempre** puede cerrar su sesión (incluso con cookie "vieja")
+  y el compromiso se **detecta y contiene** (FR-004b) también por la vía de logout.
+- **Efectos aceptados:** un logout que dispara FR-004b invalida el access de otras pestañas propias del mismo
+  `sid` (BL-027); retención de hashes rotados durante el TTL (ver data-model) para logout tardío.
+- **Alternativas descartadas:** exigir token no rotado (401) — deja al usuario legítimo sin cerrar su sesión
+  y no detecta el compromiso por logout (rechazado por el usuario en G2).
+
 ## Resumen de decisiones del G2 resueltas
 
 | Tema G2 | Decisión |

@@ -50,6 +50,10 @@
 | `replaced_by` | UUID? (FK→RefreshToken) | Sucesor (traza de rotación). |
 | `created_at` | timestamptz | |
 
+> **Retención (D12):** los refresh **rotados** se conservan (hash + `sid`) hasta el **TTL** (7 días), no se
+> purgan al rotar, para que un `logout` con un token rotado tardío pueda resolver el `sid` (kill-switch) y,
+> si está fuera de gracia, disparar FR-004b.
+
 **Invariantes:**
 - Rotación **single-use atómica** (FR-004/H-006/H-001) **que además exige sesión no revocada**:
   `UPDATE RefreshToken SET rotated_at=now(), replaced_by=? WHERE id=? AND rotated_at IS NULL AND EXISTS
