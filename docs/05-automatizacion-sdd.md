@@ -116,3 +116,18 @@ Para ejecución no interactiva (CI, o correr el gate a mano), un script portable
 ```
 
 Cada gate deja rastro en `specs/<feature>/gates/`, alimentando la bitácora (ver `README.md`).
+
+## 7. Gates cooperativos de Spec Kit (clarify / analyze) — proceso
+
+Distinto del panel adversarial (independiente): `clarify` y `analyze` son del propio flujo. Reglas:
+
+- **`/speckit-clarify` — iterativo hasta converger** (mín. 3 pases; se para cuando un pase no genera
+  preguntas nuevas). Semi-automatizado: Claude **auto-responde** las preguntas cuya respuesta ya está
+  fijada (constitution, decisiones, `Assumptions` de la spec), **citando la fuente**, y **solo escala al
+  usuario** las decisiones nuevas de negocio sin default. Las respuestas se escriben en `## Clarifications`.
+- **`/speckit-analyze` — umbral de avance**: se continúa **mientras no haya findings CRITICAL ni HIGH**.
+  Los **MEDIUM/LOW no bloquean** y se recogen en `docs/backlog.md` (con origen/feature/severidad).
+- Tras ambos, el **panel adversarial** (G1/G2) verifica de forma independiente (0 BLOQUEANTES).
+
+> Automatización: el **bucle** (re-ejecutar hasta convergencia) y la **auto-resolución desde contexto**
+> se orquestan; el **juicio en bifurcaciones reales** queda con el usuario.
