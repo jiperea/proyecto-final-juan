@@ -57,6 +57,16 @@ como base transversal sobre la que se construyen las features de dominio (Order,
 - Q: ¿El 401 de refresh distingue la causa? → A: **No** — 401 **uniforme** de cara al cliente; la causa
   solo en logs internos (FR-005, S-003).
 
+**Gate G2 post-propagación (3ª tanda de decisiones spec):**
+- Q: ¿`refresh` verifica el estado por caché o por BD? → A: **dos regímenes** — validación per-request
+  (hot path) por caché+fallback; `refresh` por **BD autoritativa**; mismo criterio, distinto acceso (FR-004c, H-002).
+- Q: ¿El orden 401-antes-403 incluye el estado de cuenta? → A: **sí** — "sesión válida" incluye
+  disabled/familia; una cuenta `disabled` da **401 antes** de evaluar CSRF (FR-018, S-003).
+- Q: ¿Pueden filtrarse credenciales por logs o `details`? → A: **No** — `password`/tokens/secretos/identifier
+  **nunca** en logs ni en `details` (ni en 422) (FR-014, S-001).
+- Q: ¿Se exige paridad de timing en el 401 de refresh? → A: **No en 001** — uniformidad de contenido sí;
+  timing → **backlog BL-023** por coste sobre SC-005 (FR-005, H-004).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Iniciar y cerrar sesión (Priority: P1)
@@ -193,12 +203,24 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   petición que la detecta, por lo que "inmediata" = efectiva desde esa petición (el TTL ≤30 s es solo red
   de contención). **El logout voluntario NO entra aquí**: revoca el refresh, pero **no** corta el access por
   request (eso es *stretch*, FR-003/SC-003). El **lockout temporal** (`locked_until`, FR-011) afecta **solo
-  al login**, **no** corta sesiones activas (evita DoS-logout). El estado autoritativo se comprueba contra
-  BD en `refresh`; la mecánica per-request (caché + fallback a BD + fail-closed) es de `/plan`.
+  al login**, **no** corta sesiones activas (evita DoS-logout). **Dos regímenes de acceso al dato, sin
+  contradicción** (aclara H-001/H-002/G2): **(a) validación per-request de access** (camino caliente, con
+  **Bearer**: `me`, `rbacProbe` y todo endpoint protegido) = **caché en memoria + fallback a BD solo en
+  cache-miss/reinicio**. **(b) endpoints de cookie** (`refresh` **y `logout`**, fuera del camino caliente,
+  mucha menos frecuencia) = consulta **BD autoritativa y directa**. **Ambos verifican las mismas dos
+  condiciones** (`disabled` y familia revocada); cambia el **mecanismo de acceso al dato**, no el criterio.
+  **Fail-closed:** si en un cache-miss la BD **tampoco responde** (timeout/caída), se responde **401/503**,
+  **nunca fail-open**. **Propagación de `disabled` fuera de banda** (un admin lo marca en BD, sin petición
+  que dispare write-through): en el camino caliente se propaga como **máximo en el TTL de la caché (≤30 s)**;
+  en endpoints de cookie es **inmediata** (BD). La caché es **por-instancia** (slice single-instance);
+  multi-instancia (caché compartida) → backlog (BL-018). Mecánica de caché/fallback en `/plan`.
 - **FR-005**: WHEN un refresh token está **caducado o revocado** THE sistema SHALL responder **401** y no
   emitir access token. El **401 de refresh es uniforme** de cara al cliente (resuelve S-003/G2): no
   distingue caducado / revocado por logout / reuso-detectado / cuenta `disabled`; la causa concreta vive
   **solo en los logs internos** (correlation-id), para no dar pistas a un atacante con un refresh robado.
+  *Nota (H-004/G2):* esta uniformidad es de **contenido**. La **paridad de timing** entre causas (el
+  reuso-detectado es algo más lento por el write de revocación) se **difiere a backlog** (BL-023) por su
+  coste sobre SC-005; no es requisito obligatorio de 001.
 - **FR-006**: WHILE una sesión está activa THE sistema SHALL exponer un endpoint "me" que devuelve la
   identidad del usuario y su **rol** (dispatcher | technician | supervisor).
 - **FR-007**: WHEN una petición a un recurso protegido llega sin autenticación válida THE sistema SHALL
@@ -228,7 +250,13 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   **401/403/404/422/429/503** (422 = validación de body). **400 y 409 NO aplican a 001** (llegan con las
   transiciones/conflictos de dominio en 002) → no se testean como código en esta feature.
 - **FR-014**: THE sistema SHALL propagar un **correlation-id** por petición y registrarlo en el logging
-  estructurado (sin PII).
+  estructurado (sin PII). **Nunca** deben aparecer en logs **ni** en el campo `details` de un error (ni
+  siquiera en un 422 de validación): **credenciales (`password`)**, tokens/secretos (`Authorization`,
+  `Set-Cookie`, `access_token`, `refresh_token`, `csrf_token`) ni el `identifier` (resuelve S-001/G2). El
+  veto aplica a **logs, `details` Y `message`** del `ErrorResponse` (el `message` **no interpola** el valor
+  recibido; nada de "identifier 'x@y.com' inválido"). Para **correlacionar** una causa en logs internos
+  (FR-005/FR-002b) se usa el **`user_id` (UUID, no-PII)** cuando el usuario resuelve, nunca el `identifier`
+  crudo. La lista concreta de redacción y la restricción del `details`/`message` se detallan en `/plan` y el contrato.
 - **FR-015**: THE sistema SHALL exponer `/health` (vivo) y `/ready` (listo, con dependencias) diferenciados.
 - **FR-016**: WHEN el servicio arranca con configuración/entorno inválido o incompleto THE sistema SHALL
   **abortar el arranque** (fail-fast) con un mensaje que **nombre la(s) variable(s)** inválidas/faltantes,
@@ -255,7 +283,10 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
   → **401**; con credencial válida pero sin permiso/CSRF → **403**. En particular, en `refresh`/`logout`
   (cookie): **sin sesión válida** (cookie ausente/caducada/revocada) → **401** (comprobado **antes** que el
   CSRF); **solo** con sesión válida y CSRF inválido/ausente → **403** (coherente con FR-017: 403 =
-  autenticado sin permiso, no "sin autenticar").
+  autenticado sin permiso, no "sin autenticar"). **"Sesión válida" incluye TODAS las condiciones de estado
+  que producen 401 según FR-004c/FR-005** (resuelve S-003/G2): cookie ausente/caducada/revocada, familia
+  revocada por compromiso, **y cuenta `disabled`** — todas se evalúan **antes** que el CSRF. Es decir, una
+  cuenta `disabled` da **401** aunque falte el CSRF (no 403).
 
 ### Key Entities
 
@@ -318,12 +349,12 @@ verificar que solo el rol autorizado accede; el resto recibe el rechazo correcto
 | FR-011 | `login` | `should lock account after N failed attempts` · `should reset window on expiry (no perpetual lock)` |
 | FR-012 | (todas) | `should set security headers` · `should reject missing CSRF on refresh` |
 | FR-013 | (todas) | `should return error contract shape per code` |
-| FR-014 | (todas) | `should propagate correlation-id to logs` |
+| FR-014 | (todas) | `should propagate correlation-id to logs` · `should NOT leak password/tokens/identifier in logs, details or message (incl. 422)` |
 | FR-015 | `health`/`ready` | `should report health and readiness` |
 | FR-016 | (arranque) | `should fail-fast on invalid config (names missing var)` |
 | FR-001b | `login` | `should resolve identifier to a single user (email/username global uniqueness)` |
 | FR-003b/004d | `refresh`/`login` | `should allow concurrent sessions` · `should treat refresh retry within grace as same use` |
-| FR-004b/004c | `refresh` | `should revoke compromised family only (not other sessions) + invalidate its access on reuse` · `should 401 when account disabled` · `should keep other concurrent sessions on family revocation` |
+| FR-004b/004c | `refresh` · `me`/`rbacProbe` | `should revoke compromised family only (not other sessions) + invalidate its access on reuse` · `should 401 when account disabled` · `should keep other concurrent sessions on family revocation` · **`should 401 on me/rbacProbe with still-valid access right after family revocation/disable (per-request cache path)`** · `should fail-closed (401/503) when cache-miss and DB down` |
 | FR-005 | `refresh` | `should return uniform 401 (no cause oracle) on expired/revoked/reuse/disabled` |
 | FR-017 | (middleware) | `should 403 for role-forbidden action` · `should 404 for out-of-scope resource` (regla determinista, fixture en /plan) |
 | FR-017b | `rbacProbe` | `should 403 for technician` · `should 200 for dispatcher/supervisor in-scope` · `should 404 for out-of-scope (existing)` · `should 404 for non-existent` |

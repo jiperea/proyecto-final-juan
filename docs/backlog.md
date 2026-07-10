@@ -77,4 +77,10 @@
   cambio/degradación de rol); hoy el cambio de rol se propaga en ≤15 min (TTL del access). Requiere el
   mismo mecanismo de invalidación inmediata que FR-004b (session-version).
 
+### Gate G2 post-propagación (001) — MEDIA
+
+- **BL-023** (stretch · 001 · MEDIA) — **Paridad de timing en el 401 de `refresh`** entre causas
+  (reuso-detectado es más lento por el write de revocación de familia). Hoy solo se garantiza uniformidad
+  de **contenido** (FR-005); la de timing se difiere por su coste sobre SC-005. Prioridad: media (002).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
