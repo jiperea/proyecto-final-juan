@@ -65,8 +65,11 @@ fundación (declarado en la spec), nunca para eludir seguridad.*
 ### Gate · Arquitectura Hexagonal (Principio III)
 
 - [x] `domain/` (política RBAC, rotación, lockout — puro) · `handlers/` (HTTP) · `infra/` (Prisma, cripto, cachés).
-- [x] Puertos: `UserRepositoryPort`, `SessionRepositoryPort`, `RefreshTokenRepositoryPort`,
-  `PasswordHasherPort`, `TokenIssuerPort`, `SessionStatePort`, `GraceCachePort`, `RateLimitPort`, `ClockPort`. Dominio testeable sin BD.
+- [x] Puertos de dominio: `UserRepositoryPort`, `SessionRepositoryPort`, `RefreshTokenRepositoryPort`,
+  `AccountStatePort`, `ProbeResourceRepositoryPort` (repos); `PasswordHasherPort`, `TokenIssuerPort`,
+  `SessionStatePort`, `GraceCachePort`, `RateLimitPort`, `ClockPort` (servicios). Puerto de capa handlers:
+  `SessionValidityPort` (adaptador `RefreshSessionValidity`) para el orden CSRF de FR-018. Dominio testeable sin BD.
+  *(K-003 G3: se añaden AccountStatePort/ProbeResourceRepositoryPort/SessionValidityPort a la lista, ya usados por el código.)*
 
 ### Gate · Calidad y verificación (Principios V, VI, VII, XIII, XIV)
 

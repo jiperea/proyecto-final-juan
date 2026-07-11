@@ -71,7 +71,7 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 - [x] T027 [P] [US1] **[Red]** Contract test `login` 200/401/422/429 — `backend/tests/contract/login.contract.spec.ts` (FR-001/002/011)
 - [x] T028 [P] [US1] **[Red]** Contract test `logout` 204/401/403/503 (503 = BD caída, fail-closed) — `backend/tests/contract/logout.contract.spec.ts` (FR-003/018)
 - [x] T029 [P] [US1] **[Red]** Contract test `me` 200/401 — `backend/tests/contract/me.contract.spec.ts` (FR-006)
-- [x] T030 [P] [US1] **[Red]** Unit credenciales + resolución de identifier a único usuario (normalizado) — `backend/tests/unit/auth-credentials.spec.ts` (FR-001b/002)
+- [x] T030 [P] [US1] **[Red]** Unit credenciales + resolución de identifier a único usuario (normalizado) — `backend/tests/unit/login.spec.ts` (FR-001b/002) *(K-004: ruta real)*
 - [x] T031 [P] [US1] **[Red]** Unit lockout 5/15min ventana fija + **reset al expirar/caducar** — `backend/tests/unit/lockout.spec.ts` (FR-011/SC-004)
 - [x] T032 [P] [US1] **[Red]** Integration login/logout: válido→sesión; inválido→401 uniforme; **cuenta `disabled`→401 uniforme y NO se puede re-loguear + cuenta para el lockout (429 indistinguible)** (FR-002b); logout revoca solo la actual; **2º logout con cookie revocada→401** (no idempotente); **logout de cuenta `disabled` con cookie vigente→204**; **logout con token rotado (sesión vigente)→204** (revoca sesión); **logout con token rotado FUERA de gracia→204 + revoca familia (FR-004b)**; **logout con token rotado DENTRO de gracia→204 SIN FR-004b**; **logout con sesión ya revocada→401** (uniforme) — `backend/tests/integration/login-logout.spec.ts` (FR-001/002/002b/003/003b/004b/018, SC-001, D12)
 
@@ -81,7 +81,7 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 - [x] T034 [P] [US1] Adaptador `TokenIssuer` (JWT HS256 sub/sid/role/exp; refresh opaco + hash SHA-256) — `backend/src/infra/crypto/token-issuer.ts` (D5)
 - [x] T035 [P] [US1] Adaptador `RateLimit` in-memory (por usuario resuelto y por **HMAC-SHA256(identifier norm., `LOCKOUT_HMAC_SECRET`)**; los intentos contra cuenta `disabled` **cuentan** igual) — `backend/src/infra/ratelimit/in-memory.ts` (D7, FR-011/002b)
 - [x] T036 [US1] Repos Prisma `User`/`Session`/`RefreshToken` — `backend/src/infra/repositories/*.ts` (data-model)
-- [x] T037 [US1] Caso de uso `login` (credenciales→sesión, lockout, Result; **chequeo de `disabled` DESPUÉS del hash de contraseña** para no filtrar timing, 401 uniforme — FR-002b) — `backend/src/domain/auth/login.ts` (FR-001/002/002b/011)
+- [x] T037 [US1] Caso de uso `login` (credenciales→sesión, lockout, Result; ****fail-closed: BD caída → 503 (B3/H-003)**; chequeo de `disabled` DESPUÉS del hash de contraseña** para no filtrar timing, 401 uniforme — FR-002b) — `backend/src/domain/auth/login.ts` (FR-001/002/002b/011)
 - [x] T038 [US1] Caso de uso `logout` (revoca la **sesión (sid)** si no está revocada: marca `Session.revoked_at`; **aunque el token esté rotado o la cuenta disabled** → 204; **token rotado FUERA de gracia → además FR-004b** (revoca familia); chequeo rotación/gracia contra **BD**, fail-closed 503; 401 uniforme; 2º logout sesión revocada → 401) — `backend/src/domain/auth/logout.ts` (FR-003/004b/018, D12)
 - [x] T039 [US1] Handler `POST /v1/auth/login` (set-cookie refresh HttpOnly + csrf_token; access en body) — `backend/src/handlers/auth/login.ts` (FR-001, D1/D2)
 - [x] T040 [US1] Handler `POST /v1/auth/logout` (204 si sesión no revocada —aunque token rotado/cuenta disabled—; 401 si sesión ya revocada; 503 si BD caída; limpia cookies) — `backend/src/handlers/auth/logout.ts` (FR-003/018, D12)
@@ -127,8 +127,8 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 ### Implementación
 
 - [x] T053 [P] [US2] Adaptador `GraceCache` in-memory (hash token→**trío access+refresh+csrf en claro**, TTL=gracia; **antes de servir, re-comprueba contra BD `Session.revoked_at`/`disabled`** → si revocada/disabled 401, no sirve; no persiste en BD) — `backend/src/infra/grace-cache/in-memory.ts` (D6, FR-004d, H-005/S-001)
-- [x] T054 [US2] Caso de uso `refresh` (rotación **atómica exige sesión no revocada**: `WHERE rotated_at IS NULL AND` sesión no revocada / `SELECT … FOR UPDATE` → cierra TOCTOU logout↔refresh; gracia→GraceCache; reuso→revoca familia+SessionState; FR-004c disabled; **relee rol de BD**; fail-closed BD caída→503) — `backend/src/domain/auth/refresh.ts` (FR-004/004b/004c/004d/005, H-001)
-- [x] T055 [US2] Middleware `csrf` double-submit (refresh Y logout; **sesión antes que CSRF**; tiempo constante) — `backend/src/handlers/middleware/csrf.ts` (D2, FR-012/018)
+- [x] T054 [US2] Caso de uso `refresh` (rotación **atómica exige sesión no revocada**, implementada como **un ÚNICO `$executeRaw`** `UPDATE … WHERE rotated_at IS NULL AND EXISTS(sesión no revocada)` —no SELECT+updateMany— → cierra TOCTOU logout↔refresh (B2/I-002); gracia→GraceCache; reuso→revoca familia+SessionState; FR-004c disabled; **relee rol de BD**; fail-closed BD caída→503) — `backend/src/domain/auth/refresh.ts` (FR-004/004b/004c/004d/005, H-001)
+- [x] T055 [US2] Middleware `csrf` double-submit (refresh Y logout; **sesión antes que CSRF**; tiempo constante); **consulta `SessionValidityPort` (adaptador `RefreshSessionValidity`) cuando el CSRF falla → 401 si la sesión NO es válida (caducada/revocada), 403 si es válida (B1/I-001, FR-018)** — `backend/src/handlers/middleware/csrf.ts`, `backend/src/infra/session-validity.ts` (D2, FR-012/018)
 - [x] T056 [US2] Handler `POST /v1/auth/refresh` (rota refresh + csrf; access en body) — `backend/src/handlers/auth/refresh.ts` (FR-004/005)
 
 **Checkpoint**: las 3 historias funcionales e independientes.
@@ -184,3 +184,28 @@ implementan puertos de Foundational.
 - TDD: **commit del test en rojo** antes del de implementación (verificable en historial).
 - Adaptadores in-memory (session-state, grace, rate-limit) = slice single-instance; Redis multi-instancia → BL-018.
 - No `any` sin `// JUSTIFICACIÓN:`; no imports de infra en `domain/`; no commitear con bloqueantes de gate abiertos.
+
+---
+
+## Phase 7: Remediación G3 (bloqueantes del panel adversarial)
+
+> El gate G3 (5 revisores) encontró incongruencias con los 104 tests en verde. Cerrados por TDD (test Red
+> que reproduce el fallo → fix → Green). Ver `gates/gate-G3-001-fundacion-auth-rbac.md`.
+
+- [x] B1 [US2] **Orden CSRF (FR-018/I-001)** — `csrf` consulta `SessionValidityPort` → 401 si sesión inválida
+  (caducada/revocada) aunque falle el CSRF; 403 solo si sesión válida — `backend/src/handlers/middleware/csrf.ts`,
+  `backend/src/infra/session-validity.ts`; test `backend/tests/integration/csrf-order.spec.ts`.
+- [x] B2 [US2] **Rotación atómica (FR-004/I-002/H-001)** — un único `$executeRaw` con `EXISTS(sesión no
+  revocada)` — `backend/src/infra/repositories/refresh-token-repository.ts`.
+- [x] B3 [US1] **login fail-closed 503 (H-003)** — try/catch → `SERVICE_UNAVAILABLE` — `backend/src/domain/auth/login.ts`;
+  test en `backend/tests/unit/login.spec.ts`.
+- [x] B4 [US2] **401 uniforme de refresh (FR-005/T-001)** — test compara `code`+`message` entre las 4 causas
+  (caducado/revocado/reuso/disabled) — `backend/tests/unit/refresh-rotation.spec.ts`.
+- [x] B5 [US2] **Invalidación inmediata e2e (FR-004b/T-002)** — reuso→revoca familia→access previo 401 en la
+  misma petición — `backend/tests/integration/immediate-invalidation.spec.ts`.
+- [x] B6 [US2] **Atomicidad de rotación (H-002)** — sesión revocada → `rotateAtomic` no rota —
+  `backend/tests/integration/rotate-atomic.spec.ts`.
+
+**Diferido a backlog (no bloqueante, BL-035..044):** T057/T058 (perf P95 SC-001/005 + paridad de timing),
+T060/T061 (restart/cache per-request e2e), T065/T066 (STRIDE↔test, quickstart e2e), y MEDIAS (traza forense
+S-002, CSRF_HMAC sin usar S-003, timeout BD H-005, durabilidad lockout H-006, carrera refresh H-007).

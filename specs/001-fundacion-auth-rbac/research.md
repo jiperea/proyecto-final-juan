@@ -26,6 +26,12 @@
   enmascararía el camino CSRF).
 - **Orden de comprobación (FR-018):** sesión (cookie) **antes** que CSRF → sin sesión = **401**; con sesión
   y CSRF inválido/ausente = **403**.
+- **Implementación (G3, B1/I-001):** "sin sesión" incluye cookie **ausente Y cookie presente-pero-inválida**
+  (caducada/revocada). El middleware CSRF, si el double-submit falla, consulta `SessionValidityPort`
+  (adaptador `RefreshSessionValidity`: token existe + sesión no revocada + refresh no caducado) y devuelve
+  **401 si la sesión no es válida** y **403 solo si es válida**. Así el orden 401→403 se cumple también para
+  cookies revocadas/caducadas (no basta con comprobar la mera presencia de la cookie). Verificado por
+  `tests/integration/csrf-order.spec.ts` (sesión revocada + CSRF ausente → 401).
 - **Rationale:** `SameSite=Strict` bloquea el grueso; el double-submit es **stateless** (sin estado CSRF en
   servidor, encaja con hexagonal). Defensa en profundidad para una fundación de seguridad.
 - **Alternativas descartadas:** synchronizer token (requiere estado por sesión); solo SameSite (sin defensa
@@ -48,6 +54,8 @@
   5. **Fail-closed (regla única):** si en un cache-miss la BD tampoco responde (timeout/caída): régimen (a)
      per-request → **401** (denegar); régimen (b) `refresh` → **503** (servicio degradado); `/ready` → 503.
      **Nunca fail-open.** `logout` queda fuera de este régimen (no chequea estado; solo vigencia de cookie).
+     **`login` (G3, B3/H-003):** también envuelto en fail-closed → si la BD falla (resolución de identifier,
+     creación de sesión/refresh), responde **503**, nunca cuelga la petición ni deja un `unhandledRejection`.
   6. **Atomicidad:** el `add(sid)` al set en memoria es **síncrono** tras el commit de revocación.
 - **disabled vs locked_until (FR-004c):** `disabled` (bloqueo administrativo) **corta** refresh y
   validación → 401. `locked_until` (lockout por fuerza bruta, FR-011) afecta **solo al login**, **no**
@@ -89,6 +97,10 @@
   (SELECT 1 FROM Session s WHERE s.id=session_id AND s.revoked_at IS NULL)` (o transacción con
   `SELECT … FOR UPDATE` sobre la sesión) — solo una petición concurrente gana (filas=1) **y** no se emiten
   tokens para una sesión revocada por un `logout` concurrente (cierra la ventana TOCTOU logout↔refresh, H-001).
+- **Implementación (G3, I-002/H-001):** debe ser **una ÚNICA sentencia SQL** (`$executeRaw` con
+  `UPDATE … WHERE rotated_at IS NULL AND EXISTS(sesión no revocada)`), **no** un `SELECT` de lectura seguido
+  de un `UPDATE` (esa variante deja una ventana read-then-write bajo Read Committed y NO cierra la TOCTOU).
+  Verificado por `tests/integration/rotate-atomic.spec.ts` (sesión revocada → 0 filas → no rota).
 - **Ventana de gracia (≤10 s inclusive, FR-004d):** una re-presentación del **mismo** token ya rotado
   dentro de la gracia (reintento de red, doble envío, o la petición **perdedora** de la carrera) → devuelve
   el **mismo par ya emitido** desde una **caché efímera en memoria** (clave = hash del token, TTL = gracia);
