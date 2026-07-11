@@ -143,6 +143,7 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
     probes: { findInScopeRoles: async () => null },
     tokens,
     sessionState,
+    sessionValidity: { isSessionValid: async () => true },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,
   };

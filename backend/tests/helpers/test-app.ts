@@ -4,7 +4,7 @@ import { buildApp } from '../../src/handlers/app';
 import type { Config } from '../../src/infra/config';
 import { buildContainer } from '../../src/infra/container';
 
-export function testConfig(): Config {
+export function testConfig(overrides: Partial<Config> = {}): Config {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error('DATABASE_URL requerido para tests de integración (usa scripts/dcnode.sh)');
@@ -23,11 +23,12 @@ export function testConfig(): Config {
     dbQueryTimeoutMs: 2000,
     port: 3000,
     nodeEnv: 'test',
+    ...overrides,
   };
 }
 
-export function makeTestApp(): { app: Express; prisma: PrismaClient } {
-  const { deps, prisma } = buildContainer(testConfig());
+export function makeTestApp(overrides: Partial<Config> = {}): { app: Express; prisma: PrismaClient } {
+  const { deps, prisma } = buildContainer(testConfig(overrides));
   return { app: buildApp(deps), prisma };
 }
 

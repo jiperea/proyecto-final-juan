@@ -6,6 +6,7 @@ import { JwtTokenIssuer } from './crypto/token-issuer';
 import { checkDb, createPrisma } from './prisma';
 import { InMemoryGraceCache } from './grace-cache/in-memory';
 import { InMemoryRateLimit } from './ratelimit/in-memory';
+import { RefreshSessionValidity } from './session-validity';
 import { PrismaAccountState, PrismaProbeRepository } from './repositories/account-state';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
 import { PrismaSessionRepository } from './repositories/session-repository';
@@ -33,6 +34,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
   const probes = new PrismaProbeRepository(prisma);
   const sessionState = new InMemorySessionState(accountState, config.sessionStateTtlMs);
   const graceCache = new InMemoryGraceCache(config.graceMs);
+  const sessionValidity = new RefreshSessionValidity(tokens, refreshTokens, sessions, clock);
   const rateLimit = new InMemoryRateLimit({
     max: config.lockoutMax,
     windowMs: config.lockoutWindowMin * MIN_MS,
@@ -59,6 +61,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
     probes,
     tokens,
     sessionState,
+    sessionValidity,
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,
       secure: config.nodeEnv === 'production',

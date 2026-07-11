@@ -43,4 +43,30 @@ describe('orden sesión(401)→CSRF(403) en refresh y logout (FR-018, D2)', () =
       .set('X-CSRF-Token', 'no-coincide');
     expect(res.status).toBe(403);
   });
+
+  it('refresh con sesión REVOCADA + CSRF ausente → 401, no 403 (B1/FR-018)', async () => {
+    const { refresh, csrf } = await login();
+    // revocar la sesión con un logout válido (CSRF correcto)
+    await request(app)
+      .post('/v1/auth/logout')
+      .set('Cookie', `refresh_token=${refresh}; csrf_token=${csrf}`)
+      .set('X-CSRF-Token', csrf);
+    // ahora refresh con la cookie ya revocada y SIN X-CSRF-Token: sesión inválida → 401 antes que CSRF
+    const res = await request(app)
+      .post('/v1/auth/refresh')
+      .set('Cookie', `refresh_token=${refresh}; csrf_token=${csrf}`);
+    expect(res.status).toBe(401);
+  });
+
+  it('logout 2ª vez (sesión ya revocada) + CSRF ausente → 401, no 403 (B1/FR-018)', async () => {
+    const { refresh, csrf } = await login();
+    await request(app)
+      .post('/v1/auth/logout')
+      .set('Cookie', `refresh_token=${refresh}; csrf_token=${csrf}`)
+      .set('X-CSRF-Token', csrf);
+    const res = await request(app)
+      .post('/v1/auth/logout')
+      .set('Cookie', `refresh_token=${refresh}; csrf_token=${csrf}`);
+    expect(res.status).toBe(401);
+  });
 });

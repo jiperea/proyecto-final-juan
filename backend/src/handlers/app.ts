@@ -18,7 +18,7 @@ import { probeHandler } from './rbac/probe';
 import { jsonErrorHandler } from './error-mapper';
 import { authenticate } from './middleware/authenticate';
 import { authorizeProbe } from './middleware/authorize';
-import { csrf } from './middleware/csrf';
+import { csrf, type SessionValidityPort } from './middleware/csrf';
 import { correlation } from './middleware/correlation';
 import { securityHeaders } from './middleware/security-headers';
 import { healthHandler, readyHandler } from './ops';
@@ -33,6 +33,7 @@ export interface AppDeps {
   readonly probes: ProbeResourceRepositoryPort;
   readonly tokens: TokenIssuerPort;
   readonly sessionState: SessionStatePort;
+  readonly sessionValidity: SessionValidityPort;
   readonly cookie: CookieOptions;
 }
 
@@ -51,8 +52,8 @@ export function buildApp(deps: AppDeps): Express {
 
   // Auth (/v1)
   app.post('/v1/auth/login', loginHandler(deps.loginDeps, deps.cookie));
-  app.post('/v1/auth/refresh', csrf(), refreshHandler(deps.refreshDeps, deps.cookie));
-  app.post('/v1/auth/logout', csrf(), logoutHandler(deps.logoutDeps, deps.cookie));
+  app.post('/v1/auth/refresh', csrf(deps.sessionValidity), refreshHandler(deps.refreshDeps, deps.cookie));
+  app.post('/v1/auth/logout', csrf(deps.sessionValidity), logoutHandler(deps.logoutDeps, deps.cookie));
   app.get('/v1/auth/me', authenticate(deps.tokens, deps.sessionState), meHandler(deps.users));
 
   // RBAC probe (/v1)

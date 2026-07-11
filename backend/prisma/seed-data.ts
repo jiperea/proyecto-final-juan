@@ -44,7 +44,7 @@ export const SEED_USERS = {
     email: 'locked@fieldops.test',
     username: 'locked1',
     role: 'dispatcher',
-    lockedMinutes: 15,
+    lockedMinutes: 1440, // 24h: robusto para tests (evita caducidad del lock durante la sesión)
   },
 } as const satisfies Record<string, SeedUser>;
 

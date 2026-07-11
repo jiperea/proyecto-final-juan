@@ -116,6 +116,31 @@ describe('refresh use case — rotación single-use + gracia + reuso (FR-004/004
     expect(familyRevoked()).toBe(true);
   });
 
+  it('401 uniforme entre las 4 causas (FR-005, B4): mismo code y message', async () => {
+    const caducado = await setup();
+    const [id1, rt1] = [...caducado.refreshTokens.store.entries()][0]!;
+    caducado.refreshTokens.store.set(id1, { ...rt1, expiresAt: new Date(T - 1000) });
+    const rCaducado = await refresh(caducado.deps, { refreshTokenOpaque: caducado.opaque });
+
+    const revocado = await setup();
+    await revocado.sessions.revoke(revocado.session.id);
+    const rRevocado = await refresh(revocado.deps, { refreshTokenOpaque: revocado.opaque });
+
+    const disabled = await setup({ user: { disabledAt: new Date(T) } });
+    const rDisabled = await refresh(disabled.deps, { refreshTokenOpaque: disabled.opaque });
+
+    const reuso = await setup();
+    const [id4, rt4] = [...reuso.refreshTokens.store.entries()][0]!;
+    reuso.refreshTokens.store.set(id4, { ...rt4, rotatedAt: new Date(T - 20_000) });
+    const rReuso = await refresh(reuso.deps, { refreshTokenOpaque: reuso.opaque });
+
+    const bodies = [rCaducado, rRevocado, rDisabled, rReuso].map((r) =>
+      r.ok ? 'OK' : JSON.stringify({ code: r.error.code, message: r.error.message }),
+    );
+    expect(bodies.every((b) => b === bodies[0])).toBe(true);
+    expect(bodies[0]).toContain('UNAUTHENTICATED');
+  });
+
   it('fail-closed: si la BD lanza → SERVICE_UNAVAILABLE (503)', async () => {
     const { deps, opaque } = await setup();
     const brokenDeps: RefreshDeps = {
