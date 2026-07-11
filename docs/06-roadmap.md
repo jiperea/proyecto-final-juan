@@ -30,27 +30,44 @@ como 3 sub-incrementos demostrables:
 
 **Si 001 se hubiera dimensionado hoy** habría sido 001a (A+B) y 001b (C). Lección aplicada a las siguientes.
 
+### Chequeo de tamaño XV aplicado a 002–006 (2026-07-11, tras cerrar 001)
+
+Revisado el resto del roadmap con el Principio XV y la lección de 001:
+
+- **002 (Order core) — SOBREDIMENSIONADA** (repite el patrón de 001: junta el read-side con el cluster de
+  robustez estado+auditoría). **Se parte de origen** en **002a** (entidad + seed + listado) y **002b**
+  (FSM + auditoría append-only). Es una decisión **de origen**, no un rollback (no está iniciada).
+- **003 / 005 / 006 — OK**: foco único (una acción/componente). No se parten.
+- **004 (ejecución) — límite**: 2 transiciones + evidencia. **No se parte** (partir "iniciar trabajo"
+  assigned→in_progress sería una micro-feature); se **vigila la evidencia** como punto de riesgo y, si en
+  clarify/gates genera turbulencia, se aísla la gestión de evidencia en una spec propia.
+
 ## Features
 
 | # | Rama | Feature | Depende de | Cubre (alcance §Constitution) |
 |---|---|---|---|---|
-| 001 | `001-fundacion-auth-rbac` | **Fundación A**: auth (JWT access+refresh/argon2id) + ciclo de sesión + **matriz RBAC rol×alcance** + contrato de errores + observabilidad | — | Func. #4, Principios IV, X |
-| 002 | `002-fundacion-order-core` | **Fundación B**: entidad `Order` + **máquina de estados** + **auditoría append-only** + **datos semilla** (POV) | 001 | Principios XI + estados |
-| 003 | `003-reasignacion-orden` | **Reasignación** por el dispatcher (estados reasignables, evidencia versionada, concurrencia If-Match→409) | 001, 002 | Func. #1 |
-| 004 | `004-registro-ejecucion` | **Iniciar trabajo** (assigned→in_progress) + **registrar ejecución** con evidencia (≥1 foto válida) → pending_review | 001, 002 | Func. #2 |
-| 005 | `005-revision-supervisor` | **Aprobar/rechazar** en pending_review (rechazo→in_progress con motivo; evidencia conservada) | 001, 002, 004 | Func. #3 |
-| 006 | `006-resumen-incidencia-ia` | **Asistente IA** que resume la incidencia (contrato IA, fallback "no inventa", minimización de PII) + **eval** en `/evals` | 002, 004, 005 | Func. #5, Principio VIII |
+| 001 | `001-fundacion-auth-rbac` | **Fundación A**: auth (JWT access+refresh/argon2id) + ciclo de sesión + **matriz RBAC rol×alcance** + contrato de errores + observabilidad ✅ **G3 APROBADA** | — | Func. #4, Principios IV, X |
+| 002a | `002a-order-entity-listado` | **Fundación B-1** (read-side): entidad `Order` + **datos semilla** + **listado por rol** ("ver mis órdenes") sobre el RBAC de 001 | 001 | Func. "ver órdenes", Principio XI |
+| 002b | `002b-order-fsm-auditoria` | **Fundación B-2** (write-side): **máquina de estados** explícita (tabla de transiciones) + **auditoría append-only** de transiciones (actor/timestamp/motivo, atómica) | 001, 002a | Principios XI + estados |
+| 003 | `003-reasignacion-orden` | **Reasignación** por el dispatcher (estados reasignables; concurrencia If-Match→409 *stretch*) | 001, 002b | Func. #1 |
+| 004 | `004-registro-ejecucion` | **Iniciar trabajo** (assigned→in_progress) + **registrar ejecución** con evidencia (≥1 foto válida) → pending_review | 001, 002b | Func. #2 |
+| 005 | `005-revision-supervisor` | **Aprobar/rechazar** en pending_review (rechazo→in_progress con motivo; evidencia conservada) | 001, 002b, 004 | Func. #3 |
+| 006 | `006-resumen-incidencia-ia` | **Asistente IA** que resume la incidencia (contrato IA, fallback "no inventa", minimización de PII) + **eval** en `/evals` | 002a, 004, 005 | Func. #5, Principio VIII |
+
+> Nota de numeración: `002a`/`002b` son dos features (spec + rama + gates propios). El número secuencial
+> definitivo de rama lo asigna la extensión git al lanzar `/speckit-specify`; aquí fijan alcance y orden.
 
 ## Orden y paralelismo
 
 ```
-001 (auth+RBAC) ──► 002 (Order core)
-                        ├── 003 (reasignación)
-                        └── 004 (ejecución) ──► 005 (revisión) ──► 006 (resumen IA)
+001 (auth+RBAC) ──► 002a (Order+listado) ──► 002b (FSM+auditoría)
+                                                  ├── 003 (reasignación)
+                                                  └── 004 (ejecución) ──► 005 (revisión) ──► 006 (resumen IA)
 ```
 
-- **001 → 002** primero (todo depende del auth/RBAC y del dominio Order + estados).
-- **003** puede ir en paralelo a **004** una vez cerrada 002.
+- **001 → 002a → 002b** primero (todo depende del auth/RBAC, luego de la entidad Order y de la FSM+auditoría).
+- **002a** (read-side) es demostrable por sí sola ("veo mis órdenes por rol"); **002b** añade las transiciones.
+- **003** puede ir en paralelo a **004** una vez cerrada **002b** (ambas hacen transiciones de estado).
 - **005** requiere 004 (necesita órdenes en `pending_review`).
 - **006** al final (consume notas/evidencia de 004 y lo lee el supervisor de 005).
 
@@ -64,8 +81,9 @@ como 3 sub-incrementos demostrables:
 **MVP (obligatorio):**
 - **001** (auth+RBAC): visibilidad por rol (technician ve **sus órdenes asignadas**, dispatcher las
   reasignables, supervisor las de `pending_review`) + seguridad web (helmet/CSRF/rate-limit/config fail-fast).
-- **002** (Order core): **FSM explícito** (tabla de transiciones) + **auditoría mínima** (transición:
-  actor/timestamp/motivo, atómica) + **listado de órdenes** (cubre "ver sus órdenes" del brief).
+- **002a** (Order read-side): **listado de órdenes por rol** (cubre "ver sus órdenes" del brief) + seed.
+- **002b** (Order write-side): **FSM explícito** (tabla de transiciones) + **auditoría mínima** (transición:
+  actor/timestamp/motivo, atómica).
 - **004** (ejecución): evidencia **validada** antes de adjuntar.
 - **006** (IA): no-inventar + **rate-limit** del endpoint.
 - **Transversal:** correlation-ID; NFR "rápido" **cuantificado en los SC** de cada spec.
