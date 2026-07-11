@@ -155,4 +155,17 @@
   No hay bypass de CSRF ni escalada; es un 2º oráculo que puede divergir. Unificar la fuente de verdad si
   se endurece. Aceptado no-bloqueante.
 
+### Gate G1 (002a) — diferidos (no bloquean; cerrados en spec o a futuro)
+
+- **BL-046** (002a · G1 · MEDIA) — **Minimización/redacción de contenido** de `Order.title`/`description` por
+  rol (texto libre con posible PII de cliente): en 002a solo se garantiza que **no se loguea** (FR-017); la
+  redacción por rol (p. ej. dispatcher que gestiona sin ver detalle de cliente) se difiere (S-003/S-004).
+- **BL-047** (003 · G1 · BAJA) — **Visibilidad del dispatcher para reasignar tras rechazo** (H-010): con la
+  regla de 002a el dispatcher ve `in_progress` (a donde vuelve una orden rechazada por 005), así que el caso
+  queda cubierto; revisar en 003 si necesita ampliar alcance a `pending_review`.
+- **BL-048** (gobernanza · MEDIA) — **Reconciliar constitution v1.5.x** (H-005): tras partir 002 en 002a/002b,
+  la frase "la tabla de auditoría se diseña en el data model de 002" pasa a **002b**; 002a deja el ancla
+  (`Order.id` + `version`). Ajustar la redacción del constitution en **rama de gobernanza** (regla v1.7.1),
+  no en esta feature.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
