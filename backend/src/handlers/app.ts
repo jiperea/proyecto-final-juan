@@ -4,6 +4,7 @@ import type { LoginDeps } from '../domain/auth/login';
 import type { LogoutDeps } from '../domain/auth/logout';
 import type { RefreshDeps } from '../domain/auth/refresh';
 import type { ListOrdersDeps } from '../domain/order/list-orders';
+import type { OrderTransitionPort } from '../domain/order/transition-ports';
 import type {
   ProbeResourceRepositoryPort,
   UserRepositoryPort,
@@ -38,6 +39,8 @@ export interface AppDeps {
   readonly sessionState: SessionStatePort;
   readonly sessionValidity: SessionValidityPort;
   readonly orderListDeps: ListOrdersDeps;
+  // 002b — dominio puro: puerto disponible para 003/004/005 (aún sin ruta montada).
+  readonly orderTransition: OrderTransitionPort;
   readonly cookie: CookieOptions;
 }
 

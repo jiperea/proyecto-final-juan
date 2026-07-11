@@ -53,6 +53,38 @@
 
 **Diferido 002a**: SC-002 perf P95<300ms (T017) → BL-038 (perf, junto con 001).
 
+## 002b — Order FSM + auditoría append-only (RF→tarea→test)
+
+> Dominio puro (write-side): sin endpoint HTTP (contract-first N/A). Verificado contra Postgres real.
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001 | FSM como tabla de transiciones legales | T003 | `unit/transition-table` |
+| FR-002 | `isLegalTransition` + rechazo de ilegales | T002/T003/T015 | `unit/transition-table`, `unit/apply-transition`, `integration/order-transition-errors` |
+| FR-003 | Concurrencia optimista + clasificación determinista (404→409→422→GUARD_UNMET) | T016 | `integration/order-transition-errors`, `-concurrency`, `-guard` |
+| FR-004 | Auditoría atómica (misma transacción, rollback todo-o-nada) | T007/T009/T016 | `integration/order-transition`, `-atomicity` |
+| FR-005 | `OrderAudit` append-only a nivel de BD (TRIGGER, no REVOKE) | T001/T010 | `integration/order-audit-append-only` |
+| FR-006 | Único punto de escritura de `status`/`version` | T014/T016 | `unit/order-transition-architecture` |
+| FR-007 | Puerto `applyTransition` + guarda de pertenencia tipada | T005/T012/T016 | `unit/apply-transition`, `integration/order-transition-guard` |
+| FR-008 | `reason` pre-saneado, nunca en logs/errores | T013/T017 | `integration/order-audit-redaction` |
+| SC-001 | Transición legal: status/version+1/1 auditoría; ilegales sin efecto | T007/T008 | `integration/order-transition`, `-errors` |
+| SC-002 | No lost-update: exactamente una gana (correctness) | T011 | `integration/order-transition-concurrency` |
+| SC-003 | Inmutabilidad forense (UPDATE/DELETE bloqueado por TRIGGER, rol runtime) | T010 | `integration/order-audit-append-only` |
+| SC-004 | Atomicidad: FK actor inválida → rollback + ACTOR_INVALID sin filtrar BD | T009 | `integration/order-transition-atomicity` |
+| SC-005 | Guarda de pertenencia (+ TOCTOU determinista) | T012 | `integration/order-transition-guard` |
+| SC-006 | No-fuga de `reason` (logs + error serializado) | T013 | `integration/order-audit-redaction` |
+| Const. III | Hexagonal (`domain/order` sin infra) | T014 | `unit/order-transition-architecture` |
+
+**FR-009 (contrato de no-enumeración)** y el contrato **`actor_id` = server-side** (nunca de input del
+cliente, G1:S-002 re-run) **NO se implementan en 002b** (dominio puro, sin endpoint): se enuncian como
+contrato y son **precondición verificada en 003/004/005** (reasignación/ejecución/revisión — carpetas
+físicas `004`/`005`/`006`), que consumen `applyTransition` y mapean `GUARD_UNMET`→403 / no-autorizado→404.
+
+**Diferido 002b** (documentado, no silencioso): If-Match→409 al cliente (BL-050); cifrado de `reason` en
+reposo (BL-051); accesos denegados como entidad (BL-052); hardening bypass status (BL-053);
+cancelación/límite (BL-054); PII correctiva + health-check del trigger (BL-055); defensa en profundidad
+del contrato (BL-056).
+
 ## Diferido (hardening, documentado — NO silencioso)
 
 - **T057 (perf P95 SC-001/005)** y **T058 (paridad de timing anti-enumeración)**: son gates de

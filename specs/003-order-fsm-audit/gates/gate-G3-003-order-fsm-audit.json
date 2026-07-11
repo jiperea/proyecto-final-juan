@@ -1,0 +1,116 @@
+{
+  "phase": "G3",
+  "feature": "003-order-fsm-audit",
+  "date": "2026-07-11",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-consistencia", "revisor-implementacion"],
+  "promptfoo": "N/A — 002b es dominio puro sin componente IA ni endpoint; los Success Criteria se verifican con la suite Vitest contra Postgres real (184/184 verde). Coherente con contract-first N/A (plan.md).",
+  "bloqueantes": 0,
+  "altas": 4,
+  "medias": 5,
+  "bajas": 2,
+  "total": 11,
+  "veredicto": "APROBADA_CON_COMENTARIOS",
+  "resultado": "PASS",
+  "huecos": [
+    {
+      "id": "G3-A1",
+      "severidad": "ALTA",
+      "categoria": "fuga-datos/consistencia",
+      "convergencia": ["cinico:H-001", "rbac:S-001", "consistencia:K-001"],
+      "elemento": "backend/src/handlers/error-mapper.ts (STATUS[GUARD_UNMET])",
+      "descripcion": "El default fijo GUARD_UNMET->403 contradice FR-009 (mapeo condicional 404/403 gobernado por el consumidor) y podría reabrir el oráculo de enumeración si 003/004/005 usan sendError directamente.",
+      "resolucion": "RESUELTO EN G3: cambiado a default FAIL-SAFE 404 (lado que no revela existencia) + test unit que lo fija (error-mapper.spec.ts). El mapeo autoritativo sigue siendo responsabilidad del consumidor vía FR-009; el fallback ya no cae al lado inseguro."
+    },
+    {
+      "id": "G3-A2",
+      "severidad": "ALTA",
+      "categoria": "fuga-datos",
+      "convergencia": ["cinico:H-002", "rbac:S-002"],
+      "elemento": "backend/src/infra/logger.ts (REDACT_PATHS) / SC-006",
+      "descripcion": "La redacción de `reason` cubre las formas de 002b (reason, *.reason) pero pino redact con `*` cubre un solo nivel; cuando 003/004/005 añadan logging HTTP del payload, rutas anidadas más profundas (req.body.*.reason) podrían filtrar PII sin que el test actual lo detecte.",
+      "resolucion": "DIFERIDO a 004/005 (BL-055/BL-056): en 002b `applyTransition` no emite logs; el gate de cada consumidor DEBE forzar un `reason` centinela por la ruta REAL de logging del endpoint. Carried-forward."
+    },
+    {
+      "id": "G3-A3",
+      "severidad": "ALTA",
+      "categoria": "escalada-privilegios",
+      "convergencia": ["rbac:S-003"],
+      "elemento": "backend/src/domain/order/transition-ports.ts (`guard?` opcional, `actorId: string`)",
+      "descripcion": "La guarda de pertenencia es opcional y `actorId` es un string plano; el enforcement de 'quién puede tocar esta orden' y 'actor derivado server-side' vive en la disciplina del consumidor, no en tipos/tests del dominio.",
+      "resolucion": "POR DISEÑO (slice XV) + DIFERIDO a 004/005 (BL-056): 002b es la maquinaria; el RBAC y el actor server-side son precondición verificada en los gates de las features con endpoint. Recomendación: test de arquitectura en 004/005 que falle si un handler invoca applyTransition sin guard donde la transición exige pertenencia, o si actorId proviene del body/query."
+    },
+    {
+      "id": "G3-A4",
+      "severidad": "ALTA",
+      "categoria": "proceso/trazabilidad-TDD",
+      "convergencia": ["impl:I-001"],
+      "elemento": "historial git de la rama 003-order-fsm-audit",
+      "descripcion": "La implementación y los tests se produjeron en el working tree sin commit Red separado previo a la implementación; no hay evidencia en el historial de fase Red (test en rojo) independiente del Green.",
+      "resolucion": "ACEPTADO CON TRANSPARENCIA: se documenta que en 002b tests+código se desarrollaron en un solo lote (no hubo commit Red separado). Mitigación: los tests son de contrato (aserciones sobre valores concretos, no ajustadas al output), la cobertura es exhaustiva (domain/order 100%, repositories 99%/86.9%) y todos ejercitan Postgres real. El commit de implementación separa test+feat en mensajes distintos. La disciplina de commit Red-first se reafirma para 004/005."
+    },
+    {
+      "id": "G3-M1",
+      "severidad": "MEDIA",
+      "categoria": "robustez",
+      "convergencia": ["cinico:H-003", "rbac:S-005", "impl:I-003"],
+      "elemento": "order-transition-repository.ts (catch: sólo P2003 -> ACTOR_INVALID; resto `throw e`)",
+      "descripcion": "Errores de BD distintos de la FK P2003 (validación UUID, deadlock, timeout, otras constraints) se repropagan sin sanear; sin catch-all de nivel superior probado, un futuro endpoint podría filtrar detalle de Postgres.",
+      "resolucion": "DIFERIDO a 004/005: el consumidor con endpoint DEBE tener un catch-all que convierta cualquier error no controlado en 500 genérico sin filtrar BD, con test que fuerce un error != P2003. Cobertura de la rama `throw e` (BAJA) también diferida."
+    },
+    {
+      "id": "G3-M2",
+      "severidad": "MEDIA",
+      "categoria": "extensibilidad-contrato",
+      "convergencia": ["cinico:H-004", "cinico:H-006"],
+      "elemento": "TransitionGuard { assignedTo?: string }",
+      "descripcion": "El contrato de guarda sólo expresa `assignedTo == valor`; predicados futuros (equipo, IN(...), IS NULL para auto-asignación) exigirían extender el tipo de forma retrocompatible.",
+      "resolucion": "DIFERIDO (BL-056): TransitionGuard es extensible de forma aditiva; 004/005 añadirán campos si un caso de negocio lo requiere sin romper el contrato actual."
+    },
+    {
+      "id": "G3-M3",
+      "severidad": "MEDIA",
+      "categoria": "consistencia-futura",
+      "convergencia": ["cinico:H-005"],
+      "elemento": "escritura de `assignedTo` fuera de applyTransition (reasignación futura)",
+      "descripcion": "FR-006 protege sólo status/version; la futura reasignación de `assignedTo` no hereda obligación de concurrencia optimista, con riesgo de lost-update entre dispatchers.",
+      "resolucion": "DIFERIDO a 004 (reasignación): debe definir su propio punto de escritura con control de versión análogo. Carried-forward al gate de 004."
+    },
+    {
+      "id": "G3-M4",
+      "severidad": "MEDIA",
+      "categoria": "deriva-terminologica",
+      "convergencia": ["consistencia:K-002"],
+      "elemento": "docs/09-glossary.md ('Auditoría')",
+      "descripcion": "El glosario sigue describiendo 'Auditoría' como registro único que incluye accesos denegados; la spec 002b (G1:H-003) separó OrderAudit (transiciones) de la auditoría de accesos denegados (entidad separada, BL-052).",
+      "resolucion": "DIFERIDO (doc): actualizar el glosario para reflejar el split OrderAudit vs accesos-denegados. No bloquea 002b."
+    },
+    {
+      "id": "G3-M5",
+      "severidad": "MEDIA",
+      "categoria": "defensa-en-profundidad",
+      "convergencia": ["impl:I-002"],
+      "elemento": "docker-compose.yml (rol único `fieldops` owner=runtime)",
+      "descripcion": "Un solo rol de BD hace de owner y de runtime; el trigger append-only es correcto (se dispara para cualquier rol, incl. owner), pero no hay rol de app de privilegio mínimo separado.",
+      "resolucion": "DIFERIDO (BL-055): el trigger ya garantiza append-only independiente del rol (verificado con el rol de runtime). Rol de privilegio mínimo = hardening operativo futuro."
+    },
+    {
+      "id": "G3-B1",
+      "severidad": "BAJA",
+      "categoria": "consistencia-doc",
+      "convergencia": ["consistencia:K-003"],
+      "elemento": "tasks.md T006 (redacción)",
+      "descripcion": "T006 dice 'ilegal (isLegalTransition false)' pero el fast-fail del use case es 'destino inalcanzable' (legalOriginsFor vacío); el par ilegal desde un origen concreto (p.ej. closed->in_progress) lo clasifica el repo (T008), no el use case.",
+      "resolucion": "ACEPTADO: el comportamiento es correcto y está cubierto (use case: destino inalcanzable; repo/integración: par ilegal completo). Matiz de redacción de tasks.md, sin impacto en cobertura."
+    },
+    {
+      "id": "G3-B2",
+      "severidad": "BAJA",
+      "categoria": "test-coverage",
+      "convergencia": ["impl:I-003"],
+      "elemento": "order-transition-repository.ts (rama `throw e` no P2003 sin cubrir)",
+      "descripcion": "La rebranch de rethrow genérico no tiene test; cobertura global sigue por encima de umbrales.",
+      "resolucion": "DIFERIDO: cubrir cuando 004/005 añadan el catch-all HTTP y/o nuevas constraints a order_audit."
+    }
+  ],
+  "nota_seguridad": "Ningún hallazgo es explotable dentro del alcance de 002b (dominio puro, sin endpoint). Los principios de seguridad no-excepcionables (IV/IX/XI) se cumplen en 002b: FSM explícita, auditoría atómica append-only a nivel BD, reason nunca en logs/errores, mensaje crudo de Postgres no propagado. Las ALTAS restantes son riesgos que 003/004/005 HEREDAN de artefactos compartidos y DEBEN cerrar antes de exponer el primer endpoint (verificación en sus gates)."
+}

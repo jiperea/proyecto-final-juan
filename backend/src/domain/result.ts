@@ -21,7 +21,13 @@ export type ErrorCode =
   | 'NOT_FOUND' // 404 fuera de alcance o inexistente (no revela existencia)
   | 'VALIDATION_ERROR' // 422 cuerpo mal formado
   | 'RATE_LIMITED' // 429 lockout
-  | 'SERVICE_UNAVAILABLE'; // 503 fail-closed (BD caída en régimen autoritativo)
+  | 'SERVICE_UNAVAILABLE' // 503 fail-closed (BD caída en régimen autoritativo)
+  // --- 002b: transición de estado de Order (D7) ---
+  | 'ORDER_NOT_FOUND' // 404 orden inexistente
+  | 'VERSION_CONFLICT' // 409 expectedVersion obsoleta (concurrencia optimista)
+  | 'INVALID_TRANSITION' // 422 par origen→destino no legal (FSM)
+  | 'GUARD_UNMET' // guarda de pertenencia no satisfecha; HTTP gobernado por el llamador (FR-009)
+  | 'ACTOR_INVALID'; // FK de actor_id inválida; error interno, sin filtrar detalle de BD
 
 export interface DomainError {
   readonly code: ErrorCode;

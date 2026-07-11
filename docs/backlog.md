@@ -171,4 +171,61 @@
   (`Order.id` + `version`). Ajustar la redacción del constitution en **rama de gobernanza** (regla v1.7.1),
   no en esta feature.
 
+### Gate G1 (002b) — diferidos / gobernanza
+
+- **BL-050** (gobernanza · MEDIA) — **Reconciliar constitution: concurrencia optimista** (H-002): distinguir en
+  el texto que la **consistencia por `version` (no lost-update)** es *correctness* (mandatory) y que solo la
+  **exposición `If-Match`→409** al cliente es *stretch* (003/004). Ajustar en rama de gobernanza (v1.7.1).
+- **BL-051** (002b+ · MEDIA) — **Cifrado en reposo / control de lectura de `OrderAudit.reason`** (S-005): PII
+  saneada pero en claro; definir cifrado de columna y qué roles pueden leer `reason` (vs metadatos).
+- **BL-052** (futuro · MEDIA) — **Auditoría forense de accesos denegados** (BL-002, entidad separada de
+  `OrderAudit`, H-003): tabla propia `DeniedAccessAudit` (sin `from/to_status`); diseñar cuando se aborde.
+- **BL-053** (002b · BAJA) — **Hardening bypass de `status`** (H-004): además del único-punto-de-escritura en
+  dominio, valorar un trigger/constraint de BD que impida mutar `orders.status` fuera de `applyTransition`.
+- **BL-054** (futuro · BAJA) — **Cancelación de orden / límite de rechazo** (H-010): transición `*→cancelled` y
+  tope al ciclo `pending_review↔in_progress`; caso de negocio futuro.
+
+### Gate G1 (002b, re-entrada tras remediación de G2) — diferidos
+
+- **BL-055** (002b+ · MEDIA) — **Procedimiento correctivo de PII / mantenimiento de `order_audit`**
+  (G1:H-005/G1:H-008): con trigger append-only + `onDelete: Restrict`, una PII mal saneada o una migración
+  estructural legítima no tienen vía dentro del sistema. Definir una **migración controlada** (deshabilitar
+  trigger → purgar/anonimizar o backfill → rehabilitar, con revisión y registro). Riesgo residual documentado
+  hasta implementarlo. **Añadido (G1 re-run S-006)**: control **técnico** (no sólo de proceso) que detecte la
+  ausencia del trigger — health-check de arranque que verifique su presencia y/o bloqueo de migraciones
+  destructivas en producción.
+- **BL-056** (003/004/005 · MEDIA) — **Defensa en profundidad del contrato de `applyTransition`**
+  (G1:S-003/S-004/S-005 + re-run): `actor_id` como objeto de actor autenticado tipado (no `string`), tipo que
+  distinga `guard` obligatorio vs opcional (olvido detectable en compilación/test), y control operativo del
+  `down` de la migración del trigger. **Añadidos del re-run**: cada consumidora que requiera pertenencia DEBE
+  incluir en su gate un test "`guard` ausente ⇒ la transición no procede sin control adicional" (S-005);
+  **normalizar/acotar el side-channel de tiempo** entre los 4 casos de FR-003 tras el colapso de FR-009 (S-004).
+  Escalaría el contrato del slice 002b (XV) → abordar al integrar 003/004/005.
+- **BL-057** (004 · MEDIA) — **Campo de evidencia en `OrderAudit`** (consist-G2:K-006, Constitution XI): añadir
+  `evidence_ref`/hash a la auditoría cuando 004 (ejecución) introduzca evidencia (fotos/notas). En 002b las
+  transiciones no llevan evidencia; desviación temporal aceptada y reconciliada (análoga a BL-050).
+- **BL-058** (gobernanza · MEDIA) — **Formalizar en `spec-template.md` la convención de secciones delegadas**:
+  `## Trazabilidad` (RF→…→test) se mantiene en `docs/traceability.md`, y `## Eval de objetivos (promptfoo)` sólo
+  aplica a features con IA/SC-promptfoo (las de dominio puro verifican con Vitest). Hoy 002a/002b ya siguen esta
+  convención de facto; dejarla explícita en la plantilla evita que un gate/lector futuro la lea como deriva. Va
+  en la **rama `chore/foundation-governance`** (ADR-0004 / constitution v1.7.1), NUNCA en una rama de feature.
+
+- **BL-059** (003/004/005 · ALTA) — **Redacción de `reason` por la ruta REAL de logging del endpoint**
+  (G3-A2 · cínico:H-002/rbac:S-002): `pino redact` con comodín `*` sólo cubre un nivel; cuando las features con
+  endpoint añadan logging del payload de transición, `reason` anidado (p. ej. `req.body.transition.reason`,
+  `error.cause.reason`) podría filtrarse. Cada gate consumidor DEBE forzar un `reason` centinela a través de la
+  ruta HTTP real (no sólo la del dominio) y ampliar `REDACT_PATHS` en consecuencia. En 002b no aplica
+  (`applyTransition` no emite logs). Complementa BL-055.
+- **BL-060** (003/004/005 · MEDIA) — **Catch-all HTTP que sanea errores de BD ≠ P2003** (G3-M1 ·
+  cínico:H-003/rbac:S-005/impl:I-003): `applyTransition` sólo traduce la FK P2003→`ACTOR_INVALID`; cualquier otro
+  error de BD (validación de UUID, deadlock, timeout, futuras constraints) se repropaga crudo. La feature con
+  endpoint DEBE tener un manejador de nivel superior que convierta cualquier error no controlado en 500 genérico
+  sin filtrar detalle de Postgres, con test que fuerce un error ≠ P2003. Cubre también la rama `throw e` no
+  testeada (G3-B2).
+
+> **Cierre G3 de 002b (2026-07-11)**: gate `specs/003-order-fsm-audit/gates/gate-G3-003-order-fsm-audit.md`
+> PASS (0 BLOQUEANTES). El default `GUARD_UNMET→403` (G3-A1, convergencia de 3 revisores) se **resolvió en el
+> propio gate** → FAIL-SAFE 404 + test. El resto (ALTA/MEDIA/BAJA) son riesgos que **003/004/005 heredan de
+> artefactos compartidos** y cierran en sus gates (BL-055/056/059/060).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
