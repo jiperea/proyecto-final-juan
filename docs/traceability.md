@@ -30,6 +30,27 @@
 | SC-003 | Sesión robusta y renovable | — | `integration/refresh` |
 | Const. III | Hexagonal (dominio sin infra) | T059 | `unit/architecture` |
 
+## 002a — Order + listado por rol (RF→tarea→test)
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001 | Listado 200 filtrado por rol | T014 | `contract/orders.contract`, `integration/orders-list` |
+| FR-002/003/004 | Alcance technician/supervisor/dispatcher | T005 | `unit/order-scope`, `integration/orders-list` |
+| FR-005 | 401 uniforme | T014/reuse 001 | `integration/orders-authz` |
+| FR-006 | Default-deny 403 (allowlist, msg genérico) | T013 | `unit/orders-authorize` |
+| FR-007 | Campos públicos + assigned_to UUID | T014 | `contract/orders.contract` |
+| FR-008/015 | Filtro backend no ampliable por query | T012/T014 | `integration/orders-list` (params) |
+| FR-009 | Lista vacía → 200 | T014 | `integration/orders-list` (technician3) |
+| FR-010 | Order + version base-ready | T001 | migración + `data-model` |
+| FR-011 | Error contract + correlation-id | T008 | `contract/orders.contract` |
+| FR-012 | Orden created_at desc, id desc | T012 | `integration/orders-list` (tiebreak) |
+| FR-016 | Política única orderScopeFor | T005 | `unit/list-orders`, `unit/order-architecture` |
+| FR-017 | title/description no en logs | T016 | `integration/orders-log-redaction` |
+| SC-001/004 | 0 fugas / IDOR mismo-estado | — | `integration/orders-list` |
+| Const. III | Hexagonal (domain sin infra) | T011 | `unit/order-architecture` |
+
+**Diferido 002a**: SC-002 perf P95<300ms (T017) → BL-038 (perf, junto con 001).
+
 ## Diferido (hardening, documentado — NO silencioso)
 
 - **T057 (perf P95 SC-001/005)** y **T058 (paridad de timing anti-enumeración)**: son gates de
