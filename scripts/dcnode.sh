@@ -5,6 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 docker run --rm \
+  --platform linux/arm64 \
   -v "$PWD/backend":/app -w /app \
   --network proyecto-final_default \
   -e DATABASE_URL="postgresql://fieldops:fieldops@db-test:5432/fieldops_test" \
