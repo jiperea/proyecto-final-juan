@@ -15,8 +15,10 @@ Sin endpoint HTTP (lo consumen 003/004/005). Hexagonal, TDD contra Postgres real
 interactiva para atomicidad), Vitest. Reutiliza error-mapper/logger/config de 001 y `Order`/`version` de 002a.
 
 **Constraints**: `status`/`version` sólo mutan vía `applyTransition` (único punto de escritura, FR-006);
-`OrderAudit` **append-only a nivel de BD** (REVOKE UPDATE/DELETE); `reason` pre-saneado, nunca en logs/errores
-(FR-008); atomicidad todo-o-nada (FR-004); concurrencia = correctness (no lost-update), If-Match stretch (003/004).
+`OrderAudit` **append-only a nivel de BD** (TRIGGER `BEFORE UPDATE OR DELETE`, no REVOKE — el rol es propietario,
+G2:S-002); `reason` pre-saneado, nunca en logs/errores (FR-008); atomicidad todo-o-nada (FR-004); concurrencia =
+correctness (no lost-update), If-Match stretch (003/004); clasificación 0-filas: 404→409→422→GUARD_UNMET (FR-003);
+GUARD_UNMET/ACTOR_INVALID como resultados de dominio; no-enumeración en consumidoras (FR-009).
 
 ## Constitution Check
 
@@ -41,7 +43,7 @@ interactiva para atomicidad), Vitest. Reutiliza error-mapper/logger/config de 00
 backend/src/
 ├── domain/order/         # transition-table (FSM), apply-transition (use case), transition ports/errors
 └── infra/repositories/   # order-transition-repository (Prisma $transaction: UPDATE condicional + insert audit)
-backend/prisma/           # schema (+ OrderAudit + REVOKE UPDATE/DELETE en migración), sin cambios de Order
+backend/prisma/           # schema (+ OrderAudit + TRIGGER append-only en migración), sin cambios de Order
 ```
 
 ## Phase 0 → research.md ✅ · Phase 1 → data-model.md · quickstart.md ✅ (contracts N/A)

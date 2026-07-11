@@ -185,4 +185,29 @@
 - **BL-054** (futuro · BAJA) — **Cancelación de orden / límite de rechazo** (H-010): transición `*→cancelled` y
   tope al ciclo `pending_review↔in_progress`; caso de negocio futuro.
 
+### Gate G1 (002b, re-entrada tras remediación de G2) — diferidos
+
+- **BL-055** (002b+ · MEDIA) — **Procedimiento correctivo de PII / mantenimiento de `order_audit`**
+  (G1:H-005/G1:H-008): con trigger append-only + `onDelete: Restrict`, una PII mal saneada o una migración
+  estructural legítima no tienen vía dentro del sistema. Definir una **migración controlada** (deshabilitar
+  trigger → purgar/anonimizar o backfill → rehabilitar, con revisión y registro). Riesgo residual documentado
+  hasta implementarlo. **Añadido (G1 re-run S-006)**: control **técnico** (no sólo de proceso) que detecte la
+  ausencia del trigger — health-check de arranque que verifique su presencia y/o bloqueo de migraciones
+  destructivas en producción.
+- **BL-056** (003/004/005 · MEDIA) — **Defensa en profundidad del contrato de `applyTransition`**
+  (G1:S-003/S-004/S-005 + re-run): `actor_id` como objeto de actor autenticado tipado (no `string`), tipo que
+  distinga `guard` obligatorio vs opcional (olvido detectable en compilación/test), y control operativo del
+  `down` de la migración del trigger. **Añadidos del re-run**: cada consumidora que requiera pertenencia DEBE
+  incluir en su gate un test "`guard` ausente ⇒ la transición no procede sin control adicional" (S-005);
+  **normalizar/acotar el side-channel de tiempo** entre los 4 casos de FR-003 tras el colapso de FR-009 (S-004).
+  Escalaría el contrato del slice 002b (XV) → abordar al integrar 003/004/005.
+- **BL-057** (004 · MEDIA) — **Campo de evidencia en `OrderAudit`** (consist-G2:K-006, Constitution XI): añadir
+  `evidence_ref`/hash a la auditoría cuando 004 (ejecución) introduzca evidencia (fotos/notas). En 002b las
+  transiciones no llevan evidencia; desviación temporal aceptada y reconciliada (análoga a BL-050).
+- **BL-058** (gobernanza · MEDIA) — **Formalizar en `spec-template.md` la convención de secciones delegadas**:
+  `## Trazabilidad` (RF→…→test) se mantiene en `docs/traceability.md`, y `## Eval de objetivos (promptfoo)` sólo
+  aplica a features con IA/SC-promptfoo (las de dominio puro verifican con Vitest). Hoy 002a/002b ya siguen esta
+  convención de facto; dejarla explícita en la plantilla evita que un gate/lector futuro la lea como deriva. Va
+  en la **rama `chore/foundation-governance`** (ADR-0004 / constitution v1.7.1), NUNCA en una rama de feature.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
