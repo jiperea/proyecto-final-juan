@@ -26,12 +26,15 @@
   enmascararía el camino CSRF).
 - **Orden de comprobación (FR-018):** sesión (cookie) **antes** que CSRF → sin sesión = **401**; con sesión
   y CSRF inválido/ausente = **403**.
-- **Implementación (G3, B1/I-001):** "sin sesión" incluye cookie **ausente Y cookie presente-pero-inválida**
-  (caducada/revocada). El middleware CSRF, si el double-submit falla, consulta `SessionValidityPort`
-  (adaptador `RefreshSessionValidity`: token existe + sesión no revocada + refresh no caducado) y devuelve
-  **401 si la sesión no es válida** y **403 solo si es válida**. Así el orden 401→403 se cumple también para
-  cookies revocadas/caducadas (no basta con comprobar la mera presencia de la cookie). Verificado por
-  `tests/integration/csrf-order.spec.ts` (sesión revocada + CSRF ausente → 401).
+- **Implementación (G3, B1/I-001):** "sin sesión" incluye cookie **ausente Y cookie presente-pero-inválida**.
+  Las **tres** causas de invalidez que producen 401 antes que CSRF (coherente con FR-004c/FR-018) son:
+  **(a) refresh inexistente/caducado, (b) sesión revocada, (c) cuenta `disabled`**. El middleware CSRF, si
+  el double-submit falla, consulta `SessionValidityPort` (adaptador `RefreshSessionValidity`: token existe +
+  sesión no revocada + refresh no caducado + **cuenta no `disabled`** vía `AccountStatePort.isUserDisabled`)
+  y devuelve **401 si la sesión no es válida** y **403 solo si es válida**. Así el orden 401→403 se cumple
+  también para cookies revocadas/caducadas/de-cuenta-disabled (no basta con comprobar la mera presencia de la
+  cookie). Verificado por `tests/unit/session-validity.spec.ts` (las 4 ramas) y
+  `tests/integration/csrf-order.spec.ts` (sesión revocada / cuenta disabled + CSRF ausente → 401).
 - **Rationale:** `SameSite=Strict` bloquea el grueso; el double-submit es **stateless** (sin estado CSRF en
   servidor, encaja con hexagonal). Defensa en profundidad para una fundación de seguridad.
 - **Alternativas descartadas:** synchronizer token (requiere estado por sesión); solo SameSite (sin defensa

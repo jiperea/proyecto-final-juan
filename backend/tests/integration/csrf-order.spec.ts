@@ -69,4 +69,27 @@ describe('orden sesión(401)→CSRF(403) en refresh y logout (FR-018, D2)', () =
       .set('Cookie', `refresh_token=${refresh}; csrf_token=${csrf}`);
     expect(res.status).toBe(401);
   });
+
+  it('refresh con cuenta disabled (sesión viva) + CSRF ausente → 401, no 403 (S-001/FR-004c)', async () => {
+    const r = await request(app)
+      .post('/v1/auth/login')
+      .send({ identifier: SEED_USERS.technician.email, password: SEED_PASSWORD });
+    const refresh = cookieValue(r.headers['set-cookie'], 'refresh_token');
+    const csrf = cookieValue(r.headers['set-cookie'], 'csrf_token');
+    try {
+      await prisma.user.update({
+        where: { id: SEED_USERS.technician.id },
+        data: { disabledAt: new Date() },
+      });
+      const res = await request(app)
+        .post('/v1/auth/refresh')
+        .set('Cookie', `refresh_token=${refresh}; csrf_token=${csrf}`);
+      expect(res.status).toBe(401);
+    } finally {
+      await prisma.user.update({
+        where: { id: SEED_USERS.technician.id },
+        data: { disabledAt: null },
+      });
+    }
+  });
 });

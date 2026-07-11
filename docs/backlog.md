@@ -141,9 +141,9 @@
   elimina el secreto exigido en arranque (discrepancia diseño↔implementación, S-003).
 - **BL-042** (001 · G3 · MEDIA) — **Carrera de refresh**: filas RefreshToken huérfanas por perdedor de carrera
   + posible 401 espurio si el perdedor lee la gracia antes del `set` del ganador (H-007).
-- **BL-043** (001 · G3 · MEDIA) — **Deriva de trazabilidad**: puertos AccountStatePort/ProbeResourceRepositoryPort
-  no listados en plan/tasks (K-003); ruta T030 desalineada (K-004); matriz traceability incompleta (K-005/K-007);
-  mapeo STRIDE→test y quickstart e2e pendientes (T065/T066, I-007).
+- **BL-043** (001 · G3 · MEDIA) — **Deriva de trazabilidad**: ✅ **CERRADO en la ronda de remediación**
+  (K-003 puertos añadidos a plan/tasks; K-004 ruta T030 corregida; K-005 traceability completada). Queda
+  pendiente sólo el mapeo STRIDE→test y quickstart e2e (T065/T066, I-007, K-007 SC sin tarea).
 - **BL-044** (001 · G3 · BAJA) — Doble `check()` en login (H-008); 401 de logout uniforme de *contenido* no
   comparado (T-006).
 

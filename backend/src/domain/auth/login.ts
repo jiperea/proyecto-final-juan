@@ -39,6 +39,23 @@ const invalid = (): ReturnType<typeof domainError> =>
 const rateLimited = (retryAfterSeconds: number): ReturnType<typeof domainError> =>
   domainError('RATE_LIMITED', 'Demasiados intentos. Inténtalo más tarde.', { retryAfterSeconds });
 
+// Lockout observable por diseño (429), ANTES del hash (D7). Combina el store in-memory y `User.lockedUntil`.
+function lockoutError(
+  deps: LoginDeps,
+  key: string,
+  user: { lockedUntil: Date | null } | null,
+  now: Date,
+): ReturnType<typeof domainError> | null {
+  const pre = deps.rateLimit.check(key);
+  if (pre.locked) {
+    return rateLimited(pre.retryAfterSeconds);
+  }
+  if (user?.lockedUntil && user.lockedUntil > now) {
+    return rateLimited(Math.ceil((user.lockedUntil.getTime() - now.getTime()) / 1000));
+  }
+  return null;
+}
+
 // login (FR-001/002/002b/011): resuelve identifier, lockout (429 antes del hash, D7),
 // verifica contraseña (real o dummy anti-timing, D4), disabled DESPUÉS del hash (FR-002b, 401 uniforme).
 // fail-closed: cualquier fallo de BD → 503 (nunca cuelga la petición, B3/H-003/FR-013).
@@ -49,12 +66,9 @@ export async function login(deps: LoginDeps, input: LoginInput): Promise<Result<
     const key = user ? user.id : deps.rateLimit.keyForIdentifier(norm);
     const now = deps.clock.now();
 
-    const pre = deps.rateLimit.check(key);
-    if (pre.locked) {
-      return err(rateLimited(pre.retryAfterSeconds));
-    }
-    if (user?.lockedUntil && user.lockedUntil > now) {
-      return err(rateLimited(Math.ceil((user.lockedUntil.getTime() - now.getTime()) / 1000)));
+    const locked = lockoutError(deps, key, user, now);
+    if (locked) {
+      return err(locked);
     }
 
     let valid = false;

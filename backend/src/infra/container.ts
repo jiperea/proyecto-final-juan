@@ -16,52 +16,77 @@ import { InMemorySessionState } from './session-state/in-memory';
 const MIN_MS = 60_000;
 const DAY_MS = 86_400_000;
 
-// Wiring de dependencias (puertos→adaptadores). Único lugar donde se instancian los adaptadores.
-export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaClient } {
-  const prisma = createPrisma(config.databaseUrl);
+// Instancia todos los adaptadores (puertos→infra) para un PrismaClient dado.
+function buildAdapters(prisma: PrismaClient, config: Config) {
   const clock = { now: (): Date => new Date() };
-
-  const hasher = new Argon2PasswordHasher();
+  const accountState = new PrismaAccountState(prisma);
   const tokens = new JwtTokenIssuer({
     jwtSecret: config.jwtSecret,
     accessTtl: config.accessTtl,
     refreshTtlDays: config.refreshTtlDays,
   });
-  const users = new PrismaUserRepository(prisma);
-  const sessions = new PrismaSessionRepository(prisma);
   const refreshTokens = new PrismaRefreshTokenRepository(prisma);
-  const accountState = new PrismaAccountState(prisma);
-  const probes = new PrismaProbeRepository(prisma);
-  const sessionState = new InMemorySessionState(accountState, config.sessionStateTtlMs);
-  const graceCache = new InMemoryGraceCache(config.graceMs);
-  const sessionValidity = new RefreshSessionValidity(tokens, refreshTokens, sessions, clock);
-  const rateLimit = new InMemoryRateLimit({
-    max: config.lockoutMax,
-    windowMs: config.lockoutWindowMin * MIN_MS,
-    lockoutMs: config.lockoutWindowMin * MIN_MS,
-    lockoutSecret: config.lockoutSecret,
-  });
+  const sessions = new PrismaSessionRepository(prisma);
+  return {
+    clock,
+    accountState,
+    tokens,
+    sessions,
+    refreshTokens,
+    hasher: new Argon2PasswordHasher(),
+    users: new PrismaUserRepository(prisma),
+    probes: new PrismaProbeRepository(prisma),
+    sessionState: new InMemorySessionState(accountState, config.sessionStateTtlMs),
+    graceCache: new InMemoryGraceCache(config.graceMs),
+    sessionValidity: new RefreshSessionValidity(tokens, refreshTokens, sessions, accountState, clock),
+    rateLimit: new InMemoryRateLimit({
+      max: config.lockoutMax,
+      windowMs: config.lockoutWindowMin * MIN_MS,
+      lockoutMs: config.lockoutWindowMin * MIN_MS,
+      lockoutSecret: config.lockoutSecret,
+    }),
+  };
+}
 
+// Wiring de dependencias (puertos→adaptadores). Único lugar donde se instancian los adaptadores.
+export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaClient } {
+  const prisma = createPrisma(config.databaseUrl);
+  const a = buildAdapters(prisma, config);
   const deps: AppDeps = {
     checkDb: () => checkDb(prisma),
-    loginDeps: { users, sessions, refreshTokens, hasher, tokens, rateLimit, clock },
-    logoutDeps: { sessions, refreshTokens, sessionState, tokens, clock, graceMs: config.graceMs },
-    refreshDeps: {
-      users,
-      sessions,
-      refreshTokens,
-      sessionState,
-      accountState,
-      graceCache,
-      tokens,
-      clock,
+    loginDeps: {
+      users: a.users,
+      sessions: a.sessions,
+      refreshTokens: a.refreshTokens,
+      hasher: a.hasher,
+      tokens: a.tokens,
+      rateLimit: a.rateLimit,
+      clock: a.clock,
+    },
+    logoutDeps: {
+      sessions: a.sessions,
+      refreshTokens: a.refreshTokens,
+      sessionState: a.sessionState,
+      tokens: a.tokens,
+      clock: a.clock,
       graceMs: config.graceMs,
     },
-    users,
-    probes,
-    tokens,
-    sessionState,
-    sessionValidity,
+    refreshDeps: {
+      users: a.users,
+      sessions: a.sessions,
+      refreshTokens: a.refreshTokens,
+      sessionState: a.sessionState,
+      accountState: a.accountState,
+      graceCache: a.graceCache,
+      tokens: a.tokens,
+      clock: a.clock,
+      graceMs: config.graceMs,
+    },
+    users: a.users,
+    probes: a.probes,
+    tokens: a.tokens,
+    sessionState: a.sessionState,
+    sessionValidity: a.sessionValidity,
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,
       secure: config.nodeEnv === 'production',

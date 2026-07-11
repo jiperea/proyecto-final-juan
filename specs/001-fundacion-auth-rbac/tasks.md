@@ -128,7 +128,7 @@ sesión válida→refresh OK; revocar/expirar→falla; reuso→familia revocada;
 
 - [x] T053 [P] [US2] Adaptador `GraceCache` in-memory (hash token→**trío access+refresh+csrf en claro**, TTL=gracia; **antes de servir, re-comprueba contra BD `Session.revoked_at`/`disabled`** → si revocada/disabled 401, no sirve; no persiste en BD) — `backend/src/infra/grace-cache/in-memory.ts` (D6, FR-004d, H-005/S-001)
 - [x] T054 [US2] Caso de uso `refresh` (rotación **atómica exige sesión no revocada**, implementada como **un ÚNICO `$executeRaw`** `UPDATE … WHERE rotated_at IS NULL AND EXISTS(sesión no revocada)` —no SELECT+updateMany— → cierra TOCTOU logout↔refresh (B2/I-002); gracia→GraceCache; reuso→revoca familia+SessionState; FR-004c disabled; **relee rol de BD**; fail-closed BD caída→503) — `backend/src/domain/auth/refresh.ts` (FR-004/004b/004c/004d/005, H-001)
-- [x] T055 [US2] Middleware `csrf` double-submit (refresh Y logout; **sesión antes que CSRF**; tiempo constante); **consulta `SessionValidityPort` (adaptador `RefreshSessionValidity`) cuando el CSRF falla → 401 si la sesión NO es válida (caducada/revocada), 403 si es válida (B1/I-001, FR-018)** — `backend/src/handlers/middleware/csrf.ts`, `backend/src/infra/session-validity.ts` (D2, FR-012/018)
+- [x] T055 [US2] Middleware `csrf` double-submit (refresh Y logout; **sesión antes que CSRF**; tiempo constante); **consulta `SessionValidityPort` (adaptador `RefreshSessionValidity`) cuando el CSRF falla → 401 si la sesión NO es válida (inexistente/caducada/revocada/**disabled**, vía AccountStatePort), 403 si es válida (B1/I-001/S-001, FR-018/FR-004c)** — `backend/src/handlers/middleware/csrf.ts`, `backend/src/infra/session-validity.ts` (D2, FR-012/018)
 - [x] T056 [US2] Handler `POST /v1/auth/refresh` (rota refresh + csrf; access en body) — `backend/src/handlers/auth/refresh.ts` (FR-004/005)
 
 **Checkpoint**: las 3 historias funcionales e independientes.
@@ -192,9 +192,11 @@ implementan puertos de Foundational.
 > El gate G3 (5 revisores) encontró incongruencias con los 104 tests en verde. Cerrados por TDD (test Red
 > que reproduce el fallo → fix → Green). Ver `gates/gate-G3-001-fundacion-auth-rbac.md`.
 
-- [x] B1 [US2] **Orden CSRF (FR-018/I-001)** — `csrf` consulta `SessionValidityPort` → 401 si sesión inválida
-  (caducada/revocada) aunque falle el CSRF; 403 solo si sesión válida — `backend/src/handlers/middleware/csrf.ts`,
-  `backend/src/infra/session-validity.ts`; test `backend/tests/integration/csrf-order.spec.ts`.
+- [x] B1 [US2] **Orden CSRF (FR-018/I-001/S-001)** — `csrf` consulta `SessionValidityPort` → 401 si sesión
+  inválida (inexistente/caducada/revocada/**disabled**, esta última vía `AccountStatePort`, FR-004c) aunque
+  falle el CSRF; 403 solo si sesión válida — `backend/src/handlers/middleware/csrf.ts`,
+  `backend/src/infra/session-validity.ts`; tests `backend/tests/unit/session-validity.spec.ts` (4 ramas) +
+  `backend/tests/integration/csrf-order.spec.ts` (revocada y disabled → 401).
 - [x] B2 [US2] **Rotación atómica (FR-004/I-002/H-001)** — un único `$executeRaw` con `EXISTS(sesión no
   revocada)` — `backend/src/infra/repositories/refresh-token-repository.ts`.
 - [x] B3 [US1] **login fail-closed 503 (H-003)** — try/catch → `SERVICE_UNAVAILABLE` — `backend/src/domain/auth/login.ts`;
