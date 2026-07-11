@@ -171,4 +171,18 @@
   (`Order.id` + `version`). Ajustar la redacción del constitution en **rama de gobernanza** (regla v1.7.1),
   no en esta feature.
 
+### Gate G1 (002b) — diferidos / gobernanza
+
+- **BL-050** (gobernanza · MEDIA) — **Reconciliar constitution: concurrencia optimista** (H-002): distinguir en
+  el texto que la **consistencia por `version` (no lost-update)** es *correctness* (mandatory) y que solo la
+  **exposición `If-Match`→409** al cliente es *stretch* (003/004). Ajustar en rama de gobernanza (v1.7.1).
+- **BL-051** (002b+ · MEDIA) — **Cifrado en reposo / control de lectura de `OrderAudit.reason`** (S-005): PII
+  saneada pero en claro; definir cifrado de columna y qué roles pueden leer `reason` (vs metadatos).
+- **BL-052** (futuro · MEDIA) — **Auditoría forense de accesos denegados** (BL-002, entidad separada de
+  `OrderAudit`, H-003): tabla propia `DeniedAccessAudit` (sin `from/to_status`); diseñar cuando se aborde.
+- **BL-053** (002b · BAJA) — **Hardening bypass de `status`** (H-004): además del único-punto-de-escritura en
+  dominio, valorar un trigger/constraint de BD que impida mutar `orders.status` fuera de `applyTransition`.
+- **BL-054** (futuro · BAJA) — **Cancelación de orden / límite de rechazo** (H-010): transición `*→cancelled` y
+  tope al ciclo `pending_review↔in_progress`; caso de negocio futuro.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

@@ -24,6 +24,18 @@ NO añade endpoints de negocio; reutiliza `Order`/`version` de 002a y errores/ob
   005) la imponen 003/004/005, no 002b.
 - Q: ¿`actor_id` en la auditoría? → A: **siempre requerido** (toda transición tiene un actor que provee el llamador).
 
+**Cierres del gate G1 (mismo día):**
+
+- Q: ¿Sanea PII de `reason` 002b o el llamador? → A: **el llamador** (003/004/005) — precondición testada por
+  cada uno; 002b lo persiste y jamás lo saca en logs/errores (H-001, Const. XI).
+- Q: ¿Concurrencia obligatoria pese a ser stretch? → A: 002b exige **consistencia (no lost-update)** como
+  *correctness* mandatory; la **exposición If-Match→409** al cliente sigue siendo *stretch* (003/004). Se
+  reconcilia el texto de la constitution en gobernanza (H-002, BL).
+- Q: ¿Append-only cómo? → A: **a nivel de BD** (REVOKE UPDATE/DELETE o trigger), no solo por API (H-005).
+- Q: ¿Bypass de `status`? → A: **prohibido**; único punto de escritura `applyTransition` (test arquitectura, H-004).
+- Q: ¿`draft→assigned`? → A: **fuera** de la tabla (creación fuera del proyecto; sin llamador, H-007).
+- Q: ¿`OrderAudit` cubre BL-002 (accesos denegados)? → A: **no**; esa auditoría es una entidad separada (H-003).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Transicionar una orden de forma segura y auditada (Priority: P1)
@@ -60,46 +72,71 @@ obsoleta no deja ningún efecto.
 - Rechazo de revisión: `pending_review`→`in_progress` **es** legal (la usa 005).
 - Dos transiciones concurrentes sobre la misma orden: solo una gana (la otra → `VERSION_CONFLICT`), sin doble
   auditoría ni estado inconsistente.
-- `reason` puede contener texto libre con posible PII → **no se loguea** (reutiliza redacción de 001).
+- `reason` es texto **pre-saneado** por el llamador → no PII cruda; **no se loguea ni va en errores**.
+- `order_id` inexistente → `ORDER_NOT_FOUND` (**404**), sin efecto.
+- `actor_id` inexistente → la FK de la auditoría falla y la transacción **revierte** entera (no efecto) — es
+  también la técnica de test de atomicidad (SC-004).
+- Transición ilegal Y versión obsoleta a la vez → la clasificación es determinista (version primero → 409).
+- **Sin cancelación ni límite de rechazo** (decisión de alcance deliberada): 002b no define `*→cancelled` ni
+  tope al ciclo `pending_review↔in_progress`; una vía de cancelación es feature futura (backlog).
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements (EARS)
 
 - **FR-001**: THE sistema SHALL definir una **tabla de transiciones legales** determinista de Order:
-  `draft→assigned`, `assigned→in_progress`, `in_progress→pending_review`, `pending_review→closed`,
+  `assigned→in_progress`, `in_progress→pending_review`, `pending_review→closed`,
   `pending_review→in_progress` (rechazo). Cualquier otra (incl. mismo estado y desde `closed`) es ilegal.
+  *(No se incluye `draft→assigned`: la creación/alta de órdenes está fuera del proyecto; `draft` es solo un
+  estado semilla sin transición en el roadmap — H-007.)*
 - **FR-002**: WHEN se solicita una transición cuyo par (origen→destino) **no** está en la tabla, THE sistema
   SHALL responder con `INVALID_TRANSITION` (mapea a **422**) y **no** producir ningún efecto.
-- **FR-003**: WHEN `expectedVersion` no coincide con la `version` actual de la orden, THE sistema SHALL
-  responder `VERSION_CONFLICT` (mapea a **409**) y **no** producir ningún efecto (concurrencia optimista).
-- **FR-004**: WHEN la transición es legal y la versión coincide, THE sistema SHALL, **atómicamente** (todo o
-  nada): (a) actualizar `status` al destino, (b) incrementar `version` en 1, (c) insertar un registro de
-  auditoría de la transición. Si cualquier paso falla, no se aplica ninguno.
-- **FR-005**: THE registro de auditoría (`OrderAudit`) SHALL ser **append-only**: solo inserción; nunca
-  update ni delete. Registra `order_id`, `actor_id`, `from_status`, `to_status`, `reason`, `at`.
-- **FR-006**: THE maquinaria (FSM + applyTransition + auditoría) SHALL residir en el dominio, reutilizable por
-  003/004/005; **NO** decide qué rol puede cada transición ni la pertenencia (eso lo aplican esas features
-  antes de invocarla).
-- **FR-007**: THE errores SHALL usar el contrato accionable de 001 (`{code,message,details?,agent_action?}`);
-  `reason`/notas NUNCA se serializan a logs (observabilidad sin PII).
-- **FR-008**: THE concurrencia optimista SHALL implementarse de forma que dos transiciones concurrentes sobre
-  la misma orden no puedan ambas tener éxito (a lo sumo una; la otra → `VERSION_CONFLICT`).
+- **FR-003** *(consistencia bajo concurrencia — correctness, NO el stretch If-Match)*: THE cambio de estado
+  SHALL aplicarse mediante **un único UPDATE condicional atómico** `WHERE id=? AND version=expectedVersion AND
+  status=<origen legal>`; si afecta 0 filas, THE sistema re-lee la orden para clasificar la causa:
+  version distinta → `VERSION_CONFLICT` (**409**); origen no legal → `INVALID_TRANSITION` (**422**); orden
+  inexistente → `ORDER_NOT_FOUND` (**404**). **Precedencia**: la condición atómica decide; ante ambas causas
+  la re-lectura clasifica de forma determinista (version primero) — H-011.
+- **FR-004** *(atomicidad)*: WHEN la transición procede, THE sistema SHALL, en **una sola transacción**
+  (todo o nada): (a) `status`→destino, (b) `version`+1, (c) insertar el registro de auditoría. Si CUALQUIER
+  paso falla (incl. FK de `actor_id`/`order_id` inexistente), la transacción **revierte** por completo: la
+  orden no queda transicionada sin su auditoría.
+- **FR-005** *(append-only, enforcement real)*: `OrderAudit` SHALL ser **append-only a nivel de base de datos**
+  (no solo por ausencia de métodos): el rol de la aplicación tiene **REVOKE UPDATE, DELETE** sobre la tabla (o
+  un trigger que rechace UPDATE/DELETE). Verificable: un intento de UPDATE/DELETE **falla con error de BD**.
+- **FR-006** *(único punto de escritura)*: `Order.status`/`version` SHALL mutarse **exclusivamente** vía
+  `applyTransition` (repositorio con un único método de transición; ningún otro camino escribe `status`/
+  `version`). Verificable por test de arquitectura (H-004).
+- **FR-007** *(separación de responsabilidades)*: LA maquinaria (`applyTransition` + FSM + auditoría) reside en
+  el dominio como **función exportada reutilizable** por 003/004/005; **NO** decide rol ni pertenencia (lo
+  aplican esas features antes de invocarla, revalidando pertenencia atómicamente si procede — ver Assumptions).
+- **FR-008** *(PII de `reason`)*: `reason` es **texto pre-saneado por el llamador** (003/004/005) — precondición:
+  **NO** debe contener PII cruda (Const. XI: auditoría con texto saneado). 002b lo persiste verbatim y
+  **NUNCA** lo serializa en **logs NI en `details`/`agent_action`** de los errores. Cada feature consumidora
+  tiene la responsabilidad (y el test) de sanear `reason` antes de invocar. `reason` es opcional; `actor_id`
+  requerido.
 
 ### Key Entities
 
-- **OrderAudit** (append-only): `id` (UUID v7), `order_id` (FK→Order), `actor_id` (FK→User), `from_status`,
-  `to_status` (OrderStatus), `reason` (texto, posible PII → no logueado), `at` (timestamptz). Inmutable.
+- **OrderAudit** (append-only, inmutable): `id` (UUID v7), `order_id` (FK→Order), `actor_id` (FK→User),
+  `from_status`, `to_status` (OrderStatus), `reason` (texto **pre-saneado por el llamador**, sin PII cruda;
+  nunca en logs/errores), `at` (timestamptz). Es la auditoría de **transiciones**; la auditoría forense de
+  **accesos denegados** (BL-002) es una **entidad SEPARADA** (no se fuerza sobre este esquema — H-003).
 - **Transición** (valor de dominio): `{ from, to }` sobre `OrderStatus`; la tabla de legales es la FSM.
 
 ## Success Criteria *(mandatory)*
 
 - **SC-001**: El 100% de las transiciones legales de la tabla se aplican con status+version+auditoría
   consistentes; el 100% de las ilegales se rechazan (422) sin efecto.
-- **SC-002**: Bajo dos transiciones concurrentes sobre la misma orden, **exactamente una** tiene éxito y hay
-  **exactamente un** registro de auditoría nuevo (la otra → 409), verificado con un test de concurrencia real.
-- **SC-003**: Ningún registro de auditoría puede modificarse/borrarse tras crearse (append-only comprobado).
-- **SC-004**: Ante fallo simulado de la escritura de auditoría, la orden **no** queda transicionada (atomicidad).
+- **SC-002** *(consistencia — correctness, mandatory; distinta del stretch If-Match de 003/004)*: bajo dos
+  transiciones concurrentes sobre la misma orden, **como máximo una** tiene éxito (sin lost-update ni doble
+  auditoría; la perdedora → 409), verificado por test de concurrencia real. La **exposición** `If-Match`→409 a
+  clientes es *stretch* y vive en 003/004 (H-002; reconciliación de la constitution → backlog).
+- **SC-003**: Un intento de UPDATE/DELETE sobre `OrderAudit` **falla con error de BD** (append-only enforce a
+  nivel de BD, no solo por API — comprobado).
+- **SC-004** *(atomicidad, sin mockear ORM — Const. VII)*: se fuerza el fallo de la inserción de auditoría con
+  un **`actor_id` inexistente** (viola la FK dentro de la transacción); resultado: la orden **no** queda
+  transicionada (status/version intactos, 0 filas de auditoría) — atomicidad real contra Postgres.
 
 ## Scope
 
@@ -116,6 +153,11 @@ auditoría forense de accesos denegados (base-ready, comportamiento en BL-002), 
 - **Congelado en `## Clarifications`**: 002b es **dominio puro** (sin endpoint; endpoints en 003/004/005),
   tabla de transiciones fija, `reason` opcional, `actor_id` requerido.
 - Reutiliza `Order`/`version` de 002a y error-mapper/logger/config de 001.
-- `OrderAudit` es base-ready para la auditoría forense de accesos denegados (BL-002) sin ALTER destructivo.
-- `actor_id` y `reason` los provee el llamador (003/004/005); 002b no los valida semánticamente, solo los
-  registra en auditoría.
+- `OrderAudit` audita **transiciones**; la auditoría de **accesos denegados** (BL-002) es otra entidad
+  (no se fuerza sobre este esquema) → se diseñará cuando se aborde BL-002.
+- `actor_id`/`reason` los provee el llamador (003/004/005): `actor_id` requerido; `reason` **pre-saneado** (sin
+  PII cruda). 002b no valida semánticamente, pero SÍ garantiza que `reason` nunca sale en logs/errores.
+- **Pertenencia + concurrencia (para 003/004/005)**: la comprobación de pertenencia (p. ej. `assigned_to==user`)
+  debe **revalidarse dentro** de la condición atómica de `applyTransition` (misma `expectedVersion`) para
+  evitar TOCTOU frente a una reasignación concurrente (S-004); 002b expone el UPDATE condicional que lo permite.
+- Cifrado en reposo / control de lectura de `reason` en `OrderAudit`: fuera de 002a/b (infra) → backlog.
