@@ -93,14 +93,19 @@ obsoleta no deja ningún efecto.
   SHALL responder con `INVALID_TRANSITION` (mapea a **422**) y **no** producir ningún efecto.
 - **FR-003** *(consistencia bajo concurrencia — correctness, NO el stretch If-Match)*: THE cambio de estado
   SHALL aplicarse mediante **un único UPDATE condicional atómico** `WHERE id=? AND version=expectedVersion AND
-  status=<origen legal>`; si afecta 0 filas, THE sistema re-lee la orden para clasificar la causa:
-  version distinta → `VERSION_CONFLICT` (**409**); origen no legal → `INVALID_TRANSITION` (**422**); orden
-  inexistente → `ORDER_NOT_FOUND` (**404**). **Precedencia**: la condición atómica decide; ante ambas causas
-  la re-lectura clasifica de forma determinista (version primero) — H-011.
+  status=<origen legal>` **+ predicados de guarda opcionales inyectados por el llamador** (p. ej.
+  `AND assigned_to=?`) para que 003/004/005 **revaliden pertenencia dentro de la misma condición atómica**
+  (cierra TOCTOU, H-012/S-004). Si afecta 0 filas, THE sistema re-lee la orden para **clasificar la causa
+  (best-effort)**: version distinta → `VERSION_CONFLICT` (**409**); guarda de pertenencia no satisfecha →
+  el llamador la mapea (403/404 en 003/004/005); origen no legal → `INVALID_TRANSITION` (**422**); orden
+  inexistente → `ORDER_NOT_FOUND` (**404**). **Precedencia** determinista (version primero). Nota: bajo
+  concurrencia el código es diagnóstico best-effort (el estado puede cambiar entre UPDATE y re-lectura, H-013);
+  003/004/005 no deben asumir correspondencia 1:1 exacta causa↔código en tests concurrentes.
 - **FR-004** *(atomicidad)*: WHEN la transición procede, THE sistema SHALL, en **una sola transacción**
   (todo o nada): (a) `status`→destino, (b) `version`+1, (c) insertar el registro de auditoría. Si CUALQUIER
-  paso falla (incl. FK de `actor_id`/`order_id` inexistente), la transacción **revierte** por completo: la
-  orden no queda transicionada sin su auditoría.
+  paso falla (p. ej. FK de `actor_id` inexistente en el insert de auditoría), la transacción **revierte** por
+  completo: la orden no queda transicionada sin su auditoría. *(`order_id` inexistente ya se detecta en FR-003
+  como `ORDER_NOT_FOUND` antes de llegar aquí — no es un camino de fallo de FK en el paso (c), H-014.)*
 - **FR-005** *(append-only, enforcement real)*: `OrderAudit` SHALL ser **append-only a nivel de base de datos**
   (no solo por ausencia de métodos): el rol de la aplicación tiene **REVOKE UPDATE, DELETE** sobre la tabla (o
   un trigger que rechace UPDATE/DELETE). Verificable: un intento de UPDATE/DELETE **falla con error de BD**.
@@ -108,8 +113,10 @@ obsoleta no deja ningún efecto.
   `applyTransition` (repositorio con un único método de transición; ningún otro camino escribe `status`/
   `version`). Verificable por test de arquitectura (H-004).
 - **FR-007** *(separación de responsabilidades)*: LA maquinaria (`applyTransition` + FSM + auditoría) reside en
-  el dominio como **función exportada reutilizable** por 003/004/005; **NO** decide rol ni pertenencia (lo
-  aplican esas features antes de invocarla, revalidando pertenencia atómicamente si procede — ver Assumptions).
+  el dominio como **función exportada** (único punto de escritura, FR-006); **NO** decide rol ni pertenencia:
+  003/004/005 aplican el RBAC y pasan sus **predicados de pertenencia como guarda** al UPDATE atómico (FR-003)
+  para revalidar sin TOCTOU. *(La "reutilización" por 003/004/005 se verificará en esas features; en 002b el
+  criterio testeable es FR-006 — único punto de escritura — T-001.)*
 - **FR-008** *(PII de `reason`)*: `reason` es **texto pre-saneado por el llamador** (003/004/005) — precondición:
   **NO** debe contener PII cruda (Const. XI: auditoría con texto saneado). 002b lo persiste verbatim y
   **NUNCA** lo serializa en **logs NI en `details`/`agent_action`** de los errores. Cada feature consumidora
@@ -160,4 +167,4 @@ auditoría forense de accesos denegados (base-ready, comportamiento en BL-002), 
 - **Pertenencia + concurrencia (para 003/004/005)**: la comprobación de pertenencia (p. ej. `assigned_to==user`)
   debe **revalidarse dentro** de la condición atómica de `applyTransition` (misma `expectedVersion`) para
   evitar TOCTOU frente a una reasignación concurrente (S-004); 002b expone el UPDATE condicional que lo permite.
-- Cifrado en reposo / control de lectura de `reason` en `OrderAudit`: fuera de 002a/b (infra) → backlog.
+- Cifrado en reposo / control de lectura de `reason` en `OrderAudit`: fuera de 002a/b (infra) → **BL-051**.
