@@ -42,21 +42,18 @@ export class PrismaRefreshTokenRepository implements RefreshTokenRepositoryPort 
       : null;
   }
 
-  // Rotación single-use que exige sesión no revocada (D6/H-001). Transacción: sólo una petición gana.
+  // Rotación single-use ATÓMICA que exige sesión no revocada (D6/H-001, cierra TOCTOU logout↔refresh).
+  // Un ÚNICO UPDATE con EXISTS: no hay ventana entre leer y escribir; sólo una petición concurrente gana.
   async rotateAtomic(tokenId: string, replacedById: string): Promise<boolean> {
-    return this.prisma.$transaction(async (tx) => {
-      const rt = await tx.refreshToken.findUnique({
-        where: { id: tokenId },
-        include: { session: true },
-      });
-      if (!rt || rt.rotatedAt || rt.session.revokedAt) {
-        return false;
-      }
-      const res = await tx.refreshToken.updateMany({
-        where: { id: tokenId, rotatedAt: null },
-        data: { rotatedAt: new Date(), replacedBy: replacedById },
-      });
-      return res.count === 1;
-    });
+    const affected = await this.prisma.$executeRaw`
+      UPDATE refresh_tokens
+      SET rotated_at = now(), replaced_by = ${replacedById}::uuid
+      WHERE id = ${tokenId}::uuid
+        AND rotated_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM sessions s
+          WHERE s.id = refresh_tokens.session_id AND s.revoked_at IS NULL
+        )`;
+    return affected === 1;
   }
 }

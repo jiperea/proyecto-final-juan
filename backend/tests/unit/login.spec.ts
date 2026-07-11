@@ -95,4 +95,20 @@ describe('login use case (FR-001/002/002b/011, D4/D7)', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.code).toBe('RATE_LIMITED');
   });
+
+  it('BD caída → SERVICE_UNAVAILABLE (fail-closed, B3/H-003)', async () => {
+    const base = deps(fakeUsers([user()]));
+    const broken: LoginDeps = {
+      ...base,
+      users: {
+        findByIdentifierNorm: async () => {
+          throw new Error('db down');
+        },
+        findById: async () => null,
+      },
+    };
+    const r = await login(broken, { identifier: 'a@b.com', password: PW });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe('SERVICE_UNAVAILABLE');
+  });
 });
