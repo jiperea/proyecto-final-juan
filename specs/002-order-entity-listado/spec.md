@@ -91,8 +91,9 @@ lectura sobre la que 003/004/005 construirán las acciones. Es el MVP de la Fund
   las causas, reutilizando la uniformidad de 001), sin filtrar datos.
 - **FR-006** *(default-deny, S-001/H-004)*: THE autorización de `orders:list` SHALL basarse en un **allowlist**
   explícito `{dispatcher, technician, supervisor}`; IF el principal no está en el allowlist (rol no reconocido /
-  no concedido), THEN THE sistema SHALL responder **403** (fail-secure, no lista vacía). Verificable a nivel de
-  política (un rol fuera del allowlist → 403) sin requerir un usuario semilla de ese rol.
+  no concedido), THEN THE sistema SHALL responder **403** (fail-secure, no lista vacía). El `message`/`details`
+  del 403 SHALL ser **genérico** (no enumera roles permitidos ni revela el rol del principal — anti-enumeración,
+  S-004). Verificable a nivel de **política/unit** (un rol fuera del allowlist → 403) sin requerir usuario semilla.
 - **FR-007**: THE sistema SHALL devolver por cada orden **solo los campos públicos**: `id`, `title`,
   `description`, `status`, `assigned_to`, `version`, `created_at`, `updated_at`. `assigned_to` SHALL ser el
   **UUID opaco** del usuario (NUNCA nombre/username/email — sin resolución que exponga PII de terceros, H-008).

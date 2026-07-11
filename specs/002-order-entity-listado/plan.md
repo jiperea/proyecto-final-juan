@@ -34,7 +34,16 @@ UUID opaco (FR-007); política rol→alcance **centralizada** (FR-016).
 - **Calidad/TDD (VI, VII)**: [x] TDD Red→Green; trazabilidad RF→tarea→test; cobertura por capa; SC medibles.
 - **Specs pequeñas (XV)**: [x] slice read-side; FSM/auditoría/reasignación fuera (002b/003+).
 
-**Veredicto**: PASA. Sin violaciones. `version` sin comportamiento y tabla de auditoría son base-ready (002b).
+**Desviaciones justificadas (Governance)**:
+- **Paginación por cursor (convención)**: se **difiere** (FR-013, sin paginación en 002a) por XV y volumen
+  semilla pequeño; 003/004/005 adoptarán cursor cuando el volumen lo exija (K-003).
+- **Tabla de auditoría (Const. v1.5.x "en el data model de 002")**: tras partir 002 en 002a/002b, el **esquema**
+  de la auditoría se define formalmente en **002b**; 002a deja el ancla estable (`Order.id`) + `version`. Un
+  `CREATE TABLE` nuevo en 002b **no** es un retrofit destructivo (a diferencia de un `ALTER` sobre `orders`),
+  así que se respeta "diseña la base para no reescribirla" (K-002; reconciliación textual del constitution → BL-048).
+
+**Veredicto**: PASA. Sin violaciones (desviaciones documentadas arriba). `version` sin comportamiento y tabla
+de auditoría son base-ready (002b).
 
 ## Project Structure
 

@@ -45,12 +45,17 @@ Devuelve `{ assignedToSelf: boolean, statuses: OrderStatus[] }`; el repositorio 
 
 ## Plan de seed (`prisma/seed.ts`, extiende el de 001)
 
-≥30 órdenes reutilizando los usuarios semilla de 001:
-- Varias `assigned`/`in_progress` de `technician1` (y algún otro technician) — visibles a él y al dispatcher.
-- Varias `pending_review` — visibles al supervisor (y `pending_review` del propio technician a él).
+≥30 órdenes. **Requiere ≥2 technicians** (001 solo trae `technician1`): el seed de 002a añade
+`technician2` y `technician3`.
+- Varias `assigned`/`in_progress` de `technician1` y `technician2` — visibles a su dueño y al dispatcher.
+- `pending_review` de `technician1` **y de `technician2`** — el supervisor las ve todas; **`technician1` NO ve
+  la de `technician2`** (IDOR mismo-estado, S-002/SC-004).
+- **`technician3` sin órdenes activas** (solo alguna `closed`) → prueba **lista vacía → 200** (H-003).
+- **≥2 órdenes con `created_at` EXACTAMENTE igual** (mismo instante) → prueba el tiebreak `id` desc (H-001).
 - **≥1 `draft` con `assigned_to = null`** (no visible a nadie).
-- **≥1 `closed` asignada a `technician1`** (no visible ni a él) — prueba la exclusión de propias cerradas.
-- Ninguna `assigned`/`in_progress` con `assigned_to = null` (invariante).
+- **≥1 `closed` asignada a `technician1`** (no visible ni a él) — exclusión de propias cerradas.
+- **Invariante**: ninguna orden `assigned`/`in_progress`/**`pending_review`** con `assigned_to = null`
+  (estados imposibles en la FSM de 002b; H-005).
 
 ## Mapa entidad → FR
 
@@ -59,4 +64,5 @@ Devuelve `{ assignedToSelf: boolean, statuses: OrderStatus[] }`; el repositorio 
 | Order (campos/version) | FR-007/010 |
 | orderScopeFor | FR-002/003/004/016 |
 | Endpoint/orden/sin-params | FR-001/008/009/012/013/014/015 |
+| Errores accionables + correlation-id (reutiliza 001) | FR-011 (regresión 001 + aserción en T008/T010) |
 | Seed | SC-001/004 |

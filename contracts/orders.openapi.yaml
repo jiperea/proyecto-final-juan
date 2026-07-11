@@ -66,7 +66,7 @@ components:
           oneOf:
             - { type: string, format: uuid, description: UUID opaco del técnico (sin nombre/PII) }
             - { type: 'null' }
-        version: { type: integer, description: Concurrencia optimista (sin comportamiento en 002a). }
+        version: { type: integer, minimum: 0, description: Concurrencia optimista (sin comportamiento en 002a). }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -83,7 +83,7 @@ components:
       type: object
       additionalProperties: false
       required: [code, message]
-      description: Contrato de error accionable (igual que 001). Códigos en 002a: 401/403.
+      description: "Contrato de error accionable (igual que 001). Códigos en 002a: 401/403."
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }
