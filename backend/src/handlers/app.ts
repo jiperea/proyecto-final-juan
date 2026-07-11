@@ -3,6 +3,7 @@ import express, { type Express } from 'express';
 import type { LoginDeps } from '../domain/auth/login';
 import type { LogoutDeps } from '../domain/auth/logout';
 import type { RefreshDeps } from '../domain/auth/refresh';
+import type { ListOrdersDeps } from '../domain/order/list-orders';
 import type {
   ProbeResourceRepositoryPort,
   UserRepositoryPort,
@@ -16,9 +17,11 @@ import { refreshHandler } from './auth/refresh';
 import type { CookieOptions } from './auth/cookies';
 import { probeHandler } from './rbac/probe';
 import { jsonErrorHandler } from './error-mapper';
+import { listOrdersHandler } from './orders/list';
 import { authenticate } from './middleware/authenticate';
 import { authorizeProbe } from './middleware/authorize';
 import { csrf, type SessionValidityPort } from './middleware/csrf';
+import { requireRole } from './middleware/require-role';
 import { correlation } from './middleware/correlation';
 import { securityHeaders } from './middleware/security-headers';
 import { healthHandler, readyHandler } from './ops';
@@ -34,6 +37,7 @@ export interface AppDeps {
   readonly tokens: TokenIssuerPort;
   readonly sessionState: SessionStatePort;
   readonly sessionValidity: SessionValidityPort;
+  readonly orderListDeps: ListOrdersDeps;
   readonly cookie: CookieOptions;
 }
 
@@ -62,6 +66,14 @@ export function buildApp(deps: AppDeps): Express {
     authenticate(deps.tokens, deps.sessionState),
     authorizeProbe(deps.probes),
     probeHandler,
+  );
+
+  // Orders (/v1) — listado por rol (002a)
+  app.get(
+    '/v1/orders',
+    authenticate(deps.tokens, deps.sessionState),
+    requireRole('dispatcher', 'technician', 'supervisor'),
+    listOrdersHandler(deps.orderListDeps),
   );
 
   app.use(jsonErrorHandler);

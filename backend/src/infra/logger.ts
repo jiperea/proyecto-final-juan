@@ -8,6 +8,10 @@ const REDACT_PATHS = [
   'access_token',
   'refresh_token',
   'csrf_token',
+  'title', // Order: texto libre con posible PII de cliente (FR-017)
+  'description',
+  '*.title',
+  '*.description',
   'req.headers.authorization',
   'req.headers.cookie',
   'res.headers["set-cookie"]',

@@ -144,6 +144,7 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
     tokens,
     sessionState,
     sessionValidity: { isSessionValid: async () => true },
+    orderListDeps: { orders: { listForScope: async () => [] } },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,
   };

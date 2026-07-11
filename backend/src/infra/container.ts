@@ -8,6 +8,7 @@ import { InMemoryGraceCache } from './grace-cache/in-memory';
 import { InMemoryRateLimit } from './ratelimit/in-memory';
 import { RefreshSessionValidity } from './session-validity';
 import { PrismaAccountState, PrismaProbeRepository } from './repositories/account-state';
+import { PrismaOrderRepository } from './repositories/order-repository';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
 import { PrismaSessionRepository } from './repositories/session-repository';
 import { PrismaUserRepository } from './repositories/user-repository';
@@ -39,6 +40,7 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
     sessionState: new InMemorySessionState(accountState, config.sessionStateTtlMs),
     graceCache: new InMemoryGraceCache(config.graceMs),
     sessionValidity: new RefreshSessionValidity(tokens, refreshTokens, sessions, accountState, clock),
+    orders: new PrismaOrderRepository(prisma),
     rateLimit: new InMemoryRateLimit({
       max: config.lockoutMax,
       windowMs: config.lockoutWindowMin * MIN_MS,
@@ -87,6 +89,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
     tokens: a.tokens,
     sessionState: a.sessionState,
     sessionValidity: a.sessionValidity,
+    orderListDeps: { orders: a.orders },
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,
       secure: config.nodeEnv === 'production',
