@@ -22,7 +22,7 @@ bash scripts/dcnode.sh npm run test               # unit + integration + contrac
 
 ## Verificación
 
-- Contract test `listOrders` 200/401/403.
+- Contract test `listOrders` 200/401 (el 403 default-deny se verifica en `unit/orders-authorize`).
 - Integration por rol contra el seed (0 fugas, SC-001/004).
 - Test de arquitectura: el handler usa `orderScopeFor(role,userId)` (FR-016); `domain/` no importa infra.
 - Perf: P95 < 300 ms sobre ≥30 órdenes (método D9).

@@ -44,6 +44,8 @@
 | FR-010 | Order + version base-ready | T001 | migración + `data-model` |
 | FR-011 | Error contract + correlation-id | T008 | `contract/orders.contract` |
 | FR-012 | Orden created_at desc, id desc | T012 | `integration/orders-list` (tiebreak) |
+| FR-013 | Sin paginación (conjunto completo) | T014 | `integration/orders-list` (ausencia de comportamiento) |
+| FR-014 | bearerAuth + orden 401→403 | T014/T015 | `integration/orders-authz` |
 | FR-016 | Política única orderScopeFor | T005 | `unit/list-orders`, `unit/order-architecture` |
 | FR-017 | title/description no en logs | T016 | `integration/orders-log-redaction` |
 | SC-001/004 | 0 fugas / IDOR mismo-estado | — | `integration/orders-list` |

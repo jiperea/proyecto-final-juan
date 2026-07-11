@@ -131,8 +131,9 @@
 - **BL-037** (001 · G3 · ALTA) — **Durabilidad del lockout**: `User.lockedUntil` se lee pero no se escribe;
   el lockout vive sólo en memoria → un reinicio resetea bloqueos (SC-004 tras restart). Decidir: persistir o
   documentar como límite del slice single-instance (Redis, BL-018) + quitar el campo vestigial (H-006).
-- **BL-038** (001 · G3 · ALTA) — **Tests de rendimiento/anti-timing** SC-001/SC-005 + |P95|<50ms (T057/T058,
-  método D9). Sin ellos la defensa anti-enumeración por timing es una promesa sin verificar (K-002/T-004/I-005).
+- **BL-038** (001+002a · G3 · ALTA) — **Tests de rendimiento** método D9: 001 SC-001/SC-005 + |P95|<50ms
+  (T057/T058) y **002a SC-002 P95<300ms de `GET /v1/orders` (T017)**. Diferidos; sin ellos los criterios de
+  rendimiento quedan sin verificación automatizada (K-002/T-004/I-005 de 001; I-003/K-001 de 002a).
 - **BL-039** (001 · G3 · ALTA) — **Test de re-check de gracia con revocación concurrente** (T-003): forzar
   `revoked_at`/disabled dentro de la ventana y comprobar que el hit de gracia NO sirve el trío (401).
 - **BL-040** (001 · G3 · MEDIA) — **Traza forense**: registrar la causa interna del 401/lockout/reuso con

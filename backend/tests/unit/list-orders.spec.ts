@@ -16,9 +16,10 @@ describe('listOrders use case (FR-001/016) — usa la política única', () => {
     expect(captured).toEqual(orderScopeFor('technician', 'u1'));
   });
 
-  it('devuelve lo que devuelve el repo (sin filtrar de más)', async () => {
-    const orders = { listForScope: async () => [{ id: 'o1' }] as never };
+  it('devuelve EXACTAMENTE lo que devuelve el repo (pass-through, sin transformar)', async () => {
+    const repoResult = [{ id: 'o1' }, { id: 'o2' }] as never;
+    const orders = { listForScope: async () => repoResult };
     const result = await listOrders({ orders }, { role: 'supervisor', userId: 'u9' });
-    expect(result).toHaveLength(1);
+    expect(result).toBe(repoResult);
   });
 });

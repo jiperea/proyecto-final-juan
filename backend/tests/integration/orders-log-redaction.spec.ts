@@ -17,8 +17,14 @@ describe('redacción de logs de Order (FR-017)', () => {
       'listado',
     );
     logger.error({ err: 'boom', order: { title: 'CLIENTE_PII_3', description: 'DIRECCION_PII_3' } }, 'fallo');
+    // Forma REAL de la respuesta listOrders: { orders: [{ title, description }] } (I-001)
+    logger.info({ orders: [{ title: 'CLIENTE_PII_4', description: 'DIRECCION_PII_4' }] }, 'respuesta');
+    logger.error({ res: { orders: [{ title: 'CLIENTE_PII_5', description: 'DIRECCION_PII_5' }] } }, 'error-payload');
     const out = lines.join('');
-    for (const pii of ['CLIENTE_PII_1', 'DIRECCION_PII_1', 'CLIENTE_PII_2', 'DIRECCION_PII_2', 'CLIENTE_PII_3', 'DIRECCION_PII_3']) {
+    for (const pii of [
+      'CLIENTE_PII_1', 'DIRECCION_PII_1', 'CLIENTE_PII_2', 'DIRECCION_PII_2', 'CLIENTE_PII_3',
+      'DIRECCION_PII_3', 'CLIENTE_PII_4', 'DIRECCION_PII_4', 'CLIENTE_PII_5', 'DIRECCION_PII_5',
+    ]) {
       expect(out).not.toContain(pii);
     }
     expect(out).toContain('[Redacted]');

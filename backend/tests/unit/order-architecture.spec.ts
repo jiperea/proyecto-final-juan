@@ -29,20 +29,30 @@ describe('arquitectura Order (Const. III + FR-016)', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('la regla rol→alcance vive SOLO en scope-policy (no inline en handler/repo, FR-016)', () => {
-    // El literal del alcance del technician sólo debe aparecer en scope-policy.ts.
-    const marker = "'pending_review'";
-    const leaks = [
+  it('la regla rol→alcance vive SOLO en scope-policy (no inline en handler/repo/use-case, FR-016)', () => {
+    // NINGÚN literal de estado (de cualquier rol, incl. dispatcher) debe aparecer fuera de scope-policy.
+    const statusLiterals = ["'assigned'", "'in_progress'", "'pending_review'", "'closed'", "'draft'"];
+    const watched = [
       'src/handlers/orders/list.ts',
       'src/infra/repositories/order-repository.ts',
       'src/domain/order/list-orders.ts',
-    ].filter((f) => {
+    ];
+    const leaks: string[] = [];
+    for (const f of watched) {
+      let src = '';
       try {
-        return readFileSync(f, 'utf8').includes(marker);
+        src = readFileSync(f, 'utf8');
       } catch {
-        return false;
+        continue;
       }
-    });
+      for (const lit of statusLiterals) {
+        if (src.includes(lit)) {
+          leaks.push(`${f} → ${lit}`);
+        }
+      }
+    }
     expect(leaks).toEqual([]);
+    // Positivo: el caso de uso invoca la política única.
+    expect(readFileSync('src/domain/order/list-orders.ts', 'utf8')).toContain('orderScopeFor(');
   });
 });

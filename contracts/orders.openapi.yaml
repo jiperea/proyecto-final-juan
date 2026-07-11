@@ -39,6 +39,10 @@ paths:
           description: Rol fuera del allowlist de `orders:list` (default-deny, fail-secure).
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: BD no disponible (fail-closed; nunca cuelga ni fail-open). Convención transversal (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
 components:
   securitySchemes:
@@ -83,7 +87,7 @@ components:
       type: object
       additionalProperties: false
       required: [code, message]
-      description: "Contrato de error accionable (igual que 001). Códigos en 002a: 401/403."
+      description: "Contrato de error accionable (igual que 001). Códigos en 002a: 401/403/503."
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }

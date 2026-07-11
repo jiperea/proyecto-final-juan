@@ -48,9 +48,10 @@ description: "Task list — 002a Order + listado por rol (read-side)"
 
 ### Tests Red ⚠️
 
-- [x] T008 [P] [US1] **[Red]** Contract test `listOrders` 200/401/403 (shape `OrderListResponse`; `assigned_to`
-  UUID/null; sin PII); **el error 401/403 cumple `{code,message}` accionable y propaga `x-correlation-id`**
-  (FR-011, traza; K-001) — `backend/tests/contract/orders.contract.spec.ts` (FR-001/007/011/014, contrato)
+- [x] T008 [P] [US1] **[Red]** Contract test `listOrders` **200/401** (shape `OrderListResponse`; `assigned_to`
+  UUID/null; sin PII; `{code,message}` + `x-correlation-id`, FR-011). El **403 se verifica en
+  `unit/orders-authorize.spec.ts`** (decisión G2: sin JWT forjado) — `backend/tests/contract/orders.contract.spec.ts`
+  (FR-001/007/011/014, contrato)
 - [x] T009 [P] [US1] **[Red]** Integration por rol contra seed: technician solo sus activas (**excluye sus
   `closed`/`draft`** y ajenas); supervisor solo `pending_review`; dispatcher solo `assigned`/`in_progress`;
   **0 fugas** (SC-004); **IDOR mismo-estado: technician1 NO ve la `pending_review` de technician2** (S-002);
@@ -63,16 +64,17 @@ description: "Task list — 002a Order + listado por rol (read-side)"
   (b) **Integration**: token inválido/ausente → **401 antes que 403** (auth antes que authz, FR-014/T-002);
   disabled/revocada→401; **cuerpo del 401 idéntico entre causas** (uniforme, SC-003/C3) —
   `backend/tests/unit/orders-authorize.spec.ts`, `backend/tests/integration/orders-authz.spec.ts` (FR-005/006/014, SC-003)
-- [x] T011 [P] [US1] **[Red]** Test de arquitectura (mecanismo fijado, T-001): **spy** que asevera que el handler
-  **llama a `orderScopeFor(role, userId)`** y pasa **su retorno** al repo (no lógica inline) + `domain/order` no
-  importa infra — `backend/tests/unit/order-architecture.spec.ts` (FR-016)
+- [x] T011 [P] [US1] **[Red]** FR-016 verificado por dos vías: (a) `unit/list-orders.spec.ts` asevera que el
+  use case pasa al repo EXACTAMENTE `orderScopeFor(role,userId)`; (b) `unit/order-architecture.spec.ts` = ningún
+  literal de estado fuera de `scope-policy.ts` + `domain/order` no importa infra —
+  `backend/tests/unit/order-architecture.spec.ts`, `backend/tests/unit/list-orders.spec.ts` (FR-016)
 
 ### Implementación
 
 - [x] T012 [US1] Adaptador Prisma `OrderRepository.listForScope` (traduce scope a WHERE; orden **`created_at`
   DESC, `id` DESC**; sin paginación; devuelve campos públicos) — `backend/src/infra/repositories/order-repository.ts` (FR-012/013)
-- [x] T013 [US1] `authorize('orders:list')` allowlist `{dispatcher,technician,supervisor}` **default-deny**→403 —
-  `backend/src/handlers/middleware/authorize.ts` (extiende el de 001) (FR-006, D3)
+- [x] T013 [US1] Middleware nuevo `requireRole(...roles)` con allowlist `{dispatcher,technician,supervisor}`
+  **default-deny**→403 (mensaje genérico) — `backend/src/handlers/middleware/require-role.ts` (FR-006, D3)
 - [x] T014 [US1] Handler `GET /v1/orders` (bearerAuth vía `authenticate` de 001; usa `orderScopeFor` + repo;
   **ignora query params — la validación de contrato aplica a body/response, NO a query; un param desconocido
   NO produce 400** (H-004); mapea a `OrderListResponse`) — `backend/src/handlers/orders/list.ts` (FR-001/008/015)

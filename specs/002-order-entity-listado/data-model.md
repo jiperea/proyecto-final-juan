@@ -22,7 +22,8 @@
 
 ## Política de alcance — `orderScopeFor(role, userId)` (dominio, FR-016)
 
-Devuelve `{ assignedToSelf: boolean, statuses: OrderStatus[] }`; el repositorio la traduce a `WHERE`:
+Devuelve `OrderScope = { statuses: OrderStatus[], assignedTo: string | null }` (si `assignedTo != null`, filtra
+por pertenencia); el repositorio la traduce a `WHERE`:
 
 | Rol | `assignedToSelf` | `statuses` |
 |---|---|---|

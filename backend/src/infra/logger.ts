@@ -12,6 +12,10 @@ const REDACT_PATHS = [
   'description',
   '*.title',
   '*.description',
+  'orders[*].title', // forma real de la respuesta listOrders: { orders: [{ title, description }] }
+  'orders[*].description',
+  '*.orders[*].title',
+  '*.orders[*].description',
   'req.headers.authorization',
   'req.headers.cookie',
   'res.headers["set-cookie"]',
