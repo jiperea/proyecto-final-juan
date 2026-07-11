@@ -1,0 +1,95 @@
+openapi: 3.1.0
+info:
+  title: FieldOps — Orders (listado por rol) API
+  version: 1.0.0
+  description: >
+    Feature 002a (read-side): listado de órdenes filtrado por rol sobre el auth/RBAC de 001.
+    Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
+    Reutiliza bearerAuth y ErrorResponse de contracts/auth.openapi.yaml (001).
+servers:
+  - url: /v1
+tags:
+  - name: orders
+    description: Órdenes de trabajo (listado)
+
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: Listar las órdenes visibles según el rol del usuario autenticado
+      description: >
+        Devuelve las órdenes filtradas por la política de alcance del rol (orderScopeFor):
+        technician = propias activas (assigned/in_progress/pending_review); supervisor = pending_review;
+        dispatcher = assigned/in_progress. `draft` y `closed` nunca aparecen. Orden created_at desc, id desc.
+        Sin paginación. Ningún parámetro de consulta amplía el alcance (se ignoran). Orden 401→403.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista (posiblemente vacía) de las órdenes del alcance del rol.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderListResponse' }
+        '401':
+          description: No autenticado (sin access válido / sesión revocada / cuenta disabled). Uniforme.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Rol fuera del allowlist de `orders:list` (default-deny, fail-secure).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access JWT HS256 (igual que 001). No CSRF (no ambiental).
+
+  schemas:
+    OrderStatus:
+      type: string
+      enum: [draft, assigned, in_progress, pending_review, closed]
+
+    Order:
+      type: object
+      additionalProperties: false
+      required: [id, title, description, status, assigned_to, version, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        assigned_to:
+          oneOf:
+            - { type: string, format: uuid, description: UUID opaco del técnico (sin nombre/PII) }
+            - { type: 'null' }
+        version: { type: integer, description: Concurrencia optimista (sin comportamiento en 002a). }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    OrderListResponse:
+      type: object
+      additionalProperties: false
+      required: [orders]
+      properties:
+        orders:
+          type: array
+          items: { $ref: '#/components/schemas/Order' }
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      description: Contrato de error accionable (igual que 001). Códigos en 002a: 401/403.
+      properties:
+        code: { type: string }
+        message: { type: string, description: Español; no interpola valores recibidos ni PII. }
+        details:
+          type: object
+          additionalProperties: false
+          properties:
+            fields: { type: array, items: { type: string } }
+        agent_action: { type: string }
