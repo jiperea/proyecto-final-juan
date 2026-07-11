@@ -228,4 +228,23 @@
 > propio gate** → FAIL-SAFE 404 + test. El resto (ALTA/MEDIA/BAJA) son riesgos que **003/004/005 heredan de
 > artefactos compartidos** y cierran en sus gates (BL-055/056/059/060).
 
+- **BL-061** (003/004/005 · MEDIA) — **Paridad de cabeceras/timing en el no-enumeración**: al implementar
+  el mapeo FR-009 en un endpoint real, verificar que la respuesta 404 "no visible" es indistinguible de la
+  404 "inexistente" también en **cabeceras HTTP** y **latencia** (no solo en el cuerpo), o mitigar el
+  side-channel de timing. Se detectó explorando el hardening del contrato de transición; se ataca **cuando
+  exista endpoint** (no antes).
+- **BL-062** (003/004/005 · MEDIA) — **Completitud de la guarda de pertenencia por transición**: cada
+  feature con endpoint que introduzca o toque una transición DEBE declarar explícitamente si exige guarda de
+  pertenencia (partición completa sobre la FSM, sin transiciones sin clasificar) y verificarlo con
+  integración (rol + `assigned_to` + estado real). Complementa BL-056.
+
+> **Detour descartado (2026-07-11)**: se exploró un slice de *hardening del contrato de transición*
+> (rama `004-transition-contract-hardening`, **borrada**) para saldar la deuda del G3 de 002b como
+> primitivas de dominio. Los gates (G1×3 + G2×2) demostraron que las garantías clave (actor infalsificable,
+> no-enumeración, obligatoriedad de guarda) **no son enforce-ables sin endpoint/auth** y que el slice estaba
+> **fuera del roadmap** (el 004 real es `registro-ejecución`). **Lección**: las features salen del roadmap;
+> comprobar que la feature existe y tiene tamaño ANTES de `/speckit-specify` (roadmap §XV). La deuda del G3
+> se ataca en su momento natural: **003/004/005** (BL-050/051/055/056/059/060/061/062), no en un slice
+> prematuro.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
