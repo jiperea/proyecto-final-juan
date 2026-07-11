@@ -122,4 +122,29 @@
   agentes, plantillas, extensiones y CI a `main`, y **re-basar `001`** desde `main` como feature pura
   (salda la deuda de ramas; ver ADR-0004). Tarea propia, cuando se aparque el diseño de 001.
 
+### Gate G3 (001) — ALTA/MEDIA (no bloquean; los BLOQUEANTES se corrigen en la ronda de remediación)
+
+- **BL-035** (001 · G3 · ALTA) — **Fail-closed completo**: `me`/`rbacProbe` (y handlers async en general) sin
+  try/catch → BD caída puede colgar la petición; falta un wrapper async central que garantice 401/503 (H-004/H-009).
+- **BL-036** (001 · G3 · ALTA) — **`DB_QUERY_TIMEOUT_MS` no se aplica** (Prisma sin timeout de query) → la
+  degradación de BD no falla rápido; sustenta SC-005 y el fail-closed acotado en el tiempo (H-005/T-002).
+- **BL-037** (001 · G3 · ALTA) — **Durabilidad del lockout**: `User.lockedUntil` se lee pero no se escribe;
+  el lockout vive sólo en memoria → un reinicio resetea bloqueos (SC-004 tras restart). Decidir: persistir o
+  documentar como límite del slice single-instance (Redis, BL-018) + quitar el campo vestigial (H-006).
+- **BL-038** (001 · G3 · ALTA) — **Tests de rendimiento/anti-timing** SC-001/SC-005 + |P95|<50ms (T057/T058,
+  método D9). Sin ellos la defensa anti-enumeración por timing es una promesa sin verificar (K-002/T-004/I-005).
+- **BL-039** (001 · G3 · ALTA) — **Test de re-check de gracia con revocación concurrente** (T-003): forzar
+  `revoked_at`/disabled dentro de la ventana y comprobar que el hit de gracia NO sirve el trío (401).
+- **BL-040** (001 · G3 · MEDIA) — **Traza forense**: registrar la causa interna del 401/lockout/reuso con
+  `user_id` (el `req.log` se adjunta pero no se usa) para detectar fuerza bruta/robo (S-002, FR-005/002b/004b).
+- **BL-041** (001 · G3 · MEDIA) — **`CSRF_HMAC_SECRET` sin uso**: o se liga el csrf_token con HMAC(sid) o se
+  elimina el secreto exigido en arranque (discrepancia diseño↔implementación, S-003).
+- **BL-042** (001 · G3 · MEDIA) — **Carrera de refresh**: filas RefreshToken huérfanas por perdedor de carrera
+  + posible 401 espurio si el perdedor lee la gracia antes del `set` del ganador (H-007).
+- **BL-043** (001 · G3 · MEDIA) — **Deriva de trazabilidad**: puertos AccountStatePort/ProbeResourceRepositoryPort
+  no listados en plan/tasks (K-003); ruta T030 desalineada (K-004); matriz traceability incompleta (K-005/K-007);
+  mapeo STRIDE→test y quickstart e2e pendientes (T065/T066, I-007).
+- **BL-044** (001 · G3 · BAJA) — Doble `check()` en login (H-008); 401 de logout uniforme de *contenido* no
+  comparado (T-006).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
