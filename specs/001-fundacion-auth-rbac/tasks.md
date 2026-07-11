@@ -44,11 +44,11 @@ description: "Task list — 001 Fundación Auth/Sesión/RBAC"
 
 ### Cross-cutting + tests Red
 
-- [ ] T015 [P] **[Red]** unit config fail-fast (Zod, nombra variable faltante) **+ caso pairwise-distinct: dos de los 3 secretos (JWT/CSRF/LOCKOUT HMAC) iguales → aborta nombrando el par** (S-002) — `backend/tests/unit/config.spec.ts` (FR-016/SC-006)
+- [x] T015 [P] **[Red]** unit config fail-fast (Zod, nombra variable faltante) **+ caso pairwise-distinct: dos de los 3 secretos (JWT/CSRF/LOCKOUT HMAC) iguales → aborta nombrando el par** (S-002) — `backend/tests/unit/config.spec.ts` (FR-016/SC-006)
 - [ ] T016 [P] **[Red]** test cabeceras de seguridad (lista cerrada) — `backend/tests/integration/security-headers.spec.ts` (FR-012)
 - [ ] T017 [P] **[Red]** test correlation-id en logs sin PII **ni tokens ni `password`** (Authorization/Set-Cookie/*_token/**password**/identifier redactados; correlación por user_id no-PII) — `backend/tests/integration/correlation-id.spec.ts` (FR-014, S-001)
 - [ ] T018 [P] **[Red]** contract test `health`/`ready` (200 / 200|503) — `backend/tests/contract/ops.contract.spec.ts` (FR-015)
-- [ ] T019 Config validada + arranque fail-fast **(incluye chequeo pairwise-distinct de los 3 secretos, S-002)** — `backend/src/infra/config.ts` (FR-016)
+- [x] T019 Config validada + arranque fail-fast **(incluye chequeo pairwise-distinct de los 3 secretos, S-002)** — `backend/src/infra/config.ts` (FR-016)
 - [ ] T020 [P] Middleware correlation-id + pino con **redacción** (identifier, **password**, Authorization, Set-Cookie, access/refresh/csrf_token) — `backend/src/handlers/middleware/correlation.ts` (FR-014, S-001)
 - [ ] T021 [P] Middleware helmet (HSTS≥15552000, CSP default-src 'self', X-CTO nosniff, X-Frame DENY, Referrer no-referrer) — `backend/src/handlers/middleware/security-headers.ts` (FR-012)
 - [ ] T022 [P] `error-mapper` `Result`→`{code,message,details?,agent_action?}` + HTTP correcto; **captura `SyntaxError` del body-parser → 422** (no 400/500 de Express) con test `should 422 on malformed JSON body` — `backend/src/handlers/error-mapper.ts` (FR-013, H-005)
