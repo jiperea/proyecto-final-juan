@@ -29,6 +29,7 @@ model User {
 
   identifiers Identifier[]
   sessions    Session[]
+  orders      Order[]
 
   @@map("users")
 }
@@ -77,4 +78,29 @@ model ProbeResource {
   inScopeRoles Role[] @map("in_scope_roles")
 
   @@map("probe_resources")
+}
+
+// Feature 002a — Order (read-side). status como DATO (transiciones en 002b).
+enum OrderStatus {
+  draft
+  assigned
+  in_progress
+  pending_review
+  closed
+}
+
+model Order {
+  id          String      @id @db.Uuid
+  title       String
+  description String
+  status      OrderStatus
+  assignedTo  String?     @map("assigned_to") @db.Uuid
+  assignee    User?       @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  version     Int         @default(0) // concurrencia optimista (base-ready; If-Match→409 en 003/004)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status, assignedTo])
+  @@index([createdAt])
+  @@map("orders")
 }

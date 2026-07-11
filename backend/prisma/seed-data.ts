@@ -46,7 +46,30 @@ export const SEED_USERS = {
     role: 'dispatcher',
     lockedMinutes: 1440, // 24h: robusto para tests (evita caducidad del lock durante la sesión)
   },
+  // 002a: segundo/tercer technician para IDOR mismo-estado y lista vacía.
+  technician2: {
+    id: '018f1000-0000-7000-8000-000000000006',
+    email: 'technician2@fieldops.test',
+    username: 'technician2',
+    role: 'technician',
+  },
+  technician3: {
+    id: '018f1000-0000-7000-8000-000000000007',
+    email: 'technician3@fieldops.test',
+    username: 'technician3',
+    role: 'technician',
+  },
 } as const satisfies Record<string, SeedUser>;
+
+// 002a — anclas de órdenes para tests deterministas (IDOR, tiebreak). El resto se genera como relleno.
+export const SEED_ORDERS = {
+  tech2PendingReview: '018f2000-0000-7000-8000-0000000000b2', // pending_review de technician2 (IDOR)
+  tiePairHi: '018f2000-0000-7000-8000-0000000000f2', // mismo created_at que tiePairLo; id mayor
+  tiePairLo: '018f2000-0000-7000-8000-0000000000f1', // mismo created_at que tiePairHi; id menor
+} as const;
+
+// created_at compartido por el par de tiebreak (mismo instante) → obliga a desempatar por id.
+export const TIE_CREATED_AT = new Date('2026-07-01T12:00:00.000Z');
 
 export interface SeedProbe {
   readonly id: string;
