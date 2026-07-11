@@ -147,4 +147,12 @@
 - **BL-044** (001 · G3 · BAJA) — Doble `check()` en login (H-008); 401 de logout uniforme de *contenido* no
   comparado (T-006).
 
+### Re-gate G3 (001) — MEDIA
+
+- **BL-045** (001 · G3 re-run · MEDIA) — **Divergencia validador↔refresh** (S-002): `RefreshSessionValidity`
+  no replica la lógica de gracia/reuso de `refresh()` para un token rotado FUERA de gracia → en el camino
+  CSRF devuelve 403 (sesión "válida") donde una llamada real a `refresh()` daría 401 + revocaría familia.
+  No hay bypass de CSRF ni escalada; es un 2º oráculo que puede divergir. Unificar la fuente de verdad si
+  se endurece. Aceptado no-bloqueante.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

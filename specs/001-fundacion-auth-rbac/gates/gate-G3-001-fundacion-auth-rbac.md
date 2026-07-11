@@ -41,3 +41,24 @@ tests no cubrían** (bugs reales + tests que no distinguen implementación corre
 El gate cumple su función: **96 tests verde ≠ implementación correcta**. Los BLOQUEANTES B1-B3 son bugs
 que ningún test detectaba; B4-B6 son tests que no distinguen correcto de incorrecto (spec-theater). La
 remediación se hace por skills (re-plan/tasks si aplica) y TDD (test Red que reproduzca el bug → fix).
+
+---
+
+## Re-ejecución tras remediación — VEREDICTO: APROBADA ✅ (0 BLOQUEANTES)
+
+**Fecha:** 2026-07-11. Panel de re-verificación (4 revisores) sobre los fixes + coherencia de artefactos:
+
+| Revisor | 1ª ronda | Re-run |
+|---------|----------|--------|
+| auditor-spec-theater | BLOQUEADA | ✅ APROBADA (B4/B5/B6 distinguen correcto/incorrecto) |
+| revisor-implementacion | BLOQUEADA | ✅ APROBADA (B1-B6 cerrados, sin regresión) |
+| revisor-consistencia | BLOQUEADA | ✅ APROBADA (K-001/K-003/K-004/K-005 resueltos) |
+| revisor-rbac-seguridad | BLOQUEADA | ✅ APROBADA (S-001 cerrado en 2ª iteración) |
+
+**Ronda extra (S-001):** la re-verificación halló que B1 cubría caducada/revocada pero **no `disabled`**;
+se cerró por el bucle SDD completo (research D2 + tasks T055/Phase 7 → código `RefreshSessionValidity`
++ `AccountStatePort` → tests unit/integration → re-gate). Demuestra el valor del patrón: un fix incompleto
+detectado y corregido antes de dar el gate por bueno.
+
+**Estado final:** 110 tests verde · typecheck + eslint + cobertura por capa OK · **0 BLOQUEANTES**.
+ALTA/MEDIA residuales en backlog (BL-035..045). **G3 PASA.** Feature 001 lista para merge.
