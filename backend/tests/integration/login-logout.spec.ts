@@ -16,6 +16,7 @@ describe('flujo US1 login→me→logout (SC-001, FR-001/002b/003)', () => {
     expect(login.status).toBe(200);
     const access = login.body.access_token as string;
     const refresh = cookieValue(login.headers['set-cookie'], 'refresh_token');
+    const csrf = cookieValue(login.headers['set-cookie'], 'csrf_token');
 
     const me = await request(app).get('/v1/auth/me').set('Authorization', `Bearer ${access}`);
     expect(me.status).toBe(200);
@@ -23,7 +24,8 @@ describe('flujo US1 login→me→logout (SC-001, FR-001/002b/003)', () => {
 
     const logout = await request(app)
       .post('/v1/auth/logout')
-      .set('Cookie', `refresh_token=${refresh}`);
+      .set('Cookie', `refresh_token=${refresh}; csrf_token=${csrf}`)
+      .set('X-CSRF-Token', csrf);
     expect(logout.status).toBe(204);
   });
 

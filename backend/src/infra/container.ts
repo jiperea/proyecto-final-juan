@@ -4,6 +4,7 @@ import type { AppDeps } from '../handlers/app';
 import { Argon2PasswordHasher } from './crypto/password-hasher';
 import { JwtTokenIssuer } from './crypto/token-issuer';
 import { checkDb, createPrisma } from './prisma';
+import { InMemoryGraceCache } from './grace-cache/in-memory';
 import { InMemoryRateLimit } from './ratelimit/in-memory';
 import { PrismaAccountState, PrismaProbeRepository } from './repositories/account-state';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
@@ -31,6 +32,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
   const accountState = new PrismaAccountState(prisma);
   const probes = new PrismaProbeRepository(prisma);
   const sessionState = new InMemorySessionState(accountState, config.sessionStateTtlMs);
+  const graceCache = new InMemoryGraceCache(config.graceMs);
   const rateLimit = new InMemoryRateLimit({
     max: config.lockoutMax,
     windowMs: config.lockoutWindowMin * MIN_MS,
@@ -42,6 +44,17 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
     checkDb: () => checkDb(prisma),
     loginDeps: { users, sessions, refreshTokens, hasher, tokens, rateLimit, clock },
     logoutDeps: { sessions, refreshTokens, sessionState, tokens, clock, graceMs: config.graceMs },
+    refreshDeps: {
+      users,
+      sessions,
+      refreshTokens,
+      sessionState,
+      accountState,
+      graceCache,
+      tokens,
+      clock,
+      graceMs: config.graceMs,
+    },
     users,
     probes,
     tokens,

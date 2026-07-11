@@ -19,14 +19,20 @@ describe('logout contract (FR-003/018, operationId=logout)', () => {
       .post('/v1/auth/login')
       .send({ identifier: SEED_USERS.supervisor.email, password: SEED_PASSWORD });
     const refresh = cookieValue(login.headers['set-cookie'], 'refresh_token');
+    const csrf = cookieValue(login.headers['set-cookie'], 'csrf_token');
     expect(refresh).toBeTruthy();
+    const cookieHeader = `refresh_token=${refresh}; csrf_token=${csrf}`;
 
-    const first = await request(app).post('/v1/auth/logout').set('Cookie', `refresh_token=${refresh}`);
+    const first = await request(app)
+      .post('/v1/auth/logout')
+      .set('Cookie', cookieHeader)
+      .set('X-CSRF-Token', csrf);
     expect(first.status).toBe(204);
 
     const second = await request(app)
       .post('/v1/auth/logout')
-      .set('Cookie', `refresh_token=${refresh}`);
+      .set('Cookie', cookieHeader)
+      .set('X-CSRF-Token', csrf);
     expect(second.status).toBe(401);
   });
 });

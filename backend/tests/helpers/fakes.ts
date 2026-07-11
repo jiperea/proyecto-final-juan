@@ -1,5 +1,6 @@
 import { normalizeIdentifier, type RefreshTokenRecord, type SessionRecord, type UserRecord } from '../../src/domain/model';
 import type {
+  AccountStatePort,
   RefreshTokenRepositoryPort,
   SessionRepositoryPort,
   UserRepositoryPort,
@@ -7,6 +8,7 @@ import type {
 import type { ClockPort, PasswordHasherPort, SessionStatePort } from '../../src/domain/ports/services';
 import type { AppDeps } from '../../src/handlers/app';
 import { JwtTokenIssuer } from '../../src/infra/crypto/token-issuer';
+import { InMemoryGraceCache } from '../../src/infra/grace-cache/in-memory';
 import { InMemoryRateLimit } from '../../src/infra/ratelimit/in-memory';
 
 // Fakes in-memory para tests de dominio (hexagonal: sin BD ni infra real).
@@ -95,6 +97,14 @@ export function fixedClock(ms: number): ClockPort {
   return { now: () => new Date(ms) };
 }
 
+export function fakeAccountState(over: Partial<AccountStatePort> = {}): AccountStatePort {
+  return {
+    isSessionRevoked: async () => false,
+    isUserDisabled: async () => false,
+    ...over,
+  };
+}
+
 // AppDeps completo con fakes inofensivos, para tests que sólo ejercitan ops/headers/correlation.
 export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
   const tokens = new JwtTokenIssuer({ jwtSecret: 'j'.repeat(40), accessTtl: 900, refreshTtlDays: 7 });
@@ -118,6 +128,17 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
     checkDb: async () => true,
     loginDeps: { users, sessions, refreshTokens, hasher, tokens, rateLimit, clock },
     logoutDeps: { sessions, refreshTokens, sessionState, tokens, clock, graceMs: 10_000 },
+    refreshDeps: {
+      users,
+      sessions,
+      refreshTokens,
+      sessionState,
+      accountState: fakeAccountState(),
+      graceCache: new InMemoryGraceCache(10_000),
+      tokens,
+      clock,
+      graceMs: 10_000,
+    },
     users,
     probes: { findInScopeRoles: async () => null },
     tokens,

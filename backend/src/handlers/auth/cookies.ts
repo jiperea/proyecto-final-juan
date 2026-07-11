@@ -1,5 +1,4 @@
 import type { Response } from 'express';
-import type { IssuedTokens } from '../../domain/ports/services';
 
 export const REFRESH_COOKIE = 'refresh_token';
 export const CSRF_COOKIE = 'csrf_token';
@@ -10,8 +9,13 @@ export interface CookieOptions {
   readonly secure: boolean;
 }
 
+export interface AuthTokenPair {
+  readonly refreshToken: string;
+  readonly csrfToken: string;
+}
+
 // refresh: HttpOnly (resistente a XSS). csrf: legible por JS (double-submit). Ambas SameSite=Strict (D1/D2).
-export function setAuthCookies(res: Response, tokens: IssuedTokens, opts: CookieOptions): void {
+export function setAuthCookies(res: Response, tokens: AuthTokenPair, opts: CookieOptions): void {
   res.cookie(REFRESH_COOKIE, tokens.refreshToken, {
     httpOnly: true,
     secure: opts.secure,
