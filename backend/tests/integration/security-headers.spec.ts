@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { buildApp } from '../../src/handlers/app';
+import { minimalAppDeps } from '../helpers/fakes';
 
-const app = buildApp({ checkDb: async () => true });
+const app = buildApp(minimalAppDeps());
 
 describe('cabeceras de seguridad (FR-012)', () => {
   it('incluye HSTS, CSP default-src self, nosniff, frame DENY, referrer no-referrer', async () => {

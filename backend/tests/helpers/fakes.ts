@@ -4,7 +4,10 @@ import type {
   SessionRepositoryPort,
   UserRepositoryPort,
 } from '../../src/domain/ports/repositories';
-import type { ClockPort, PasswordHasherPort } from '../../src/domain/ports/services';
+import type { ClockPort, PasswordHasherPort, SessionStatePort } from '../../src/domain/ports/services';
+import type { AppDeps } from '../../src/handlers/app';
+import { JwtTokenIssuer } from '../../src/infra/crypto/token-issuer';
+import { InMemoryRateLimit } from '../../src/infra/ratelimit/in-memory';
 
 // Fakes in-memory para tests de dominio (hexagonal: sin BD ni infra real).
 
@@ -90,4 +93,35 @@ export function fakeHasher(matches: (hash: string, plain: string) => boolean): P
 
 export function fixedClock(ms: number): ClockPort {
   return { now: () => new Date(ms) };
+}
+
+// AppDeps completo con fakes inofensivos, para tests que sólo ejercitan ops/headers/correlation.
+export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
+  const tokens = new JwtTokenIssuer({ jwtSecret: 'j'.repeat(40), accessTtl: 900, refreshTtlDays: 7 });
+  const users = fakeUsers([]);
+  const sessions = fakeSessions();
+  const refreshTokens = fakeRefreshTokens();
+  const hasher = fakeHasher(() => false);
+  const rateLimit = new InMemoryRateLimit({
+    max: 5,
+    windowMs: 900_000,
+    lockoutMs: 900_000,
+    lockoutSecret: 'l'.repeat(40),
+  });
+  const clock = fixedClock(1000);
+  const sessionState: SessionStatePort = {
+    isRevoked: async () => false,
+    isUserActive: async () => true,
+    revokeSession: () => undefined,
+  };
+  return {
+    checkDb: async () => true,
+    loginDeps: { users, sessions, refreshTokens, hasher, tokens, rateLimit, clock },
+    logoutDeps: { sessions, refreshTokens, sessionState, tokens, clock, graceMs: 10_000 },
+    users,
+    tokens,
+    sessionState,
+    cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
+    ...over,
+  };
 }

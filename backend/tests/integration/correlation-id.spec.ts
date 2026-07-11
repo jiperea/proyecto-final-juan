@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { buildApp } from '../../src/handlers/app';
 import { createLogger } from '../../src/infra/logger';
+import { minimalAppDeps } from '../helpers/fakes';
 
-const app = buildApp({ checkDb: async () => true });
+const app = buildApp(minimalAppDeps());
 
 describe('correlation-id + redacción de logs (FR-014, S-001)', () => {
   it('devuelve el x-correlation-id proporcionado', async () => {
