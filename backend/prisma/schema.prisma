@@ -1,0 +1,80 @@
+// FieldOps 001 — esquema de identidad (data-model.md). Postgres 16.
+// IDs UUID v7 generados en la app; tiempos timestamptz (UTC).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  dispatcher
+  technician
+  supervisor
+}
+
+model User {
+  id           String    @id @db.Uuid
+  email        String
+  username     String
+  passwordHash String    @map("password_hash")
+  role         Role
+  lockedUntil  DateTime? @map("locked_until") @db.Timestamptz(3)
+  disabledAt   DateTime? @map("disabled_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  identifiers Identifier[]
+  sessions    Session[]
+
+  @@map("users")
+}
+
+// Espacio de unicidad GLOBAL email+username (D11/FR-001b): cada identidad aporta sus
+// identifiers normalizados aquí; `norm` único impide username(A) == email(B).
+model Identifier {
+  id     String @id @db.Uuid
+  norm   String @unique
+  kind   String // "email" | "username"
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("identifiers")
+}
+
+model Session {
+  id          String    @id @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceLabel String?   @map("device_label")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  refreshTokens RefreshToken[]
+
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id         String    @id @db.Uuid
+  sessionId  String    @map("session_id") @db.Uuid
+  session    Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  rotatedAt  DateTime? @map("rotated_at") @db.Timestamptz(3)
+  replacedBy String?   @map("replaced_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("refresh_tokens")
+}
+
+// Fixture de RBAC (D10/FR-017b). No es dominio real (Order llega en 002).
+model ProbeResource {
+  id           String @id @db.Uuid
+  inScopeRoles Role[] @map("in_scope_roles")
+
+  @@map("probe_resources")
+}
