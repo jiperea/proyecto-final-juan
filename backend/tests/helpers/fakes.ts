@@ -7,6 +7,7 @@ import type {
 } from '../../src/domain/ports/repositories';
 import type { ClockPort, PasswordHasherPort, SessionStatePort } from '../../src/domain/ports/services';
 import type { AppDeps } from '../../src/handlers/app';
+import { domainError, err } from '../../src/domain/result';
 import { JwtTokenIssuer } from '../../src/infra/crypto/token-issuer';
 import { InMemoryGraceCache } from '../../src/infra/grace-cache/in-memory';
 import { InMemoryRateLimit } from '../../src/infra/ratelimit/in-memory';
@@ -145,6 +146,9 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
     sessionState,
     sessionValidity: { isSessionValid: async () => true },
     orderListDeps: { orders: { listForScope: async () => [] } },
+    orderTransition: {
+      applyTransition: async () => err(domainError('ORDER_NOT_FOUND', 'no-op fake')),
+    },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,
   };

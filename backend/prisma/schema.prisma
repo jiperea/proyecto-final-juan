@@ -30,6 +30,7 @@ model User {
   identifiers Identifier[]
   sessions    Session[]
   orders      Order[]
+  audits      OrderAudit[]
 
   @@map("users")
 }
@@ -100,7 +101,26 @@ model Order {
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  audits      OrderAudit[]
+
   @@index([status, assignedTo])
   @@index([createdAt])
   @@map("orders")
+}
+
+// Feature 002b — OrderAudit (write-side). Append-only (TRIGGER a nivel de BD, no REVOKE — el rol es
+// propietario, G2:S-002). Una fila por transición aplicada, en la MISMA transacción (atomicidad, FR-004).
+model OrderAudit {
+  id         String      @id @db.Uuid
+  orderId    String      @map("order_id") @db.Uuid
+  order      Order       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  actorId    String      @map("actor_id") @db.Uuid
+  actor      User        @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  fromStatus OrderStatus @map("from_status")
+  toStatus   OrderStatus @map("to_status")
+  reason     String?     @db.Text // pre-saneado por el llamador; NUNCA en logs/errores (FR-008/SC-006)
+  at         DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@index([orderId])
+  @@map("order_audit")
 }

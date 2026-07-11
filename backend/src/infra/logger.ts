@@ -10,8 +10,10 @@ const REDACT_PATHS = [
   'csrf_token',
   'title', // Order: texto libre con posible PII de cliente (FR-017)
   'description',
+  'reason', // OrderAudit: motivo pre-saneado, nunca en logs ni en errores (FR-008/SC-006)
   '*.title',
   '*.description',
+  '*.reason',
   'orders[*].title', // forma real de la respuesta listOrders: { orders: [{ title, description }] }
   'orders[*].description',
   '*.orders[*].title',

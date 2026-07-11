@@ -11,6 +11,17 @@ const STATUS: Record<ErrorCode, number> = {
   VALIDATION_ERROR: 422,
   RATE_LIMITED: 429,
   SERVICE_UNAVAILABLE: 503,
+  // 002b (referencia, NO autoritativa). En 002b son diagnóstico de dominio (sin endpoint); los
+  // consumidores 003/004/005 DEBEN aplicar FR-009 ANTES de responder y nunca filtran BD.
+  ORDER_NOT_FOUND: 404,
+  VERSION_CONFLICT: 409,
+  INVALID_TRANSITION: 422,
+  // GUARD_UNMET: default FAIL-SAFE 404 (no revela existencia). FR-009 gobierna el mapeo real en el
+  // consumidor: actor autorizado→403; visibilidad dependiente de la pertenencia→404. Si un consumidor
+  // olvida FR-009, el fallback cae al lado seguro (404, cuerpo uniforme) — nunca al lado que filtra (403).
+  // (Gate G3: convergencia cínico/rbac/consistencia — no bakear un 403 que reabra el oráculo de enumeración.)
+  GUARD_UNMET: 404,
+  ACTOR_INVALID: 500, // error interno; el consumidor no expone el código, sólo un 500 genérico sin detalle de BD
 };
 
 export function statusFor(code: ErrorCode): number {
