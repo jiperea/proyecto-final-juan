@@ -5,7 +5,7 @@ import { Argon2PasswordHasher } from './crypto/password-hasher';
 import { JwtTokenIssuer } from './crypto/token-issuer';
 import { checkDb, createPrisma } from './prisma';
 import { InMemoryRateLimit } from './ratelimit/in-memory';
-import { PrismaAccountState } from './repositories/account-state';
+import { PrismaAccountState, PrismaProbeRepository } from './repositories/account-state';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
 import { PrismaSessionRepository } from './repositories/session-repository';
 import { PrismaUserRepository } from './repositories/user-repository';
@@ -29,6 +29,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
   const sessions = new PrismaSessionRepository(prisma);
   const refreshTokens = new PrismaRefreshTokenRepository(prisma);
   const accountState = new PrismaAccountState(prisma);
+  const probes = new PrismaProbeRepository(prisma);
   const sessionState = new InMemorySessionState(accountState, config.sessionStateTtlMs);
   const rateLimit = new InMemoryRateLimit({
     max: config.lockoutMax,
@@ -42,6 +43,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
     loginDeps: { users, sessions, refreshTokens, hasher, tokens, rateLimit, clock },
     logoutDeps: { sessions, refreshTokens, sessionState, tokens, clock, graceMs: config.graceMs },
     users,
+    probes,
     tokens,
     sessionState,
     cookie: {

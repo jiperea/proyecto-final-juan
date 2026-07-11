@@ -2,15 +2,20 @@ import cookieParser from 'cookie-parser';
 import express, { type Express } from 'express';
 import type { LoginDeps } from '../domain/auth/login';
 import type { LogoutDeps } from '../domain/auth/logout';
-import type { UserRepositoryPort } from '../domain/ports/repositories';
+import type {
+  ProbeResourceRepositoryPort,
+  UserRepositoryPort,
+} from '../domain/ports/repositories';
 import type { SessionStatePort, TokenIssuerPort } from '../domain/ports/services';
 import { createLogger } from '../infra/logger';
 import { loginHandler } from './auth/login';
 import { logoutHandler } from './auth/logout';
 import { meHandler } from './auth/me';
 import type { CookieOptions } from './auth/cookies';
+import { probeHandler } from './rbac/probe';
 import { jsonErrorHandler } from './error-mapper';
 import { authenticate } from './middleware/authenticate';
+import { authorizeProbe } from './middleware/authorize';
 import { correlation } from './middleware/correlation';
 import { securityHeaders } from './middleware/security-headers';
 import { healthHandler, readyHandler } from './ops';
@@ -21,6 +26,7 @@ export interface AppDeps {
   readonly loginDeps: LoginDeps;
   readonly logoutDeps: LogoutDeps;
   readonly users: UserRepositoryPort;
+  readonly probes: ProbeResourceRepositoryPort;
   readonly tokens: TokenIssuerPort;
   readonly sessionState: SessionStatePort;
   readonly cookie: CookieOptions;
@@ -43,6 +49,14 @@ export function buildApp(deps: AppDeps): Express {
   app.post('/v1/auth/login', loginHandler(deps.loginDeps, deps.cookie));
   app.post('/v1/auth/logout', logoutHandler(deps.logoutDeps, deps.cookie));
   app.get('/v1/auth/me', authenticate(deps.tokens, deps.sessionState), meHandler(deps.users));
+
+  // RBAC probe (/v1)
+  app.get(
+    '/v1/rbac/probe/:id',
+    authenticate(deps.tokens, deps.sessionState),
+    authorizeProbe(deps.probes),
+    probeHandler,
+  );
 
   app.use(jsonErrorHandler);
   return app;

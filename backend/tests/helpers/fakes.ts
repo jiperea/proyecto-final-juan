@@ -119,6 +119,7 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
     loginDeps: { users, sessions, refreshTokens, hasher, tokens, rateLimit, clock },
     logoutDeps: { sessions, refreshTokens, sessionState, tokens, clock, graceMs: 10_000 },
     users,
+    probes: { findInScopeRoles: async () => null },
     tokens,
     sessionState,
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
