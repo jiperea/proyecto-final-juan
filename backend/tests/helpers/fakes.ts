@@ -1,0 +1,93 @@
+import { normalizeIdentifier, type RefreshTokenRecord, type SessionRecord, type UserRecord } from '../../src/domain/model';
+import type {
+  RefreshTokenRepositoryPort,
+  SessionRepositoryPort,
+  UserRepositoryPort,
+} from '../../src/domain/ports/repositories';
+import type { ClockPort, PasswordHasherPort } from '../../src/domain/ports/services';
+
+// Fakes in-memory para tests de dominio (hexagonal: sin BD ni infra real).
+
+export function fakeUsers(list: readonly UserRecord[]): UserRepositoryPort {
+  const byNorm = new Map<string, UserRecord>();
+  for (const u of list) {
+    byNorm.set(normalizeIdentifier(u.email), u);
+    byNorm.set(normalizeIdentifier(u.username), u);
+  }
+  return {
+    findByIdentifierNorm: async (n) => byNorm.get(n) ?? null,
+    findById: async (id) => list.find((u) => u.id === id) ?? null,
+  };
+}
+
+export interface FakeSessions extends SessionRepositoryPort {
+  store: Map<string, SessionRecord>;
+}
+
+export function fakeSessions(): FakeSessions {
+  const store = new Map<string, SessionRecord>();
+  let n = 0;
+  return {
+    store,
+    create: async (userId) => {
+      const s: SessionRecord = { id: `sid-${++n}`, userId, revokedAt: null };
+      store.set(s.id, s);
+      return s;
+    },
+    findById: async (id) => store.get(id) ?? null,
+    revoke: async (id) => {
+      const s = store.get(id);
+      if (!s || s.revokedAt) {
+        return false;
+      }
+      store.set(id, { ...s, revokedAt: new Date() });
+      return true;
+    },
+  };
+}
+
+export interface FakeRefreshTokens extends RefreshTokenRepositoryPort {
+  store: Map<string, RefreshTokenRecord>;
+}
+
+export function fakeRefreshTokens(): FakeRefreshTokens {
+  const store = new Map<string, RefreshTokenRecord>(); // por id
+  let n = 0;
+  return {
+    store,
+    create: async ({ sessionId, tokenHash, expiresAt }) => {
+      const rt: RefreshTokenRecord = {
+        id: `rt-${++n}`,
+        sessionId,
+        tokenHash,
+        expiresAt,
+        rotatedAt: null,
+        replacedBy: null,
+      };
+      store.set(rt.id, rt);
+      return rt;
+    },
+    findByHash: async (hash) => [...store.values()].find((r) => r.tokenHash === hash) ?? null,
+    rotateAtomic: async (tokenId, replacedById) => {
+      const rt = store.get(tokenId);
+      if (!rt || rt.rotatedAt) {
+        return false;
+      }
+      store.set(tokenId, { ...rt, rotatedAt: new Date(), replacedBy: replacedById });
+      return true;
+    },
+  };
+}
+
+/** Hasher rápido para tests (sin argon2). `matches` decide validez. */
+export function fakeHasher(matches: (hash: string, plain: string) => boolean): PasswordHasherPort {
+  return {
+    hash: async (plain) => `hash:${plain}`,
+    verify: async (hash, plain) => matches(hash, plain),
+    dummyVerify: async () => undefined,
+  };
+}
+
+export function fixedClock(ms: number): ClockPort {
+  return { now: () => new Date(ms) };
+}
