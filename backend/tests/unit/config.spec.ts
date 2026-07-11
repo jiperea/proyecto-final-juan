@@ -27,7 +27,8 @@ describe('config fail-fast (FR-016)', () => {
   });
 
   it('aborta nombrando la variable que falta', () => {
-    const { JWT_SECRET: _omit, ...withoutJwt } = base;
+    const withoutJwt: Record<string, string> = { ...base };
+    delete withoutJwt.JWT_SECRET;
     expect(() => loadConfig(withoutJwt)).toThrowError(/JWT_SECRET/);
   });
 

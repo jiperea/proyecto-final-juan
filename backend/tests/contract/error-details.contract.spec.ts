@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import request from 'supertest';
-import { SEED_PASSWORD, SEED_USERS } from '../../prisma/seed-data';
+import { SEED_USERS } from '../../prisma/seed-data';
 import { makeTestApp } from '../helpers/test-app';
 
 const { app, prisma } = makeTestApp();

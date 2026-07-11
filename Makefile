@@ -1,28 +1,35 @@
 # FieldOps 001 — un comando para todo (Constitution §Convenciones)
-.PHONY: install up down test test-unit gate seed migrate
+# Entorno SIN Node en el host: todo corre en contenedor node:20 (scripts/dcnode.sh) + Postgres (compose).
+.PHONY: install up down test test-unit lint typecheck migrate seed gate
 
 install:
-	cd backend && npm install
+	bash scripts/dcnode.sh npm install
 
 up:
 	docker compose up -d db db-test
-	cd backend && npm run prisma:generate && npm run prisma:migrate && npm run seed
+	bash scripts/dcnode.sh sh -c "npx prisma generate && npx prisma migrate deploy && npx tsx prisma/seed.ts"
 
 down:
 	docker compose down
 
 migrate:
-	cd backend && npm run prisma:migrate
+	bash scripts/dcnode.sh npx prisma migrate deploy
 
 seed:
-	cd backend && npm run seed
+	bash scripts/dcnode.sh npx tsx prisma/seed.ts
 
-# unit (sin BD) + integration + contract (BD real docker)
+# unit (sin BD) + integration + contract (Postgres real, db-test)
 test:
-	cd backend && npm run test
+	bash scripts/dcnode.sh npx vitest run --no-file-parallelism
 
 test-unit:
-	cd backend && npm run test:unit
+	bash scripts/dcnode.sh npx vitest run tests/unit
+
+lint:
+	bash scripts/dcnode.sh npx eslint .
+
+typecheck:
+	bash scripts/dcnode.sh npx tsc -p tsconfig.json --noEmit
 
 # Gate adversarial headless (Constitution XIII); exit 0/1 según bloqueantes
 gate:

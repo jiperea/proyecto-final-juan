@@ -48,13 +48,11 @@ async function main(): Promise<void> {
 
   // NONEXISTENT_PROBE_ID se deja SIN crear a propósito (404-por-inexistencia).
   void NONEXISTENT_PROBE_ID;
-  // eslint-disable-next-line no-console
   console.log('Seed OK: usuarios + probes creados.');
 }
 
 main()
   .catch((e: unknown) => {
-    // eslint-disable-next-line no-console
     console.error(e);
     process.exitCode = 1;
   })
