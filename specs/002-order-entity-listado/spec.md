@@ -50,8 +50,9 @@ lectura sobre la que 003/004/005 construirán las acciones. Es el MVP de la Fund
 
 **Acceptance Scenarios**:
 
-1. **Given** un technician autenticado con órdenes asignadas a él y otras asignadas a otros, **When** pide
-   `GET /v1/orders`, **Then** recibe 200 con **solo** las órdenes cuyo `assigned_to` es él (ninguna ajena).
+1. **Given** un technician con órdenes propias en varios estados (activas y una `closed` y/o `draft`) y otras
+   ajenas, **When** pide `GET /v1/orders`, **Then** recibe 200 con **solo** sus órdenes **activas**
+   (`assigned`/`in_progress`/`pending_review`); ni las ajenas ni sus propias `closed`/`draft` aparecen.
 2. **Given** un supervisor autenticado, **When** pide `GET /v1/orders`, **Then** recibe 200 con **solo** las
    órdenes en estado `pending_review`.
 3. **Given** un dispatcher autenticado, **When** pide `GET /v1/orders`, **Then** recibe 200 con **solo** las
@@ -118,8 +119,10 @@ lectura sobre la que 003/004/005 construirán las acciones. Es el MVP de la Fund
   consulta** que afecten al alcance; cualquier parámetro no reconocido SHALL **ignorarse** y NUNCA ampliar el
   alcance del rol (test: `?assigned_to=otro` / `?status=closed` no cambian el resultado del technician).
 - **FR-016** *(política centralizada, H-006/Principio IV)*: LA regla rol→alcance SHALL vivir en **una única
-  función de política de dominio** (p. ej. `orderScopeFor(role)`), fuente de verdad reutilizable por 003/004/005
-  (no re-implementada ad-hoc por feature).
+  función de política de dominio** con firma **`orderScopeFor(role, userId)`** (incluye la identidad para el
+  cruce de pertenencia del technician), fuente de verdad reutilizable por 003/004/005 (no ad-hoc por feature).
+  **Verificable**: un test de arquitectura/unidad comprueba que el handler de listado obtiene su filtro de
+  `orderScopeFor(...)` y no reimplementa la regla inline.
 - **FR-017** *(PII en texto libre, S-003/S-004)*: THE `title`/`description` de `Order` (texto libre que puede
   contener PII de cliente) NUNCA SHALL serializarse a logs; la redacción de 001 (FR-014) se **extiende** a estos
   campos. La minimización de contenido por rol queda **fuera de 002a** (declarada en backlog).
@@ -163,3 +166,7 @@ creación/alta inicial de órdenes (fuera de alcance del proyecto), **minimizaci
   (FR-017); la minimización de contenido por rol se difiere (backlog, no bloquea 002a).
 - Órdenes `draft` semilla tienen `assigned_to = null` (no se asignan por adelantado); por eso ningún rol las
   lista en 002a. La visibilidad de `draft` se resolverá cuando exista alta/creación (fuera de alcance).
+- **Órdenes `closed` son invisibles para TODOS los roles en 002a** (H-004): el histórico/lectura de cerradas
+  es una decisión de alcance deliberada, no un olvido; una vía de lectura de cerradas es feature futura.
+- **Invariante de datos** (H-002): la semilla NO crea órdenes `assigned`/`in_progress` con `assigned_to = null`
+  (evita órdenes "huérfanas" visibles solo al dispatcher). La FSM de 002b lo garantizará por transición.
