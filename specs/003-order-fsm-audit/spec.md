@@ -10,6 +10,20 @@
 append-only de transiciones, como **maquinaria** de dominio que consumirán 003/004/005. Slice pequeño (XV):
 NO añade endpoints de negocio; reutiliza `Order`/`version` de 002a y errores/observabilidad de 001.
 
+## Clarifications
+
+### Session 2026-07-11
+
+- Q: ¿002b expone endpoint o es dominio puro? → A: **Dominio puro, sin endpoint HTTP nuevo**; la maquinaria
+  (`applyTransition`/FSM/auditoría) la consumen 003/004/005 (que añaden endpoints + RBAC + pertenencia).
+  Contract-first **N/A** (no hay interfaz HTTP nueva); verificación por tests dominio+repositorio contra Postgres real.
+- Q: ¿Tabla de transiciones legales? → A: **exactamente** `draft→assigned`, `assigned→in_progress`,
+  `in_progress→pending_review`, `pending_review→closed`, `pending_review→in_progress` (rechazo). Cualquier otra
+  (mismo estado, desde `closed`) → ilegal (`INVALID_TRANSITION`/422).
+- Q: ¿`reason` obligatorio? → A: **opcional (nullable)** en 002b; la obligatoriedad por caso (p. ej. rechazo en
+  005) la imponen 003/004/005, no 002b.
+- Q: ¿`actor_id` en la auditoría? → A: **siempre requerido** (toda transición tiene un actor que provee el llamador).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Transicionar una orden de forma segura y auditada (Priority: P1)
@@ -99,9 +113,9 @@ auditoría forense de accesos denegados (base-ready, comportamiento en BL-002), 
 
 ## Assumptions
 
-- **Decisión abierta para clarify**: si 002b expone un endpoint genérico de transición de *demostración* o se
-  queda como dominio puro (verificado por tests dominio+repo). Por defecto: **dominio puro, sin endpoint**
-  (los endpoints con su RBAC llegan en 003/004/005); contract-first N/A por no haber interfaz HTTP nueva.
+- **Congelado en `## Clarifications`**: 002b es **dominio puro** (sin endpoint; endpoints en 003/004/005),
+  tabla de transiciones fija, `reason` opcional, `actor_id` requerido.
 - Reutiliza `Order`/`version` de 002a y error-mapper/logger/config de 001.
+- `OrderAudit` es base-ready para la auditoría forense de accesos denegados (BL-002) sin ALTER destructivo.
 - `actor_id` y `reason` los provee el llamador (003/004/005); 002b no los valida semánticamente, solo los
   registra en auditoría.
