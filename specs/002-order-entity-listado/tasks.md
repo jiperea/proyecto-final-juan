@@ -48,10 +48,12 @@ description: "Task list — 002a Order + listado por rol (read-side)"
   UUID/null; sin PII) — `backend/tests/contract/orders.contract.spec.ts` (FR-001/007/014, contrato)
 - [ ] T009 [P] [US1] **[Red]** Integration por rol contra seed: technician solo sus activas (**excluye sus
   `closed`/`draft`** y ajenas); supervisor solo `pending_review`; dispatcher solo `assigned`/`in_progress`;
-  **0 fugas** (SC-004); `?assigned_to=otro`/`?status=closed` NO amplían (FR-015); lista vacía→200 —
-  `backend/tests/integration/orders-list.spec.ts` (FR-001/002/003/004/008/009/015, SC-001/004)
-- [ ] T010 [P] [US1] **[Red]** Integration auth/authorize: sin token→401 uniforme; rol fuera del allowlist→403
-  (default-deny); disabled/revocada→401 (reutiliza 001) — `backend/tests/integration/orders-authz.spec.ts` (FR-005/006/014, SC-003)
+  **0 fugas** (SC-004); `?assigned_to=otro`/`?status=closed` NO amplían (FR-015); lista vacía→200; **orden
+  `created_at` desc con `id` desc como tiebreak asertado explícitamente** (FR-012, C1) —
+  `backend/tests/integration/orders-list.spec.ts` (FR-001/002/003/004/008/009/012/015, SC-001/004)
+- [ ] T010 [P] [US1] **[Red]** Integration auth/authorize: sin token→401; rol fuera del allowlist→403
+  (default-deny); disabled/revocada→401; **el cuerpo del 401 es idéntico entre causas (uniforme de contenido,
+  C3/SC-003)** — `backend/tests/integration/orders-authz.spec.ts` (FR-005/006/014, SC-003)
 - [ ] T011 [P] [US1] **[Red]** Test de arquitectura: el handler `listOrders` obtiene su filtro de
   `orderScopeFor(...)` (no inline) — `backend/tests/unit/order-architecture.spec.ts` (FR-016)
 
@@ -65,7 +67,9 @@ description: "Task list — 002a Order + listado por rol (read-side)"
   ignora query params; mapea a `OrderListResponse`) — `backend/src/handlers/orders/list.ts` (FR-001/008/015)
 - [ ] T015 [US1] Wiring: `OrderRepository` en container + ruta en app (`authenticate`→`authorize`→handler) —
   `backend/src/infra/container.ts`, `backend/src/handlers/app.ts` (FR-014)
-- [ ] T016 [US1] Extender redacción de logs a `title`/`description` de Order (no serializar) — `backend/src/infra/logger.ts` (FR-017, S-003/004)
+- [ ] T016 [US1] **[Red]** Test de redacción: `title`/`description` de Order **no** aparecen en logs, +
+  extender la redacción de 001 — `backend/tests/integration/orders-log-redaction.spec.ts`,
+  `backend/src/infra/logger.ts` (FR-017, S-003/004, C2)
 
 **Checkpoint**: US1 funcional (login→GET /v1/orders por rol), demostrable e independiente.
 
