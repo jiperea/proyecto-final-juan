@@ -66,7 +66,7 @@ Decisiones de diseño alineadas a la spec magra (G1 PASS). Sin `NEEDS CLARIFICAT
 ## D-08 · Contrato de errores con agent_action
 
 - **Decisión**: extender `DomainError` (`domain/result.ts`) con `agentAction?` opcional; `sendError`
-  (`error-mapper.ts`) lo emite en respuestas de **negocio** (404/409/422/500 del handler), no en 401/403 del
+  (`error-mapper.ts`) lo emite en respuestas de **negocio** (404/422/500 del handler), no en 401/403 del
   middleware reutilizado de 001 (retrocompatible; re-verificar 001/002 verdes). Catálogo: +`INVALID_ASSIGNEE`
   →422, +`FORBIDDEN_ROLE`→403 (reusa `VALIDATION_ERROR`→422, `ORDER_NOT_FOUND`→404). El error-mapper **no**
   inspecciona Prisma (genérico).
