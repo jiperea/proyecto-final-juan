@@ -76,3 +76,31 @@ cerrados o registrados en esta ronda:
 
 **Veredicto G1: PASS (spec-freeze).** 0 BLOQUEANTES. Se avanza a `/speckit-plan`. Deudas nuevas: BL-063/064/065
 en `docs/backlog.md`.
+
+---
+
+## RESET + REFORMULACIÓN MAGRA (2026-07-12) — G1 re-corrido sobre spec reescrita
+
+**Motivo**: tras el spec-freeze anterior, el flujo posterior (plan→tasks→**G2** ×4 pasadas) sufrió turbulencia
+persistente. Diagnóstico (Principio XV): **la spec estaba sobredimensionada** — embebió el cluster de deuda de
+002b (BL-056/059/060/061/062) + endurecimiento (If-Match/409, 4 vías byte-idénticas, P2003 fino, 503) que el
+**brief no pide** para *reasignar*. Se **reformuló la spec MAGRA** (needs-first, Func #1), aislando ese cluster
+a stretch/deuda (XV). 001/002a/002b **inamovibles**; la extensión de `OrderAudit` es **aditiva** (from/to_assignee
++ event_type; from_status/to_status relajados a nullable → NULL en reassignment). No se tocó constitution ni
+roadmap (verificada fidelidad al brief).
+
+### G1 sobre la spec magra — panel `revisor-cinico` + `auditor-spec-theater` + `revisor-rbac-seguridad`
+
+- **1ª pasada**: cínico **BLOQUEADA** (2 BLOQ: guarda condicional sólo en Clarification no normativa; `from_assignee`
+  no atómico) · theater REQUIERE_CAMBIOS (reason unidad/trim/control-chars; SC-010 método p95) · rbac
+  REQUIERE_CAMBIOS (TOCTOU visibilidad→UPDATE; from_assignee atómico). **Todo era correctitud del NÚCLEO**
+  (over-trim), no el hardening aislado. Remediado en la spec.
+- **Re-entrada**: **APROBADA × 3 · 0 BLOQUEANTES.** Cerradas todas las ALTAS/MEDIAS; hallazgos nuevos no
+  bloqueantes cerrados post-panel: H-011 (`SELECT..FOR UPDATE` para `from_assignee`, no `RETURNING`), H-012
+  (guarda `assigned_to<>destino` + reclasificación de 0-filas), H-013 (backfill `event_type`). Documentados sin
+  cargar 004: S-006/BL-067 (tensión de gobernanza XI accesos-denegados, elevada a fundación), S-007 (STRIDE
+  opcional).
+
+**Veredicto G1 (spec magra): PASS.** 0 BLOQUEANTES. Deudas: BL-067 (gobernanza XI). La spec magra queda como
+base limpia; **plan/tasks/contrato/data-model se regenerarán en línea con ella** (mucho más simples: sin
+409/If-Match, sin P2003-fino, sin 503, sin sourcing de status de auditoría).
