@@ -22,6 +22,10 @@ const STATUS: Record<ErrorCode, number> = {
   // (Gate G3: convergencia cínico/rbac/consistencia — no bakear un 403 que reabra el oráculo de enumeración.)
   GUARD_UNMET: 404,
   ACTOR_INVALID: 500, // error interno; el consumidor no expone el código, sólo un 500 genérico sin detalle de BD
+  // 004: reasignación
+  FORBIDDEN_ROLE: 403,
+  INVALID_ASSIGNEE: 422,
+  INTERNAL: 500,
 };
 
 export function statusFor(code: ErrorCode): number {
@@ -42,6 +46,9 @@ export function sendError(res: Response, error: DomainError): void {
   const body: ErrorBody = { code: error.code, message: error.message };
   if (error.details) {
     body.details = error.details;
+  }
+  if (error.agentAction !== undefined) {
+    body.agent_action = error.agentAction; // 004: sólo cuando el DomainError lo aporta (retrocompatible)
   }
   res.status(STATUS[error.code]).json(body);
 }

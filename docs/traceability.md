@@ -95,3 +95,26 @@ del contrato (BL-056).
   write-through, re-eval TTL H-006) están cubiertas por `unit/session-state` + `unit/authenticate`;
   la variante de reinicio real con Postgres queda como hardening de integración. → backlog.
 - **T065**: el threat-model ya lista Txxx por amenaza; el mapeo 1:1 test↔STRIDE se completa con T057/T058.
+
+---
+
+## 004 · Reasignación de orden (dispatcher) — MVP magro (G1 PASS / G2 PASS / implementado)
+
+Endpoint `reassignOrder` — `POST /v1/orders/{orderId}/reassignments`. Suite completa **215/215 verde**.
+
+| FR | Descripción | Endpoint | Tarea | Test(s) |
+|----|-------------|----------|-------|---------|
+| FR-001 | reasignar (assigned_to, estado conservado, version+1, 1 auditoría atómica) | reassignOrder | T026-T031 | `integration/reassign-order` (happy + huérfana), `unit/reassign-order` |
+| FR-002 | estados reasignables assigned/in_progress; resto → 404 | reassignOrder | T029/T030 | `integration/reassign-order-notfound`… (dentro de reassign-order) |
+| FR-003 | RBAC 401 / 403 FORBIDDEN_ROLE | reassignOrder | T030/T031 | `integration/reassign-order` (RBAC) |
+| FR-004 | no-enumeración 404 (inexistente/no-visible/uuid malformado, cuerpo idéntico); orden 401→403→404→422 | reassignOrder | T030 | `integration/reassign-order` (no-enum, precedencia), `contract/reassign` |
+| FR-005 | destino inválido (4 causas) → 422 INVALID_ASSIGNEE genérico | reassign-order (dominio) | T028 | `integration/reassign-order` (destino 422), `unit/reassign-order` |
+| FR-006 | reason 1..500 code points ≥1 imprimible; assignee_id uuid → 422 VALIDATION_ERROR | schemas | T026 | `integration/reassign-order` (body/reason) |
+| FR-007 | atómico (SELECT FOR UPDATE + UPDATE condicional + auditoría) + único punto de escritura (arch test) | order-write-side-repository | T029 | `integration/reassign-order-atomicity`, `unit/order-transition-architecture` |
+| FR-008 | actor sólo del token | reassignOrder | T030 | `integration/reassign-order` (actor) |
+| FR-009 | no-fuga de reason (logs/errores) + errores de BD → 500 genérico | error-mapper, logger | T012/T013 | `integration/reassign-order` (no-fuga), `contract/reassign` |
+| Migración | OrderAudit +event_type/+from-to_assignee, from/to_status nullable, CHECK, backfill; trigger conservado | — | T003-T006 | `integration/order-audit-migration` |
+| SC-010 | p95 < 300 ms (50 secuenciales, warm-up, nearest-rank) | — | T034 | `integration/reassign-order-latency` |
+
+> Residuales/stretch (no MVP, documentados): BL-001 (If-Match/409), BL-063/064/066 (hardening), BL-067
+> (gobernanza XI accesos denegados), BL-002/051/055 (heredados).

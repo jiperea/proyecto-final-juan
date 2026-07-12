@@ -9,7 +9,12 @@ import { InMemoryRateLimit } from './ratelimit/in-memory';
 import { RefreshSessionValidity } from './session-validity';
 import { PrismaAccountState, PrismaProbeRepository } from './repositories/account-state';
 import { PrismaOrderRepository } from './repositories/order-repository';
-import { PrismaOrderTransitionRepository } from './repositories/order-write-side-repository';
+import {
+  PrismaOrderReassignmentRepository,
+  PrismaOrderTransitionRepository,
+  PrismaOrderVisibilityRepository,
+  PrismaUserLookupRepository,
+} from './repositories/order-write-side-repository';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
 import { PrismaSessionRepository } from './repositories/session-repository';
 import { PrismaUserRepository } from './repositories/user-repository';
@@ -43,6 +48,9 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
     sessionValidity: new RefreshSessionValidity(tokens, refreshTokens, sessions, accountState, clock),
     orders: new PrismaOrderRepository(prisma),
     orderTransition: new PrismaOrderTransitionRepository(prisma),
+    orderVisibility: new PrismaOrderVisibilityRepository(prisma),
+    userLookup: new PrismaUserLookupRepository(prisma),
+    orderReassignment: new PrismaOrderReassignmentRepository(prisma),
     rateLimit: new InMemoryRateLimit({
       max: config.lockoutMax,
       windowMs: config.lockoutWindowMin * MIN_MS,
@@ -92,9 +100,8 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
     sessionState: a.sessionState,
     sessionValidity: a.sessionValidity,
     orderListDeps: { orders: a.orders },
-    // 002b: puerto de transición disponible en el contenedor (dominio puro; los endpoints con RBAC/FR-009
-    // que lo consumen llegan en 003/004/005). No se monta ruta.
-    orderTransition: a.orderTransition,
+    orderTransition: a.orderTransition, // 002b (dominio puro; sin ruta)
+    reassignDeps: { visibility: a.orderVisibility, users: a.userLookup, reassignment: a.orderReassignment },
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,
       secure: config.nodeEnv === 'production',
