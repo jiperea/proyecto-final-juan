@@ -1,31 +1,27 @@
 # Contrato — reassignOrder (referencia)
 
-> La **fuente de verdad** del contrato es el repo-root `contracts/orders.openapi.yaml` (OpenAPI 3.1,
-> contract-first, Constitution II). Este fichero es sólo un puntero/resumen para la trazabilidad del spec.
+> Fuente de verdad: repo-root `contracts/orders.openapi.yaml` (OpenAPI 3.1). Este fichero es un puntero para
+> la trazabilidad del spec.
 
 ## Operación
 
 `POST /v1/orders/{orderId}/reassignments` — `operationId: reassignOrder` — rol **dispatcher**.
 
-- **Request** (`ReassignmentRequest`): `{ assignee_id: uuid, reason: string(1..500, ≥1 imprimible) }`.
-  `.strict()` → `additionalProperties: false`. El **actor NO va en el cuerpo** (se deriva del token, FR-011).
-- **Header opcional**: `If-Match: "<version>"` (stretch, US2/FR-012). Sin él, el servidor relee la version.
+- **Request** (`ReassignmentRequest`, `.strict()`): `{ assignee_id: uuid, reason: string(1..500 code points, ≥1
+  imprimible, sin control chars) }`. **Sin** campo actor (del token, FR-008). **Sin** cabecera If-Match (MVP).
 - **Respuestas**:
-  | HTTP | Código de dominio | Cuándo |
-  |------|-------------------|--------|
-  | 200 | — | reasignación aplicada; `ETag` con nueva version; body = `Order` |
-  | 401 | `UNAUTHENTICATED` | sin auth válida |
-  | 403 | `FORBIDDEN_ROLE` (rol ≠ dispatcher) | autenticado, rol no autorizado |
-  | 404 | genérico (`ORDER_NOT_FOUND`; `ORDER_NOT_REASSIGNABLE` **colapsa** al mismo 404 byte-idéntico) | no-enumeración por construcción |
-  | 409 | `VERSION_CONFLICT` | reasignación concurrente, orden aún reasignable; `ETag` version vigente |
-  | 422 | `INVALID_ASSIGNEE` \| `VALIDATION_ERROR` | destino inválido (4 causas, cuerpo idéntico) / reason inválido — **sólo tras pasar la visibilidad** (D-11) |
-  | 500 | genérico | **todo** error de BD ≠ FK-asignatario (incl. BD no disponible), sin filtrar detalle Postgres (FR-010) |
-
-- **Cuerpo de error**: `{ code, message, details?, agent_action }` (se extiende `sendError` para emitir
-  `agent_action`, D-08). `reason` y detalle de Postgres **nunca** en el cuerpo de error.
+  | HTTP | Código | Cuándo |
+  |------|--------|--------|
+  | 200 | — | reasignación aplicada; body = `Order` (nuevo `assigned_to`, `version`+1) |
+  | 401 | `UNAUTHENTICATED` | sin auth / token expirado / sesión revocada (middleware de 001) |
+  | 403 | `FORBIDDEN_ROLE` | autenticado, rol ≠ dispatcher |
+  | 404 | genérico (`ORDER_NOT_FOUND`) | inexistente / no reasignable / `orderId` malformado — cuerpo idéntico |
+  | 422 | `VALIDATION_ERROR` \| `INVALID_ASSIGNEE` | body mal formado (reason/assignee_id) / destino inválido (4 causas, cuerpo genérico idéntico) — **sólo tras pasar la visibilidad** |
+  | 500 | genérico | cualquier error de BD, sin filtrar detalle Postgres |
+- **Cuerpo de error**: `{ code, message, details?, agent_action }`; `agent_action` en respuestas de negocio
+  (404/422/500). `reason` y detalle de Postgres **nunca** en el cuerpo de error.
 
 ## Contract tests (100% operationId × código)
 
-`backend/tests/contract/reassign.contract.spec.ts`: valida la **forma** exacta (status, headers `ETag`, keys
-del body, `additionalProperties:false`, `agent_action` en respuestas de negocio) de cada respuesta documentada
-(200/401/403/404/409/422/500). Ver quickstart para el flujo.
+`backend/tests/contract/reassign.contract.spec.ts`: valida forma exacta (status, keys del body,
+`additionalProperties:false`, `agent_action` en negocio) de 200/401/403/404/422/500.

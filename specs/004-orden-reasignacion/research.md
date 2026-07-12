@@ -1,259 +1,94 @@
-# Research — 004-orden-reasignacion
+# Research — 004-orden-reasignacion (MAGRO)
 
-Decisiones de diseño (Phase 0). Cada una resuelve un punto que la spec dejó "a confirmar en plan" o que el
-mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
+Decisiones de diseño alineadas a la spec magra (G1 PASS). Sin `NEEDS CLARIFICATION`.
 
-## D-01 · Método/ruta del endpoint
+## D-01 · Método/ruta
 
-- **Decisión**: `POST /v1/orders/{orderId}/reassignments`, `operationId: reassignOrder`, rol `dispatcher`.
-- **Rationale**: la reasignación es un **evento** que genera un registro de auditoría inmutable (semántica
-  append-only), no una mutación idempotente de un campo. Un sub-recurso de evento (`POST .../reassignments`)
-  modela mejor "crear una reasignación" que `PATCH .../assignee`, y encaja con `OrderAudit.event_type`. El
-  `operationId` `reassignOrder` ya está usado en toda la trazabilidad de la spec y sobrevive a esta elección.
-- **Alternativas**: `PATCH /orders/{id}/assignee` (idempotente, pero oscurece el evento de auditoría y sugiere
-  reemplazo directo del campo); `POST /orders/{id}:reassign` (RPC-ish, rompe estilo REST del contrato).
+- **Decisión**: `POST /v1/orders/{orderId}/reassignments`, `operationId reassignOrder`, rol `dispatcher`,
+  respuestas 200/401/403/404/422/500. Responde **200 con la orden** (el recurso es la orden; `reassignments`
+  es el verbo/evento). **Sin** 409/`If-Match` (stretch, fuera de MVP).
+- **Rationale**: sub-recurso de evento coherente con la auditoría append-only; el `operationId` ya se usa en la
+  trazabilidad.
 
-## D-02 · Módulo write-side (reconciliación FR-006 de 002b, BL-065)
+## D-02 · Módulo write-side (reconcilia FR-006 de 002b)
 
-- **Decisión**: crear `domain/order/write-side/` y **reubicar** `apply-transition.ts` (002b) dentro, junto al
-  nuevo `reassign-order.ts` y un puerto compartido `write-side-ports.ts`. El "único punto de escritura de
-  `status`/`version`" pasa a ser este módulo (dominio) + su repo de infra.
-- **Rationale**: la spec (FR-007) exige que `reassignOrder` viva en el **mismo módulo** que `applyTransition` y
-  que un **test de arquitectura** verifique que nada fuera de él muta `status`/`version`. Reubicar es preferible
-  a duplicar el invariante en dos sitios. `applyTransition` **no cambia de comportamiento** (sólo de ruta de
-  import) → no viola XV (inmutabilidad de artefactos mergeados: 002b se preserva funcionalmente).
-- **Alternativas**: (a) dejar `apply-transition.ts` donde está y declarar "módulo lógico" sin carpeta común →
-  el arch test se vuelve frágil (lista de ficheros dispersa); (b) un único fichero gigante → peor cohesión.
-- **Riesgo**: churn de imports en 002b. Mitigación: sólo se mueve el fichero; los tests de 002b siguen verdes
-  (verificación en G3). Test de arquitectura nuevo cierra BL-065.
+- **Decisión**: crear `domain/order/write-side/` y **mover** `apply-transition.ts` (002b) dentro, junto a
+  `reassign-order.ts` y `write-side-ports.ts`. `status`/`version`/**`assigned_to`** sólo se mutan desde este
+  módulo (+ su repo infra); **test de arquitectura** (dependency-cruiser o grep) lo verifica. `applyTransition`
+  **no cambia de comportamiento** (sólo de ruta de import) — XV.
+- **Rationale**: materializa el "único punto de escritura" e incluye `assigned_to` (el campo que muta 004).
 
-## D-03 · Primitiva atómica compartida (H-008) — alcance ACOTADO (cierre G2-B2)
+## D-03 · Primitiva atómica compartida (sólo boilerplate)
 
-- **Decisión**: en infra, generalizar `order-transition-repository.ts` → `order-write-side-repository.ts` con
-  un método privado `conditionalWriteWithAudit(tx, { where, data, audit })` que ejecuta el **UPDATE condicional
-  `updateMany`** (WHERE `id ∧ version=expectedVersion ∧ status ∈ predicado`) + el **insert de auditoría** en la
-  **misma** `$transaction`. `applyTransition` y `reassignOrder` lo consumen con distinto `data`/`audit`.
-- **Lo que se comparte es SOLO el boilerplate** (el UPDATE condicional + insert de auditoría transaccional).
-  La **clasificación de 0-filas NO se comparte** y **NO** se fusiona en una función paramétrica única.
-- **Puerto de dominio con nombre de negocio (cierre G2-P3)**: el DOMINIO **no** conoce `conditionalWriteWithAudit`
-  (helper privado de infra). El dominio inyecta un **puerto de negocio** `OrderReassignmentPort.reassign(cmd)`
-  (en `write-side-ports.ts`), cuyo `cmd = {orderId, assigneeId, actorId, reason, expectedVersion}`. `reassign`
-  devuelve un **resultado crudo, sin clasificar**: en éxito `{ count: 1, order: <fila> }`; en 0 filas
-  `{ count: 0, order: <snapshot {id,status,assignedTo,version}> | null }` (null si no existe). El nombre
-  `conditionalWriteWithAudit` es un **detalle interno privado** de `order-write-side-repository.ts`, nunca un
-  símbolo del puerto de dominio.
-- **Quién clasifica / quién audita**:
-  - `applyTransition` **conserva intacto** su camino de 002b: su `classifyZeroRows`
-    (NOT_FOUND → VERSION_CONFLICT → INVALID_TRANSITION → GUARD_UNMET, version-first) **no se toca**. **Sin
-    cambio de comportamiento** (Constitution XV) — los tests de 002b siguen verdes (T008).
-  - `reassignOrder` (DOMINIO, `reassign-order.ts`) recibe el resultado crudo de `OrderReassignmentPort` y aplica
-    su **propio clasificador** con **precedencia status>version** (D-04). El unit test de dominio (con un
-    **fake** del puerto que devuelve snapshots) prueba la **clasificación real**.
-  - El **ensamblado de la fila de auditoría** de reasignación (`event_type='reassignment'`, `from_assignee`,
-    `to_assignee`, `from_status==to_status`) ocurre en **INFRA** (dentro de `reassign`), que es quien tiene la
-    `$transaction` y la fila; el dominio **no** ensambla la auditoría.
-- **Origen de `status` y `from_assignee` de auditoría (cierre G2-P1/M3/A1)**: dentro de la `$transaction` en
-  infra hay **dos relecturas** (patrón `attempt()` de 002b), y su orden importa:
-  - **`before = tx.order.findUnique(orderId)` ANTES del UPDATE condicional**: da el `status` (conservado) y el
-    `assigned_to` **antiguo**. De aquí salen `from_status`/`to_status` (= `before.status`, NOT NULL) y
-    `from_assignee` (= `before.assignedTo`, el técnico **anterior**). **Crítico**: `from_assignee` se toma del
-    `before` (pre-UPDATE); tomarlo tras el UPDATE grabaría T2 y corrompería el par origen→destino (G2-M3/S-001).
-  - **UPDATE condicional** (`assigned_to=T2, version+1`, WHERE id ∧ version ∧ status∈{...}).
-  - **Relectura post-UPDATE** (`tx.order.findUniqueOrThrow`) para construir la **fila que se devuelve** (200 +
-    `ETag` con `assigned_to=T2`, `version`+1) — **no** se reconstruye en memoria, se relee (como 002b), para que
-    la respuesta refleje el estado real persistido (G2-M2/H-002).
-  - **No** se usa el `status` del snapshot de visibilidad para la auditoría (evitaría un `from_status` obsoleto
-    si el estado cambió entre la lectura de visibilidad y el UPDATE).
-- **Invariante del módulo write-side (cierre G2-M3/H-003)**: **toda** escritura de `Order` desde
-  `domain/order/write-side/` (`applyTransition` y `reassignOrder`) **incrementa `version`** en la misma
-  operación condicional. Por eso la relectura `before` within-tx nunca queda "stale" respecto al UPDATE: si el
-  estado cambió entremedias, `version` cambió y el `WHERE version=expectedVersion` afecta 0 filas (no se audita
-  con datos obsoletos). Se declara como invariante explícito y se cubre con un test (además del arch test de
-  ubicación T009).
-- **Rationale**: H-008 pedía evitar **divergencia accidental** del patrón atómico (que una ruta olvide la
-  auditoría o el WHERE condicional), NO homogeneizar la clasificación (que debe divergir a propósito: 002b es
-  dominio puro sin endpoint; reasignación expone endpoint y su predicado de visibilidad es el estado). Compartir
-  el boilerplate cierra H-008 sin arriesgar la semántica de 002b.
-- **Alternativas**: (a) función de clasificación única paramétrica → riesgo de cambiar en silencio el código de
-  error de `applyTransition` en una carrera de 002b (rechazada, G2-B2); (b) repo separado para reasignación →
-  duplica el boilerplate atómico y el mapeo P2003→FK (rechazada).
+- **Decisión**: en infra, `order-transition-repository.ts` → `order-write-side-repository.ts` con un helper
+  **privado** `conditionalWriteWithAudit` que comparte **sólo** el boilerplate (SELECT FOR UPDATE + UPDATE
+  condicional + insert auditoría en `$transaction`). **La clasificación de 0-filas NO se comparte**:
+  `applyTransition` conserva su `classifyZeroRows` de 002b (intacto); `reassignOrder` tiene la suya (D-05). El
+  dominio inyecta un puerto de negocio `OrderReassignmentPort.reassign(cmd)` → resultado crudo; **no** conoce
+  `conditionalWriteWithAudit`.
 
-## D-04 · Clasificación de 0-filas con precedencia status > version (S-001/H-006)
+## D-04 · Consulta de visibilidad como puerto inyectado
 
-- **Decisión**: tras un `updateMany` que afecta 0 filas, releer la orden y clasificar **en este orden de
-  evaluación**: (1) no existe → `ORDER_NOT_FOUND` (404); (2) `status ∉ {assigned,in_progress}` →
-  `ORDER_NOT_REASSIGNABLE` que **colapsa a 404** (fuera de ámbito) — **evaluado antes que version**; (3) sólo si
-  sigue reasignable pero `version ≠ expectedVersion` → `VERSION_CONFLICT` (409).
-- **Rationale**: cierra el oráculo 409-vs-404 bajo carrera cruzada reasignación↔transición-FSM (una transición
-  concurrente saca la orden de ámbito **y** bumpea version; si se evaluara version primero se filtraría 409).
-  Diverge conscientemente del `classifyZeroRows` de 002b (que devuelve `VERSION_CONFLICT` antes de estado): la
-  reasignación necesita `ORDER_NOT_REASSIGNABLE→404` con precedencia, porque su predicado de visibilidad **es**
-  el estado (a diferencia de las transiciones internas de 002b, que no exponen endpoint). Este clasificador es
-  **propio de `reassignOrder`** y **no** modifica el de 002b (ver D-03).
-- **`ORDER_NOT_REASSIGNABLE` colapsa a 404 byte-idéntico** (cierre G2-A5/N3, SC-008): es un **diagnóstico
-  interno** (para logs/depuración), **nunca** un `code` distinto en el cuerpo al cliente. **Mecanismo concreto**
-  (no basta con mapearlo a 404, porque el patrón por defecto del catálogo serializa el nombre del `ErrorCode`
-  como `code`): en `error-mapper.ts` se añade un **caso explícito** que, cuando el `DomainError` interno es
-  `ORDER_NOT_REASSIGNABLE`, **reescribe el cuerpo** al de `ORDER_NOT_FOUND` (mismo `code` genérico, sin
-  `details`, mismas cabeceras) **antes de serializar** — es decir, `body.code` sale como `ORDER_NOT_FOUND`. Se
-  añade `ORDER_NOT_REASSIGNABLE` al catálogo `ErrorCode`/`STATUS` (→404) para exhaustividad de `tsc`, pero su
-  serialización al cliente es **idéntica** a `ORDER_NOT_FOUND`. El test de no-enumeración (T018) verifica la
-  igualdad byte a byte.
-- **Alternativas**: reutilizar `classifyZeroRows` de 002b tal cual → reintroduce S-001.
+- **Decisión**: `OrderVisibilityPort.findReassignable(orderId)` → `{id, status, assignedTo, version} | null`
+  (una consulta `WHERE id AND status IN ('assigned','in_progress')`), implementada en infra; el handler **no**
+  usa Prisma directo. Testeable con fakes en unit.
 
-## D-05 · Extensión de OrderAudit + migración (H-007)
+## D-05 · Mutación atómica + auditoría (FR-007) — cómo
 
-- **Decisión**: añadir a `order_audit`: `from_assignee`/`to_assignee` (`@db.Uuid` nullable, FK→User
-  `onDelete:Restrict` como los demás actores) y `event_type` (enum Prisma `OrderAuditEventType`:
-  `transition`|`reassignment`) con **`DEFAULT 'transition'`**. Migración manual SQL: `ALTER TABLE ADD COLUMN`
-  + `CREATE TYPE` + **backfill** implícito de filas legacy a `'transition'` (via DEFAULT) con
-  `from_assignee`/`to_assignee` NULL. El trigger append-only se **conserva** (no se recrea).
-- **Rationale**: append de columnas nullable + DEFAULT es una migración segura y compatible con el trigger
-  (que sólo bloquea UPDATE/DELETE, no ALTER). `applyTransition` sigue escribiendo `event_type='transition'`
-  (por el default) con par de asignatarios NULL; sólo `reassignOrder` escribe `'reassignment'` con el par.
-- **Alternativas**: tabla separada `order_reassignment_audit` → rompe la consulta unificada de auditoría y
-  duplica el trigger; columna `event_type` sin DEFAULT → backfill manual obligatorio y filas legacy en NULL.
-- **Verificación**: test que, tras migrar, las filas de auditoría de 002b tienen `event_type='transition'` y
-  par NULL (trazabilidad "Migración (OrderAudit)").
+- **Decisión**: dentro de `$transaction` en infra: **(1)** `SELECT … FOR UPDATE` de la orden → captura
+  `assigned_to` **previo** (= `from_assignee`) y `status`; **(2)** UPDATE condicional `WHERE id ∧ status ∈
+  {assigned,in_progress} ∧ assigned_to <> :destino` → `SET assigned_to=:destino, version = version+1`; **(3)**
+  si `count=1`, insert de auditoría `reassignment` (`event_type='reassignment'`, `from_status`/`to_status`
+  **NULL**, `from_assignee`=previo, `to_assignee`=destino, `actor_id`, `reason`); **(4)** si `count=0`,
+  reclasificar sobre el row bloqueado: no existe / status no reasignable → **404**; ya asignado al destino →
+  **422** `INVALID_ASSIGNEE`. `from_assignee` sale del **SELECT FOR UPDATE** (valor previo), **no** de
+  `RETURNING` (que daría el post-UPDATE). La fila del 200 se relee post-UPDATE.
+- **Rationale**: `SELECT FOR UPDATE` bloquea la fila → `from_assignee` veraz y guarda anti-carrera con la FSM
+  y contra el no-op de mismo destino, sin necesidad de `version`-guard/409 (last-write-wins entre destinos
+  distintos es aceptado en MVP).
 
-## D-06 · Origen de expectedVersion en flujo base (H-202)
+## D-06 · Orden de validación en el handler (FR-004)
 
-- **Decisión**: en US1 (sin `If-Match`), el servidor **relee** la `version` vigente en la **consulta de
-  visibilidad** de FR-004 y la usa como `expectedVersion` del UPDATE condicional. En US2 (stretch, `If-Match`),
-  `expectedVersion` = la versión enviada por el cliente.
-- **Rationale**: protege la ventana lectura→escritura interna (no lost-update entre dos reasignaciones
-  concurrentes de la misma request-set, escenario 8) sin exigir al cliente enviar versión en el flujo base. El
-  `WHERE` condicional es siempre el árbitro final.
-- **Alternativas**: exigir versión en el body base → fricción de cliente innecesaria (If-Match es el mecanismo
-  estándar y ya es stretch).
+- **Decisión**: (1) `authenticate` → 401; (2) `requireRole('dispatcher')` → 403; (3) resolución de visibilidad
+  → 404: **dentro** de este paso (tras auth) se valida el formato uuid del `orderId` (malformado → mismo 404),
+  luego la consulta; (4) sólo con orden visible: forma del body (Zod, `VALIDATION_ERROR`) y luego destino
+  (`INVALID_ASSIGNEE`). El body **no** se valida como middleware previo. Así 401 precede a todo y el 422 no es
+  alcanzable para orden no visible.
 
-## D-07 · Validez del técnico destino y no-oráculo (S-003/S-006, FR-005) — validación en DOMINIO (cierre G2-A2)
+## D-07 · Validez del técnico destino (FR-005)
 
-- **Decisión**: la validación de destino es **regla de negocio del DOMINIO**, no del handler. El caso de uso
-  `reassign-order.ts` la ejecuta **una sola vez** a través de un **puerto de usuarios inyectado**
-  (`UserLookupPort.findAssignableTechnician(id)` → existe ∧ `role='technician'` ∧ `disabledAt IS NULL`) y compara
-  contra el `assigned_to` **del snapshot de visibilidad** (leído por el puerto D-12). **Lectura única (N7)**: el
-  handler hace **una sola** llamada a `OrderVisibilityPort.findReassignable` y **pasa ese snapshot** al dominio;
-  el dominio **no** dispara una segunda lectura de la orden (evita una ventana TOCTOU entre dos lecturas). El
-  **handler es delgado**: extrae `req.auth`, invoca la visibilidad (puerto D-12) y delega en el dominio; **no**
-  duplica la validación de destino. Cualquier fallo → **422 `INVALID_ASSIGNEE`**, cuerpo **genérico idéntico**
-  para las 4 causas.
-- **Rationale**: evita la doble validación handler↔dominio (H-003/G2-A2) y respeta hexagonal (Constitution III:
-  dominio con la regla, handler orquesta). Cuerpo idéntico cierra el oráculo por contenido (S-003). Paridad de
-  **latencia** entre las 4 causas = residual documentado **BL-064**.
-- **Alternativas**: validar en el handler → viola hexagonal y arriesga divergencia con el dominio (rechazada).
-  `details` con la causa concreta → oráculo de enumeración (rechazada).
+- **Decisión**: en el DOMINIO (`reassign-order.ts` vía `UserLookupPort.findAssignableTechnician`): existe ∧
+  `role='technician'` ∧ `disabledAt IS NULL` ∧ distinto del asignatario actual (del snapshot de visibilidad,
+  lectura única pasada por el handler). Fallo → 422 `INVALID_ASSIGNEE`, cuerpo genérico idéntico (4 causas).
+  TOCTOU (destino invalidado —deshabilitado o borrado— entre validación y commit): residual **BL-063**; la FK
+  de `assigned_to` lo rechaza en el UPDATE.
 
-## D-08 · Contrato de errores con agent_action (gap del error-mapper)
+## D-08 · Contrato de errores con agent_action
 
-- **Decisión**: extender `DomainError` (`domain/result.ts`) con un `agentAction?` opcional y hacer que
-  `sendError` (`handlers/error-mapper.ts`) lo emita como `agent_action` en el cuerpo. Se rellena por código de
-  error con textos accionables (p. ej. 409 → "re-lee la orden y reintenta con la versión vigente").
-- **Rationale**: el contrato OpenAPI y la constitución exigen `{code,message,details?,agent_action}`, pero el
-  `sendError` actual **nunca** escribe `agent_action`. 004 es el primer endpoint que lo necesita en respuestas
-  de negocio. Cambio aditivo y retrocompatible (opcional).
-- **Alternativas**: dejar `agent_action` fuera → incumple contrato/constitución.
+- **Decisión**: extender `DomainError` (`domain/result.ts`) con `agentAction?` opcional; `sendError`
+  (`error-mapper.ts`) lo emite en respuestas de **negocio** (404/409/422/500 del handler), no en 401/403 del
+  middleware reutilizado de 001 (retrocompatible; re-verificar 001/002 verdes). Catálogo: +`INVALID_ASSIGNEE`
+  →422, +`FORBIDDEN_ROLE`→403 (reusa `VALIDATION_ERROR`→422, `ORDER_NOT_FOUND`→404). El error-mapper **no**
+  inspecciona Prisma (genérico).
 
-## D-09 · No-fuga de `reason` por la ruta HTTP real (FR-009, BL-059)
+## D-09 · No-fuga de `reason` y errores de BD (FR-009)
 
-- **Decisión**: verificar que `reason` no aparece en logs de request/response/error ni en el body de error.
-  `REDACT_PATHS` (`infra/logger.ts`) ya incluye `reason` y `*.reason`; añadir explícitamente las rutas anidadas
-  del payload real del endpoint (p. ej. `req.body.reason`) y `err.reason`/`error.cause` si el logger de errores
-  las alcanza. Test: `reason` centinela único + grep negativo sobre logs capturados y sobre el body de error,
-  incluido un caso que fuerza error tras aceptar el payload (SC-006).
-- **Rationale**: el `pino redact` con comodín cubre un nivel; el `reason` anidado en el body de request necesita
-  ruta explícita (BL-059).
+- **Decisión**: ampliar `REDACT_PATHS` (`infra/logger.ts`) para el `reason` anidado (`req.body.reason`,
+  `error.cause`). Catch-all: **todo** error de BD → **500** genérico `{code,message,agent_action}` sin
+  SQLSTATE/constraint/columna/query. **Sin 503** ni mapeo fino de `P2003` (fuera de MVP).
 
-## D-10 · Catch-all de errores de BD → 500 genérico (FR-010, BL-060)
+## D-10 · Migración de OrderAudit (aditiva)
 
-- **Decisión** (conforme a la spec CONGELADA, FR-010): **todo** error de BD que **no** sea la FK del asignatario
-  —deadlock, timeout, BD no disponible/caída, UUID inválido no atrapado antes, constraint futura— colapsa a
-  **500** genérico `{code,message,agent_action}`, sin filtrar SQLSTATE/constraint/columna/query. Un manejador de
-  nivel superior convierte cualquier error no controlado en 500 genérico.
-- **Mapeo `P2003` acotado por constraint — lo traduce INFRA (cierre G2-P4/A1)**: la traducción de errores de
-  Prisma la hace **infra** (`order-write-side-repository.ts`), como el precedente de 002b
-  (`order-transition-repository.ts` traduce `P2003→ACTOR_INVALID` y devuelve un `DomainError` **tipado**); el
-  `error-mapper.ts` del handler **no** inspecciona `Prisma.*`/`meta.field_name` (se mantiene genérico,
-  compartido por 001/002/004 — hexagonal, Constitution III). **Qué FK → qué código** (hay que considerar
-  **cuatro** FK, no tres): el UPDATE de `Order` escribe `assigned_to=T2` (FK `order.assigned_to`→User) y el
-  insert de auditoría tiene `actor_id`/`from_assignee`/`to_assignee`. Un `P2003` por la FK de **destino** —sea
-  `order.assigned_to` **o** `audit.to_assignee`— → **`INVALID_ASSIGNEE` (422)** (ambas significan "el técnico
-  destino ya no existe", p. ej. borrado en la ventana TOCTOU de **BL-063** → residual se manifiesta como 422,
-  como estaba documentado). Un `P2003` por `actor_id` o `from_assignee` (bug interno/carrera) **NO** es destino
-  inválido → **500** genérico. Se inspecciona `meta.field_name`/nombre de constraint; cualquier FK no
-  contemplada → 500 por defecto.
-- **Rationale**: FR-010 (aprobada en G1) fija explícitamente 500 para estos casos; `reassignOrder` **NO** expone
-  503. Evita fuga de detalle de Postgres (BL-060). Test: SC-007 (error ≠ FK → 500 sin detalle, grep negativo).
-- **Reconciliación diferida (BL-066)**: `listOrders` (002a) usa **503** fail-closed para BD no disponible.
-  Distinguir 503 (transitorio-reintentable) de 500 en `reassignOrder` sería una mejora de doctrina, pero
-  **cambia el contrato observable** y contradice la FR-010 congelada; se difiere a **BL-066** (reconciliar la
-  doctrina 503/500 entre endpoints en una **revisión de spec** futura, no en 004).
-- **Alternativas**: añadir 503 ahora → contradice la spec congelada e introduce deriva spec↔plan (rechazada,
-  G2-N1).
+- **Decisión**: `prisma migrate dev --create-only` + edición manual del SQL: `CREATE TYPE
+  OrderAuditEventType` (transition|reassignment); `ADD COLUMN event_type ... NOT NULL DEFAULT 'transition'`
+  (backfill implícito de filas legacy); `ADD COLUMN from_assignee/to_assignee UUID` con FK→User
+  `NOT VALID` + `VALIDATE CONSTRAINT`; **`ALTER COLUMN from_status/to_status DROP NOT NULL`** (relajar a
+  nullable). Conservar el trigger append-only. Sin `@@index(event_type)`.
+- **Rationale**: aditiva y compatible con 002b (sus filas y `applyTransition` no cambian; `applyTransition`
+  sigue escribiendo `event_type='transition'` por el default).
 
-## D-11 · Orden de validación en el handler: visibilidad ANTES que forma del body (cierre G2-B1)
+## D-11 · Concurrencia (MVP: last-write-wins, sin 409)
 
-- **Decisión**: el pipeline del handler ejecuta, en **este orden estricto** (FR-004): (1) `authenticate` →
-  401; (2) `requireRole('dispatcher')` → 403; (3) **consulta de visibilidad** (puerto D-12) → 0 filas ⇒ **404**
-  genérico; (4) **sólo con la orden visible**: parseo/validación de forma del body (Zod `.strict()` + `reason`)
-  y validez de destino → **422** (`VALIDATION_ERROR`/`INVALID_ASSIGNEE`); (5) guarda atómica → 409/200. La
-  validación de forma del body **NO** se monta como middleware previo genérico (patrón habitual de 001/002),
-  sino **dentro del handler, después** de la visibilidad.
-- **Rationale**: garantiza que **ningún 422 es alcanzable para una orden no visible** — el 422 nunca precede al
-  404. Así, para una orden inexistente o no reasignable, la respuesta es **siempre 404** con independencia de si
-  el body es válido (cierra el oráculo 404-vs-422, G2-B1). Verificación: test que cruza **"orden no visible ×
-  body inválido (reason ausente/>500cp / campo extra / assignee_id mal formado)"** → **404** (no 422).
-- **Alternativas**: validar el body como middleware antes de la visibilidad → un body inválido daría 422 antes
-  del 404, desviándose del orden de FR-004 (rechazada, G2-B1). *(Aunque un 422 uniforme por body-inválido no
-  filtra existencia por sí solo, se adopta el orden de FR-004 al pie de la letra para no dejar la garantía
-  dependiente de ese matiz y simplificar el razonamiento de seguridad.)*
-
-## D-12 · Consulta de visibilidad como puerto inyectado (cierre G2-A3) + alcance de "lectura única" (P2)
-
-- **Decisión**: la consulta de visibilidad de FR-004 (`WHERE id=:orderId AND status IN
-  ('assigned','in_progress')`, que decide el 404 y de la que se relee `version`) se expone como **método de
-  puerto inyectado** —`OrderVisibilityPort.findReassignable(orderId)` → `{ id, status, assignedTo, version } |
-  null`— implementado en infra (Prisma); **no** se llama a Prisma directamente desde el handler. Incluye
-  `status` (P1) para que el dominio disponga del estado en su validación/clasificación.
-- **Alcance de "lectura única" (N7, aclarado P2)**: "una sola lectura" se refiere a la **capa handler/dominio**
-  — el handler llama a `OrderVisibilityPort` **una vez** y pasa el snapshot al dominio; el dominio **no**
-  dispara otra lectura de aplicación. La **primitiva atómica de infra** (`reassign`/`conditionalWriteWithAudit`)
-  hace, **dentro de su `$transaction`**, su propia relectura (patrón `attempt()` de 002b) para construir el
-  `WHERE` condicional y el `status` de auditoría (P1): esto **NO** viola N7 —es una operación **within-tx
-  TOCTOU-safe**, no una segunda lectura de capa de aplicación—. La ventana TOCTOU que N7 cierra es entre dos
-  lecturas de **aplicación** (handler + dominio), no la relectura transaccional interna.
-- **Rationale**: respeta la inyección de dependencias; permite **testear la no-enumeración con fakes** en unit y
-  mantiene los handlers sin import de Prisma (hexagonal, Constitution III). Cierra G2-A3/H-004/P2.
-- **Alternativas**: Prisma directo en el handler → fuga de infra sin fake (rechazada); no releer en infra →
-  imposibilita el `WHERE` condicional atómico y el `status` de auditoría (rechazada).
-
-## D-13 · Conteo de longitud de `reason`: code points en ambas capas (cierre G2-M5)
-
-- **Decisión**: el límite `1..500` de `reason` se cuenta en **code points Unicode** en las dos capas. En el
-  contrato OpenAPI, `maxLength`/`minLength` de JSON Schema ya se definen **por code points** (spec JSON Schema),
-  así que ajv cuenta bien. En Zod, **no** usar `.min()/.max()` (cuentan UTF-16 code units) sino un
-  **refinamiento** sobre `[...reason].length` (más el requisito ≥1 carácter imprimible, FR-006).
-- **Rationale**: evita discrepancia entre el contract test (ajv) y el test de FR-006 (Zod) en inputs con
-  caracteres astrales (emoji) en el límite (G2-M5/H-005).
-
-## D-14 · Validación del path param `orderId` → 404 genérico (cierre G2-N5/S-101)
-
-- **Decisión**: el path param `orderId` se valida como **uuid** en el handler, **tras** `authenticate`/
-  `requireRole` y como parte de la resolución de visibilidad. Si `orderId` **no es un uuid válido**, se responde
-  el **mismo 404 genérico byte-idéntico** que `ORDER_NOT_FOUND` (un id malformado no puede corresponder a
-  ninguna orden), **cortocircuitando ANTES de tocar Prisma**.
-- **Rationale**: evita que un `orderId` malformado llegue a Prisma y provoque un cast error `P2023` que la
-  doctrina D-10 mapearía a **500** — lo que abriría una **4ª vía** de respuesta no cubierta por el test
-  byte-idéntico de SC-008. Tratarlo como 404 genérico (no 400) lo integra en la no-enumeración: inexistente,
-  no-reasignable, colapso post-UPDATE y **orderId malformado** dan **todos** el mismo 404. No filtra nada (un
-  id malformado no es un identificador enumerable). El test de no-enumeración (T018) añade esta 4ª vía.
-- **Alternativas**: 400/422 por id malformado → introduce un código distinguible por forma del id (rechazada);
-  dejar que Prisma lance P2023→500 → 4ª vía inconsistente con SC-008 (rechazada, S-101).
-- **Conformidad con la spec congelada (P5)**: tratar un `orderId` sintácticamente inválido como **404** es una
-  **interpretación conforme** de FR-004, no una ampliación del contrato: FR-004 responde 404 para "no existe / no
-  visible", y un identificador que **no puede nombrar ninguna orden** cae en "no existe". El comportamiento
-  observable sigue siendo el **mismo 404 genérico** ya especificado; no añade códigos ni respuestas nuevas, por
-  lo que **no requiere reabrir la spec** (G1 congelado). Se documenta aquí el razonamiento para la trazabilidad.
-- **Fallo de BD durante la visibilidad (P6)**: si `OrderVisibilityPort.findReassignable` falla por un error real
-  de BD, la excepción **propaga** al catch-all → **500** (FR-010); **no** se captura para devolver `null` (que
-  daría un 404 falso, enmascarando una caída). El test de errores lo cubre explícitamente.
+- **Decisión**: la guarda atómica (status ∧ `assigned_to<>destino`) protege contra transición-cruzada y
+  no-op; entre **destinos distintos** concurrentes, **last-write-wins** (ambas legítimas, ambas auditadas con
+  `from_assignee` veraz). `If-Match`→409 explícito = **stretch** (BL-001), no MVP.
