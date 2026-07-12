@@ -18,14 +18,19 @@ Decisiones de diseño alineadas a la spec magra (G1 PASS). Sin `NEEDS CLARIFICAT
   **no cambia de comportamiento** (sólo de ruta de import) — XV.
 - **Rationale**: materializa el "único punto de escritura" e incluye `assigned_to` (el campo que muta 004).
 
-## D-03 · Primitiva atómica compartida (sólo boilerplate)
+## D-03 · Coexistencia write-side SIN forzar primitiva de locking compartida (cierre G2-H-004)
 
-- **Decisión**: en infra, `order-transition-repository.ts` → `order-write-side-repository.ts` con un helper
-  **privado** `conditionalWriteWithAudit` que comparte **sólo** el boilerplate (SELECT FOR UPDATE + UPDATE
-  condicional + insert auditoría en `$transaction`). **La clasificación de 0-filas NO se comparte**:
-  `applyTransition` conserva su `classifyZeroRows` de 002b (intacto); `reassignOrder` tiene la suya (D-05). El
-  dominio inyecta un puerto de negocio `OrderReassignmentPort.reassign(cmd)` → resultado crudo; **no** conoce
-  `conditionalWriteWithAudit`.
+- **Decisión**: en infra, `order-transition-repository.ts` → **renombrar** a `order-write-side-repository.ts`
+  y **añadir** el método `reassign` (nuevo). **`applyTransition` NO cambia su cuerpo**: conserva su lectura
+  **optimista** de 002b (`findUnique` + `updateMany` condicionado por `version`) y su `classifyZeroRows`
+  intactos — **sin cambio de comportamiento/concurrencia** (Constitution XV; verificado por los tests de 002b).
+  `reassign` usa su **propio** camino (SELECT FOR UPDATE + UPDATE condicional + auditoría, D-05). **NO** se
+  fuerza una "primitiva de locking compartida" que impondría `FOR UPDATE` a `applyTransition` (eso lo cambiaría
+  de optimista a pesimista — rechazado). Comparten a lo sumo helpers **sin efecto sobre la estrategia de
+  concurrencia** (p. ej. la forma de insertar la fila de auditoría en la misma `tx`); si no hay boilerplate
+  seguro que compartir, **no se comparte** (mejor duplicar 3 líneas que cambiar 002b).
+- El dominio inyecta un puerto de negocio `OrderReassignmentPort.reassign(cmd)` → resultado crudo
+  `{count, order|null}`; **no** conoce detalles de infra. `reassignOrder` (dominio) clasifica las 0-filas (D-05).
 
 ## D-04 · Consulta de visibilidad como puerto inyectado
 
@@ -36,16 +41,23 @@ Decisiones de diseño alineadas a la spec magra (G1 PASS). Sin `NEEDS CLARIFICAT
 ## D-05 · Mutación atómica + auditoría (FR-007) — cómo
 
 - **Decisión**: dentro de `$transaction` en infra: **(1)** `SELECT … FOR UPDATE` de la orden → captura
-  `assigned_to` **previo** (= `from_assignee`) y `status`; **(2)** UPDATE condicional `WHERE id ∧ status ∈
-  {assigned,in_progress} ∧ assigned_to <> :destino` → `SET assigned_to=:destino, version = version+1`; **(3)**
-  si `count=1`, insert de auditoría `reassignment` (`event_type='reassignment'`, `from_status`/`to_status`
-  **NULL**, `from_assignee`=previo, `to_assignee`=destino, `actor_id`, `reason`); **(4)** si `count=0`,
-  reclasificar sobre el row bloqueado: no existe / status no reasignable → **404**; ya asignado al destino →
-  **422** `INVALID_ASSIGNEE`. `from_assignee` sale del **SELECT FOR UPDATE** (valor previo), **no** de
-  `RETURNING` (que daría el post-UPDATE). La fila del 200 se relee post-UPDATE.
+  `assigned_to` **previo** (= `from_assignee`), `status` y existencia; **(2)** UPDATE condicional `WHERE id ∧
+  status ∈ {assigned,in_progress} ∧ assigned_to IS DISTINCT FROM :destino` → `SET assigned_to=:destino,
+  version = version+1`; **(3)** si `count=1`, insert de auditoría `reassignment` (`event_type='reassignment'`,
+  `from_status`/`to_status` **NULL**, `from_assignee`=previo, `to_assignee`=destino, `actor_id`, `reason`);
+  **(4)** si `count=0`, reclasificar sobre el row bloqueado en **orden de precedencia**: (i) no existe (SELECT
+  no devolvió fila) o `status ∉ {assigned,in_progress}` → **404** (out-of-scope tiene **precedencia**, no
+  revela vía 422); (ii) sólo si sigue reasignable y `assigned_to == destino` → **422** `INVALID_ASSIGNEE`
+  (mismo destino). `from_assignee` sale del **SELECT FOR UPDATE** (valor previo), **no** de `RETURNING`. La
+  fila del 200 se relee post-UPDATE.
+- **`IS DISTINCT FROM` (null-safe, cierre G2-H-001/S-002)**: la guarda de no-op usa `IS DISTINCT FROM` (no
+  `<>`) para que una orden **huérfana** (`assigned_to IS NULL`) reasignada a T2 **coincida** (NULL es distinto
+  de T2) y el UPDATE la afecte → 200. Con `<>` literal, `NULL <> T2` = UNKNOWN excluiría la fila (bug del edge
+  huérfano). El reclasificador de 0-filas también compara `snapshot.assignedTo === destino` en código (no se
+  fía sólo del predicado SQL).
 - **Rationale**: `SELECT FOR UPDATE` bloquea la fila → `from_assignee` veraz y guarda anti-carrera con la FSM
-  y contra el no-op de mismo destino, sin necesidad de `version`-guard/409 (last-write-wins entre destinos
-  distintos es aceptado en MVP).
+  y contra el no-op de mismo destino, sin `version`-guard/409 (last-write-wins entre destinos distintos =
+  aceptado en MVP).
 
 ## D-06 · Orden de validación en el handler (FR-004)
 

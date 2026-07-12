@@ -11,9 +11,10 @@ y se **extiende** `OrderAudit` de forma **aditiva**. Fuente: `backend/prisma/sch
 | `version` (`Int @default(0)`) | +1 |
 | `status` (`OrderStatus`) | **se conserva** |
 
-Guarda de escritura: `SELECT … FOR UPDATE` (captura previo) → UPDATE condicional `WHERE id ∧ version… no,
-sólo id ∧ status IN ('assigned','in_progress') ∧ assigned_to <> :destino` → `SET assigned_to=:destino,
-version=version+1`. (Sin guarda de `version`/409 en el MVP; ver research D-11.)
+Guarda de escritura: `SELECT … FOR UPDATE` (captura previo) → UPDATE condicional
+`WHERE id ∧ status IN ('assigned','in_progress') ∧ assigned_to IS DISTINCT FROM :destino`
+→ `SET assigned_to=:destino, version=version+1`. **`IS DISTINCT FROM`** (no `<>`) para que la orden huérfana
+(`assigned_to IS NULL`) sí sea reasignable (research D-05/G2-H-001). Sin guarda de `version`/409 en el MVP.
 
 ## OrderAudit (extendida — aditiva)
 
@@ -54,12 +55,22 @@ enum OrderAuditEventType { transition  reassignment }
    luego `VALIDATE CONSTRAINT` (evita lock largo).
 4. `ALTER TABLE "order_audit" ADD COLUMN "to_assignee" UUID;` + FK igual.
 5. `ALTER TABLE "order_audit" ALTER COLUMN "from_status" DROP NOT NULL; ALTER COLUMN "to_status" DROP NOT NULL;`
-6. **Conservar** el trigger append-only (no recrear). Sin `@@index(event_type)`.
+6. **CHECK constraints** que hacen cumplir los invariantes por `event_type` a nivel de BD (defensa en
+   profundidad más allá del arch-test — cierre G2-H-003; tabla forense inmutable):
+   - `CHECK (event_type <> 'reassignment' OR (from_status IS NULL AND to_status IS NULL AND to_assignee IS NOT NULL))`
+   - `CHECK (event_type <> 'transition' OR (from_status IS NOT NULL AND to_status IS NOT NULL AND from_assignee IS NULL AND to_assignee IS NULL))`
+   (Se añaden con `NOT VALID` + `VALIDATE CONSTRAINT`; las filas legacy ya son `transition` coherentes.)
+7. **Conservar** el trigger append-only (no recrear). Sin `@@index(event_type)`.
 
-`down.sql`: revertir (Prisma no lo ejecuta solo; documentado en quickstart).
+**`down.sql` — reversibilidad parcial (M10, cierre G2-H-002)**: revierte `DROP` de las columnas añadidas
+(`event_type`, `from_assignee`, `to_assignee`), los CHECK y el `TYPE`. **NO** puede re-imponer `NOT NULL` en
+`from_status`/`to_status` si ya existen filas `reassignment` (las tienen NULL por diseño, y la tabla es
+**append-only** — no se reescriben filas forenses). Por tanto el reverso deja esas dos columnas **nullable**
+(reverso aditivo seguro); re-endurecerlas es imposible sin violar la inmutabilidad. Limitación **documentada**
+(coherente con append-only); Prisma no ejecuta `down.sql` solo.
 
 **Verificación** (test): tras migrar, las filas legacy tienen `event_type='transition'`, `from_assignee`/
-`to_assignee` NULL; el trigger sigue rechazando UPDATE/DELETE.
+`to_assignee` NULL; los CHECK rechazan filas incoherentes; el trigger sigue rechazando UPDATE/DELETE.
 
 ## Relaciones
 

@@ -80,6 +80,11 @@ backend/
 contracts/orders.openapi.yaml           # +POST .../reassignments (200/401/403/404/422/500)
 ```
 
+**Assumptions clave** (cierre G2): las órdenes **no se borran físicamente** en el sistema (no hay endpoint de
+delete; `Order.assigned_to` usa `onDelete:SetNull` sólo al borrar un `User`) → el `SELECT … FOR UPDATE` de
+FR-007 siempre encuentra la fila salvo id inexistente, que se maneja como 404 (K-001). `applyTransition` de
+002b **no cambia** su estrategia de concurrencia (optimista) al añadir `reassign` al repo (H-004).
+
 **Structure Decision**: web service hexagonal, solo `backend/`. Se crea `domain/order/write-side/` (reubica
 `apply-transition.ts`, añade `reassign-order.ts`) como **único punto de escritura** de `status`/`version`/
 `assigned_to` (arch test, reconcilia FR-006 de 002b). En infra, `order-transition-repository.ts` →
