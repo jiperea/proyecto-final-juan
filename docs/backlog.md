@@ -273,4 +273,13 @@
   hizo en 004 para no reabrir la spec congelada ni introducir deriva spec↔plan). Aplica a los endpoints de
   escritura de 005/006 también.
 
+- **BL-067** (fundación · gobernanza) — **Reconciliar contradicción interna de la constitution sobre XI
+  (auditoría de accesos denegados)** (G1-004 magra · rbac:S-006): Governance declara que los principios de
+  seguridad (IV/IX/XI) **no son excepcionables** ("deben resolverse, no sortearse"), pero el bloque MVP/Stretch
+  clasifica la **auditoría forense de accesos denegados** (401/403/404) como stretch que no bloquea gate. Las
+  features (001/002b/004) la difieren (BL-002) apoyándose en el bloque MVP/Stretch. Resolver a **nivel de
+  fundación** (rama de gobernanza, ADR): o se reconoce como excepción trazada, o se implementa un registro
+  mínimo de accesos denegados transversal. **No se resuelve embebiéndolo en una feature de negocio.** No tocar
+  la constitution sin verificar fidelidad al brief (docs/00-brief-original.md).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

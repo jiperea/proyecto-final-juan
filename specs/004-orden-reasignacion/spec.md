@@ -126,19 +126,21 @@ reasignable o un técnico destino inválido son rechazados **sin efecto**.
   válido = 1..500 code points con ≥1 carácter imprimible.)* Se distingue de `INVALID_ASSIGNEE` (FR-005): éste
   aplica sólo a un `assignee_id` **uuid válido** que no resuelve a destino elegible. `reason` es **obligatorio**
   en reasignación (a diferencia del opcional de 002b a nivel de dominio).
-- **FR-007** *(mutación atómica condicional + auditoría append-only)*: THE cambio de `assigned_to` SHALL
-  aplicarse mediante un **UPDATE condicional atómico** cuyo `WHERE` revalida, dentro de la misma operación,
-  `id` **y** `status ∈ {assigned, in_progress}` (guarda anti-carrera con la FSM). En **una sola transacción**
-  (todo o nada): (a) `assigned_to`→destino, (b) `version`+1, (c) inserción de la fila de auditoría, con
-  `from_assignee` = el `assigned_to` **anterior leído atómicamente del row actualizado** (p. ej. `RETURNING` /
-  lectura within-tx), **nunca** de una lectura previa potencialmente obsoleta. **Si el UPDATE afecta 0 filas**
-  (la orden dejó de ser reasignable entre la visibilidad de FR-004 y el commit, p. ej. una transición FSM
-  concurrente), THE sistema SHALL responder **404** genérico —sin mutar la orden ni insertar auditoría— (nunca
-  un 200 con auditoría "fantasma"). Si cualquier paso falla, la transacción **revierte** por completo. La
-  auditoría es **append-only inmutable** (trigger de BD de 002b, conservado). `status`, `version` **y
-  `assigned_to`** sólo se mutan desde el **módulo write-side del dominio** (junto a `applyTransition`), nunca
-  por un camino ad-hoc — **verificable por test de arquitectura** (regla de imports/dependency-cruiser o grep
-  sobre el árbol: ningún fichero fuera de ese módulo escribe esos campos).
+- **FR-007** *(mutación atómica condicional + auditoría append-only)*: THE cambio SHALL aplicarse en **una sola
+  transacción** (todo o nada): (1) se **lee la orden con bloqueo** (`SELECT … FOR UPDATE`) dentro de la
+  transacción, capturando el `assigned_to` **anterior** y el `status` vigentes —de aquí sale `from_assignee`
+  (valor previo, no `RETURNING` que devolvería el nuevo)—; (2) **UPDATE condicional** cuyo `WHERE` revalida
+  `id` **∧** `status ∈ {assigned, in_progress}` (guarda anti-carrera con la FSM) **∧** `assigned_to <>
+  :destino` (guarda de no-op / mismo asignatario bajo concurrencia); (3) `version`+1; (4) inserción de la fila
+  de auditoría (`from_assignee` = valor previo del paso 1, `to_assignee` = destino). **Si el UPDATE afecta 0
+  filas**, THE sistema re-clasifica sobre la fila bloqueada, **sin mutar ni auditar** (nunca un 200 fantasma):
+  (a) orden inexistente o `status` no reasignable (salió de ámbito entre FR-004 y el commit) → **404** genérico;
+  (b) `assigned_to` ya es el destino (carrera de mismo destino) → **422** `INVALID_ASSIGNEE` (mismo que el
+  actual, coherente con FR-005). Si cualquier paso falla, la transacción **revierte**. La auditoría es
+  **append-only inmutable** (trigger de BD de 002b, conservado). `status`, `version` **y `assigned_to`** sólo se
+  mutan desde el **módulo write-side del dominio** (junto a `applyTransition`), nunca por un camino ad-hoc —
+  **verificable por test de arquitectura** (regla de imports/dependency-cruiser o grep sobre el árbol: ningún
+  fichero fuera de ese módulo escribe esos campos).
 - **FR-008** *(actor infalsificable)*: THE `actor_id` de la auditoría SHALL derivarse **exclusivamente** del
   contexto de autenticación verificado server-side (el `userId` del token de 001), **nunca** de un parámetro de
   la request.
@@ -159,7 +161,10 @@ con el HTTP correcto; `reason` y detalle de Postgres nunca aparecen en el cuerpo
   `from_assignee`/`to_assignee` (FK→User, nullable) y `event_type` (`transition`|`reassignment`), y se
   **relajan** `from_status`/`to_status` a **nullable**. En una reasignación: `event_type='reassignment'`,
   `from_status`/`to_status` = **NULL** (no cambia estado), par origen→destino en `from_assignee`/`to_assignee`.
-  Rastro inmutable de quién/cuándo/de-quién→a-quién/por qué.
+  Rastro inmutable de quién/cuándo/de-quién→a-quién/por qué. **Migración**: `event_type` se crea con
+  **`DEFAULT 'transition'`** y se hace **backfill** de las filas históricas de 002b a `'transition'` (todas
+  eran transiciones); `from_assignee`/`to_assignee` quedan NULL en esas filas legacy. Migración aditiva; se
+  conserva el trigger append-only. `applyTransition` de 002b no cambia (sigue escribiendo `transition`).
 - **User** (existente, 001): el técnico destino debe existir y tener rol **technician** activo; el actor debe
   ser **dispatcher**.
 
@@ -180,7 +185,10 @@ con el HTTP correcto; `reason` y detalle de Postgres nunca aparecen en el cuerpo
 - **SC-004** *(no-enumeración)*: las respuestas 404 "no existe", "no visible" y "orderId inválido" tienen el
   **mismo cuerpo genérico** (mismo `code`, sin `details`); verificado por igualdad del cuerpo en test.
 - **SC-005** *(técnico destino inválido)*: el 100% de los destinos inválidos (inexistente / no-technician /
-  deshabilitado / igual al actual) responden **422** `INVALID_ASSIGNEE` con cuerpo genérico idéntico, sin efecto.
+  deshabilitado / igual al actual) responden **422** `INVALID_ASSIGNEE` con cuerpo genérico idéntico, sin
+  efecto. **Bajo concurrencia de mismo destino** (dos peticiones a T2 sobre una orden `assigned_to=T1`):
+  exactamente **una** tiene éxito (200, 1 auditoría) y la otra → **422** por la guarda `assigned_to <> destino`
+  de FR-007 (no se crea una fila de auditoría no-op `from=T2/to=T2`).
 - **SC-006** *(motivo inválido)*: el 100% de los `reason` ausentes/vacíos/whitespace/>500 responden **422**
   `VALIDATION_ERROR`, sin efecto.
 - **SC-007** *(atomicidad)*: WHEN se fuerza el fallo de la inserción de auditoría dentro de la transacción, THE
@@ -259,6 +267,14 @@ cuantificada.
 - **Auditoría forense de accesos denegados** (401/403/404: actor/endpoint/recurso): **desviación explícita de
   Constitution XI** (que lo exige sin condicional), diferida a **BL-002** y justificada en **Complexity
   Tracking del plan** (no es endurecimiento opcional ordinario, sino excepción a un principio inamovible —
-  heredada de 001/002b). Cifrado en reposo de `reason` (BL-051); purga PII (BL-055).
+  heredada de 001/002b). **Tensión de gobernanza (S-006, no la resuelve 004)**: Governance dice que los
+  principios de seguridad (IV/IX/XI) **no son excepcionables**, pero el bloque MVP/Stretch de la constitution
+  clasifica la auditoría forense como stretch; esa contradicción **interna de la constitution** debe
+  reconciliarse **a nivel de fundación** (registrado **BL-067**), no en esta feature — 004 sólo la hereda sin
+  agravarla. *(No se toca la constitution aquí; sólo se registra para gobernanza.)*
+- **Threat modeling STRIDE explícito** (S-007, BAJA): el análisis de amenazas está cubierto de facto en
+  Clarifications/FRs (no-enumeración 401/403/404, TOCTOU de destino BL-063, actor infalsificable, no-fuga de
+  PII); una sección STRIDE formal es opcional para esta feature (la convención la pide para features
+  especialmente sensibles como 001). Cifrado en reposo de `reason` (BL-051); purga PII (BL-055).
 - Creación/alta de órdenes, ejecución (roadmap 004), revisión (roadmap 005), resumen IA (roadmap 006),
   notificaciones, multi-tenant.
