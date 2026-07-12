@@ -40,6 +40,10 @@ Esquema actual (002b): `{ id, order_id, actor_id, from_status, to_status, reason
 - `reassignment` (escrito por `reassignOrder`): `from_status == to_status` (estado conservado);
   `to_assignee` **NOT NULL** (destino válido T2); `from_assignee` nullable (NULL si orden huérfana); `reason`
   **NOT NULL** (1..500 code points, ≥1 carácter imprimible — obligatorio en reasignación, FR-006).
+  **Origen del `status`** (research D-03/P1): el valor de `from_status`/`to_status` lo obtiene la primitiva de
+  infra por **relectura dentro de la misma `$transaction`** (patrón `attempt()` de 002b), tras confirmar el
+  UPDATE condicional — no del snapshot de visibilidad (evita grabar un estado obsoleto). El ensamblado de la
+  fila de auditoría ocurre en **infra**, no en el dominio.
 
 **Regla de escritura**: exactamente **1** fila de auditoría por reasignación exitosa, en la **misma
 transacción** que el UPDATE de `Order` (atomicidad todo-o-nada, FR-007). Ningún rechazo (401/403/404/409/422/

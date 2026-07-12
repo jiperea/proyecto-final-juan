@@ -106,7 +106,7 @@ backend/
 │   │       ├── write-side/                 # NUEVO módulo (único punto de escritura status/version)
 │   │       │   ├── apply-transition.ts     # REUBICADO desde domain/order/ (002b) — clasificador 002b INTACTO
 │   │       │   ├── reassign-order.ts       # NUEVO caso de uso; valida destino (dominio) + clasificador propio status>version
-│   │       │   └── write-side-ports.ts     # primitiva atómica compartida (solo boilerplate) + OrderVisibilityPort + UserLookupPort + errores
+│   │       │   └── write-side-ports.ts     # puertos de negocio: OrderReassignmentPort + OrderVisibilityPort + UserLookupPort + errores (NO expone conditionalWriteWithAudit, que es privado de infra)
 │   │       ├── transition-table.ts         # FSM (sin cambios; reasignación NO añade pares)
 │   │       ├── scope-policy.ts             # orderScopeFor(dispatcher) reutilizado para visibilidad
 │   │       └── model.ts
@@ -148,8 +148,15 @@ Decisiones de diseño clave que cierran G2 (ver research.md D-11..D-13):
   directo (testeable con fakes).
 - **`ORDER_NOT_REASSIGNABLE`** colapsa a 404 **byte-idéntico** a `ORDER_NOT_FOUND` (caso explícito en
   `error-mapper` que reescribe `body.code`) (D-04, G2-A5/N3).
-- **Clasificación de 0-filas**: la primitiva atómica devuelve **snapshot crudo**; **el dominio clasifica** con
-  precedencia status>version; `applyTransition` de 002b intacto (D-03, G2-N2).
+- **Clasificación de 0-filas**: el puerto de negocio `OrderReassignmentPort.reassign` (impl infra) devuelve
+  **resultado crudo** `{count, order|null}`; **el dominio clasifica** con precedencia status>version;
+  `applyTransition` de 002b intacto (D-03, G2-N2/P3). `conditionalWriteWithAudit` es **privado de infra**.
+- **Auditoría de reasignación**: la ensambla **infra** dentro de la `$transaction`; `from_status==to_status` =
+  `status` releído within-tx (patrón 002b), no el del snapshot de visibilidad (D-03, G2-P1). El snapshot de
+  visibilidad incluye `status` (`{id,status,assignedTo,version}`). "Lectura única" (N7) = capa handler/dominio;
+  la relectura within-tx de infra es esperada y TOCTOU-safe (D-12, G2-P2).
+- **`P2003`** → `INVALID_ASSIGNEE` (422) **sólo** para la FK de `to_assignee`; `actor_id`/`from_assignee` → 500
+  (D-10, G2-P4).
 - **Errores de BD**: **todo** error de BD ≠ FK-asignatario (incl. BD no disponible) → **500** genérico,
   conforme a la FR-010 congelada (D-10); reconciliación 503-vs-500 diferida a **BL-066**.
 - **`orderId` malformado** (no uuid) → **404 genérico byte-idéntico** antes de Prisma (D-14, G2-N5).

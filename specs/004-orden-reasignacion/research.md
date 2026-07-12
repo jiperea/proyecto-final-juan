@@ -35,16 +35,29 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   **misma** `$transaction`. `applyTransition` y `reassignOrder` lo consumen con distinto `data`/`audit`.
 - **Lo que se comparte es SOLO el boilerplate** (el UPDATE condicional + insert de auditoría transaccional).
   La **clasificación de 0-filas NO se comparte** y **NO** se fusiona en una función paramétrica única.
-- **Contrato de retorno de la primitiva (cierre G2-N2)**: `conditionalWriteWithAudit` devuelve un resultado
-  **crudo, sin clasificar**: en éxito `{ count: 1, order: <fila actualizada> }`; en 0 filas
-  `{ count: 0, order: <snapshot re-leído {id,status,version}> | null }` (null si la orden no existe). **No**
-  devuelve `DomainError` ni decide 404/409. La decisión de qué error corresponde la toma **quien llama**:
+- **Puerto de dominio con nombre de negocio (cierre G2-P3)**: el DOMINIO **no** conoce `conditionalWriteWithAudit`
+  (helper privado de infra). El dominio inyecta un **puerto de negocio** `OrderReassignmentPort.reassign(cmd)`
+  (en `write-side-ports.ts`), cuyo `cmd = {orderId, assigneeId, actorId, reason, expectedVersion}`. `reassign`
+  devuelve un **resultado crudo, sin clasificar**: en éxito `{ count: 1, order: <fila> }`; en 0 filas
+  `{ count: 0, order: <snapshot {id,status,assignedTo,version}> | null }` (null si no existe). El nombre
+  `conditionalWriteWithAudit` es un **detalle interno privado** de `order-write-side-repository.ts`, nunca un
+  símbolo del puerto de dominio.
+- **Quién clasifica / quién audita**:
   - `applyTransition` **conserva intacto** su camino de 002b: su `classifyZeroRows`
     (NOT_FOUND → VERSION_CONFLICT → INVALID_TRANSITION → GUARD_UNMET, version-first) **no se toca**. **Sin
     cambio de comportamiento** (Constitution XV) — los tests de 002b siguen verdes (T008).
-  - `reassignOrder` (DOMINIO, `reassign-order.ts`) recibe ese snapshot crudo y aplica su **propio clasificador**
-    con **precedencia status>version** (D-04). Por eso el unit test de dominio (con un **fake** de la primitiva
-    que devuelve snapshots) prueba la **clasificación real**, no una reimplementación paralela.
+  - `reassignOrder` (DOMINIO, `reassign-order.ts`) recibe el resultado crudo de `OrderReassignmentPort` y aplica
+    su **propio clasificador** con **precedencia status>version** (D-04). El unit test de dominio (con un
+    **fake** del puerto que devuelve snapshots) prueba la **clasificación real**.
+  - El **ensamblado de la fila de auditoría** de reasignación (`event_type='reassignment'`, `from_assignee`,
+    `to_assignee`, `from_status==to_status`) ocurre en **INFRA** (dentro de `reassign`), que es quien tiene la
+    `$transaction` y la fila; el dominio **no** ensambla la auditoría.
+- **Origen del `status` de auditoría (cierre G2-P1)**: `from_status`/`to_status` de la fila de auditoría
+  (NOT NULL, heredadas de 002b) = el **estado real de la orden**, obtenido por una **relectura dentro de la
+  misma `$transaction`** en infra (patrón `attempt()` de 002b: `before = tx.order.findUnique`), tras confirmar
+  el UPDATE condicional (`count=1`). Como la reasignación **conserva** el estado, `from_status == to_status ==`
+  ese `status` leído. **No** se usa el `status` del snapshot de visibilidad para la auditoría (evita que un
+  cambio `assigned↔in_progress` entre la lectura de visibilidad y el UPDATE grabe un `from_status` obsoleto).
 - **Rationale**: H-008 pedía evitar **divergencia accidental** del patrón atómico (que una ruta olvide la
   auditoría o el WHERE condicional), NO homogeneizar la clasificación (que debe divergir a propósito: 002b es
   dominio puro sin endpoint; reasignación expone endpoint y su predicado de visibilidad es el estado). Compartir
@@ -143,9 +156,13 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
 
 - **Decisión** (conforme a la spec CONGELADA, FR-010): **todo** error de BD que **no** sea la FK del asignatario
   —deadlock, timeout, BD no disponible/caída, UUID inválido no atrapado antes, constraint futura— colapsa a
-  **500** genérico `{code,message,agent_action}`, sin filtrar SQLSTATE/constraint/columna/query. La FK del
-  asignatario (Postgres `P2003`) → `INVALID_ASSIGNEE` (422). Un manejador de nivel superior convierte cualquier
-  error no controlado en 500 genérico.
+  **500** genérico `{code,message,agent_action}`, sin filtrar SQLSTATE/constraint/columna/query. Un manejador de
+  nivel superior convierte cualquier error no controlado en 500 genérico.
+- **Mapeo `P2003` acotado por constraint (cierre G2-P4)**: el insert de auditoría tiene **tres** FK
+  `onDelete:Restrict` (`actor_id`, `from_assignee`, `to_assignee`). El mapeo `P2003 → INVALID_ASSIGNEE (422)`
+  aplica **sólo** cuando la constraint violada es la de **`to_assignee`** (destino) — se inspecciona
+  `error.meta.field_name`/nombre de constraint. Una violación de `actor_id` o `from_assignee` (bug interno o
+  carrera) **NO** es "destino inválido": → **500** genérico (fallo del sistema, no culpa del cliente).
 - **Rationale**: FR-010 (aprobada en G1) fija explícitamente 500 para estos casos; `reassignOrder` **NO** expone
   503. Evita fuga de detalle de Postgres (BL-060). Test: SC-007 (error ≠ FK → 500 sin detalle, grep negativo).
 - **Reconciliación diferida (BL-066)**: `listOrders` (002a) usa **503** fail-closed para BD no disponible.
@@ -172,16 +189,24 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   filtra existencia por sí solo, se adopta el orden de FR-004 al pie de la letra para no dejar la garantía
   dependiente de ese matiz y simplificar el razonamiento de seguridad.)*
 
-## D-12 · Consulta de visibilidad como puerto inyectado (cierre G2-A3)
+## D-12 · Consulta de visibilidad como puerto inyectado (cierre G2-A3) + alcance de "lectura única" (P2)
 
 - **Decisión**: la consulta de visibilidad de FR-004 (`WHERE id=:orderId AND status IN
   ('assigned','in_progress')`, que decide el 404 y de la que se relee `version`) se expone como **método de
-  puerto inyectado** —`OrderVisibilityPort.findReassignable(orderId)` → `{ id, assignedTo, version } | null`—
-  implementado en infra (Prisma); **no** se llama a Prisma directamente desde el handler.
-- **Rationale**: respeta la inyección de dependencias del Constitution Check; permite **testear la
-  no-enumeración con fakes** en unit (no sólo integración) y mantiene los handlers sin import de Prisma
-  (hexagonal, Constitution III). Cierra G2-A3/H-004.
-- **Alternativas**: Prisma directo en el handler → fuga de infra sin fake (rechazada).
+  puerto inyectado** —`OrderVisibilityPort.findReassignable(orderId)` → `{ id, status, assignedTo, version } |
+  null`— implementado en infra (Prisma); **no** se llama a Prisma directamente desde el handler. Incluye
+  `status` (P1) para que el dominio disponga del estado en su validación/clasificación.
+- **Alcance de "lectura única" (N7, aclarado P2)**: "una sola lectura" se refiere a la **capa handler/dominio**
+  — el handler llama a `OrderVisibilityPort` **una vez** y pasa el snapshot al dominio; el dominio **no**
+  dispara otra lectura de aplicación. La **primitiva atómica de infra** (`reassign`/`conditionalWriteWithAudit`)
+  hace, **dentro de su `$transaction`**, su propia relectura (patrón `attempt()` de 002b) para construir el
+  `WHERE` condicional y el `status` de auditoría (P1): esto **NO** viola N7 —es una operación **within-tx
+  TOCTOU-safe**, no una segunda lectura de capa de aplicación—. La ventana TOCTOU que N7 cierra es entre dos
+  lecturas de **aplicación** (handler + dominio), no la relectura transaccional interna.
+- **Rationale**: respeta la inyección de dependencias; permite **testear la no-enumeración con fakes** en unit y
+  mantiene los handlers sin import de Prisma (hexagonal, Constitution III). Cierra G2-A3/H-004/P2.
+- **Alternativas**: Prisma directo en el handler → fuga de infra sin fake (rechazada); no releer en infra →
+  imposibilita el `WHERE` condicional atómico y el `status` de auditoría (rechazada).
 
 ## D-13 · Conteo de longitud de `reason`: code points en ambas capas (cierre G2-M5)
 
@@ -205,3 +230,11 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   id malformado no es un identificador enumerable). El test de no-enumeración (T018) añade esta 4ª vía.
 - **Alternativas**: 400/422 por id malformado → introduce un código distinguible por forma del id (rechazada);
   dejar que Prisma lance P2023→500 → 4ª vía inconsistente con SC-008 (rechazada, S-101).
+- **Conformidad con la spec congelada (P5)**: tratar un `orderId` sintácticamente inválido como **404** es una
+  **interpretación conforme** de FR-004, no una ampliación del contrato: FR-004 responde 404 para "no existe / no
+  visible", y un identificador que **no puede nombrar ninguna orden** cae en "no existe". El comportamiento
+  observable sigue siendo el **mismo 404 genérico** ya especificado; no añade códigos ni respuestas nuevas, por
+  lo que **no requiere reabrir la spec** (G1 congelado). Se documenta aquí el razonamiento para la trazabilidad.
+- **Fallo de BD durante la visibilidad (P6)**: si `OrderVisibilityPort.findReassignable` falla por un error real
+  de BD, la excepción **propaga** al catch-all → **500** (FR-010); **no** se captura para devolver `null` (que
+  daría un 404 falso, enmascarando una caída). El test de errores lo cubre explícitamente.
