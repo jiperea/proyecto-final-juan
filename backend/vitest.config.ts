@@ -6,6 +6,10 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.spec.ts'],
+    // Suite de integración sobre Postgres COMPARTIDO: ejecutar los ficheros EN SERIE evita el agotamiento del
+    // pool de conexiones (cada test-file abre su PrismaClient) y las carreras de datos entre ficheros sobre la
+    // misma BD (p. ej. conteos de listas por rol). Determinista > rápido para tests con BD real.
+    fileParallelism: false,
     // unit: sin BD · integration/contract: BD real (docker-compose, BD de test)
     coverage: {
       provider: 'v8',

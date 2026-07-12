@@ -13,13 +13,13 @@ afterAll(async () => {
 
 describe('migración OrderAudit (004) — aditiva, backfill, invariantes, trigger (T006/H-003)', () => {
   it("una transición (002b) audita event_type='transition' con from/to_assignee NULL", async () => {
-    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.technician.id, version: 0 });
+    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.reassignSrc.id, version: 0 });
     const res = await repo.applyTransition({
       orderId: o.id,
       toStatus: 'in_progress',
-      actorId: SEED_USERS.technician.id,
+      actorId: SEED_USERS.reassignSrc.id,
       expectedVersion: 0,
-      guard: { assignedTo: SEED_USERS.technician.id },
+      guard: { assignedTo: SEED_USERS.reassignSrc.id },
     });
     expect(res.ok).toBe(true);
     const audit = await prisma.orderAudit.findFirst({ where: { orderId: o.id } });
@@ -31,7 +31,7 @@ describe('migración OrderAudit (004) — aditiva, backfill, invariantes, trigge
   });
 
   it('el trigger append-only sigue rechazando UPDATE y DELETE sobre order_audit', async () => {
-    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.technician.id });
+    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.reassignSrc.id });
     const auditId = uuidv7();
     await prisma.orderAudit.create({
       data: {
@@ -41,8 +41,8 @@ describe('migración OrderAudit (004) — aditiva, backfill, invariantes, trigge
         eventType: 'reassignment',
         fromStatus: null,
         toStatus: null,
-        fromAssignee: SEED_USERS.technician.id,
-        toAssignee: SEED_USERS.technician2.id,
+        fromAssignee: SEED_USERS.reassignSrc.id,
+        toAssignee: SEED_USERS.reassignDst.id,
         reason: 'seed',
       },
     });
@@ -53,7 +53,7 @@ describe('migración OrderAudit (004) — aditiva, backfill, invariantes, trigge
   });
 
   it('el CHECK rechaza una fila reassignment con from_status no nulo (invariante H-003)', async () => {
-    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.technician.id });
+    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.reassignSrc.id });
     await expect(
       prisma.orderAudit.create({
         data: {
@@ -63,7 +63,7 @@ describe('migración OrderAudit (004) — aditiva, backfill, invariantes, trigge
           eventType: 'reassignment',
           fromStatus: 'assigned', // viola el CHECK (reassignment ⇒ from_status NULL)
           toStatus: null,
-          toAssignee: SEED_USERS.technician2.id,
+          toAssignee: SEED_USERS.reassignDst.id,
           reason: 'invalida',
         },
       }),

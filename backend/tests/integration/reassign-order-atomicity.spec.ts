@@ -16,21 +16,21 @@ describe('reassignOrder — atomicidad todo-o-nada (SC-007, FR-007)', () => {
   it('si el insert de auditoría falla (actor_id FK inválida), la orden NO queda reasignada ni se audita', async () => {
     const o = await makeOrder(prisma, {
       status: 'assigned',
-      assignedTo: SEED_USERS.technician.id,
+      assignedTo: SEED_USERS.reassignSrc.id,
       version: 0,
     });
     // actorId inexistente → la FK del INSERT de auditoría revienta DENTRO de la tx → rollback del UPDATE.
     await expect(
       repo.reassign({
         orderId: o.id,
-        assigneeId: SEED_USERS.technician2.id,
+        assigneeId: SEED_USERS.reassignDst.id,
         reason: 'motivo',
         actorId: NONEXISTENT_ACTOR,
       }),
     ).rejects.toThrow(); // el error de BD se propaga (el handler lo mapea a 500 genérico)
 
     const fresh = await prisma.order.findUnique({ where: { id: o.id } });
-    expect(fresh?.assignedTo).toBe(SEED_USERS.technician.id); // intacto
+    expect(fresh?.assignedTo).toBe(SEED_USERS.reassignSrc.id); // intacto
     expect(fresh?.version).toBe(0); // intacto
     const audits = await prisma.orderAudit.findMany({ where: { orderId: o.id } });
     expect(audits).toHaveLength(0); // sin auditoría

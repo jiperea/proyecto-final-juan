@@ -59,6 +59,20 @@ export const SEED_USERS = {
     username: 'technician3',
     role: 'technician',
   },
+  // 004 — técnicos DEDICADOS a los tests de reasignación (aislamiento: sus listas no las asevera 002a,
+  // evita la carrera de conteo con FR-015 sobre technician1). No se siembran órdenes para ellos.
+  reassignSrc: {
+    id: '018f1000-0000-7000-8000-000000000008',
+    email: 'reassign-src@fieldops.test',
+    username: 'reassignsrc',
+    role: 'technician',
+  },
+  reassignDst: {
+    id: '018f1000-0000-7000-8000-000000000009',
+    email: 'reassign-dst@fieldops.test',
+    username: 'reassigndst',
+    role: 'technician',
+  },
 } as const satisfies Record<string, SeedUser>;
 
 // 002a — anclas de órdenes para tests deterministas (IDOR, tiebreak). El resto se genera como relleno.

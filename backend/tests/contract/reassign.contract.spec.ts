@@ -30,21 +30,21 @@ const ORDER_KEYS = [
 
 describe('reassignOrder — contrato (forma por código, OpenAPI)', () => {
   it('200 → forma exacta de Order (sin claves extra)', async () => {
-    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.technician.id });
+    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.reassignSrc.id });
     const res = await request(app)
       .post(`/v1/orders/${o.id}/reassignments`)
       .set('Authorization', `Bearer ${disp}`)
-      .send({ assignee_id: SEED_USERS.technician2.id, reason: 'motivo' });
+      .send({ assignee_id: SEED_USERS.reassignDst.id, reason: 'motivo' });
     expect(res.status).toBe(200);
     expect(Object.keys(res.body).sort()).toEqual(ORDER_KEYS);
   });
 
   it('422 INVALID_ASSIGNEE → {code,message,agent_action}, sin details reveladores', async () => {
-    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.technician.id });
+    const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.reassignSrc.id });
     const res = await request(app)
       .post(`/v1/orders/${o.id}/reassignments`)
       .set('Authorization', `Bearer ${disp}`)
-      .send({ assignee_id: SEED_USERS.technician.id, reason: 'm' }); // mismo que el actual
+      .send({ assignee_id: SEED_USERS.reassignSrc.id, reason: 'm' }); // mismo que el actual
     expect(res.status).toBe(422);
     expect(res.body.code).toBe('INVALID_ASSIGNEE');
     expect(typeof res.body.message).toBe('string');
@@ -55,7 +55,7 @@ describe('reassignOrder — contrato (forma por código, OpenAPI)', () => {
     const res = await request(app)
       .post('/v1/orders/018f2000-0000-7000-8000-0000000000ee/reassignments')
       .set('Authorization', `Bearer ${disp}`)
-      .send({ assignee_id: SEED_USERS.technician2.id, reason: 'm' });
+      .send({ assignee_id: SEED_USERS.reassignDst.id, reason: 'm' });
     expect(res.status).toBe(404);
     expect(res.body.code).toBe('ORDER_NOT_FOUND');
     expect(res.body.details).toBeUndefined();
@@ -64,7 +64,7 @@ describe('reassignOrder — contrato (forma por código, OpenAPI)', () => {
   it('401 sin token → {code,message}', async () => {
     const res = await request(app)
       .post('/v1/orders/018f2000-0000-7000-8000-0000000000ee/reassignments')
-      .send({ assignee_id: SEED_USERS.technician2.id, reason: 'm' });
+      .send({ assignee_id: SEED_USERS.reassignDst.id, reason: 'm' });
     expect(res.status).toBe(401);
     expect(typeof res.body.code).toBe('string');
   });

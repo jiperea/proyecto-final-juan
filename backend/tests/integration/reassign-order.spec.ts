@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import request from 'supertest';
 import { SEED_PASSWORD, SEED_USERS } from '../../prisma/seed-data';
 import { makeTestApp } from '../helpers/test-app';
@@ -10,8 +10,8 @@ afterAll(async () => {
 });
 
 const DISP = SEED_USERS.dispatcher;
-const T1 = SEED_USERS.technician.id;
-const T2 = SEED_USERS.technician2.id;
+const T1 = SEED_USERS.reassignSrc.id;
+const T2 = SEED_USERS.reassignDst.id;
 const DISABLED = SEED_USERS.disabled.id;
 const NONEXISTENT_USER = '018f9999-0000-7000-8000-0000000000ff';
 const NONEXISTENT_ORDER = '018f2000-0000-7000-8000-0000000000ee';
@@ -21,8 +21,8 @@ async function token(email: string): Promise<string> {
   return r.body.access_token as string;
 }
 let dispToken = '';
-beforeEach(async () => {
-  dispToken = await token(DISP.email);
+beforeAll(async () => {
+  dispToken = await token(DISP.email); // login único (token válido 900s) — reduce carga de logins en paralelo
 });
 
 function reassign(orderId: string, body: unknown, tok = dispToken) {
