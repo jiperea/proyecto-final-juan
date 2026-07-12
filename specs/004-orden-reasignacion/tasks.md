@@ -7,14 +7,16 @@ description: "Task list — 004-orden-reasignacion"
 
 **Input**: Design documents from `specs/004-orden-reasignacion/`
 
-**Prerequisites**: plan.md ✓, spec.md ✓ (G1 PASS), research.md ✓, data-model.md ✓, contracts/ ✓, quickstart.md ✓
+**Prerequisites**: plan.md ✓ (G2-remediado), spec.md ✓ (G1 PASS), research.md ✓ (D-01..D-13), data-model.md ✓, contracts/ ✓, quickstart.md ✓
 
 **Tests**: OBLIGATORIOS (Constitution VII — TDD fase Red: commit del test en rojo **antes** de implementar).
 
 **Organization**: por user story. US1 (P1) = MVP; US2 (P3) = stretch (If-Match), no bloquea gate.
 
-> Regenerada tras `/speckit-analyze`: incorpora G1 (test negativo dedicado de FR-011 — actor infalsificable)
-> e I1 (guarda de regresión al extender `sendError`/`DomainError` compartidos con 001/002a).
+> Regenerada tras el gate G2: cierra B1 (orden validación visibilidad→body, D-11), B2 (primitiva compartida sin
+> fusionar clasificadores, D-03), A1 (rename infra en Foundational), A2 (destino en dominio, D-07), A3 (puerto de
+> visibilidad, D-12), A5 (ORDER_NOT_REASSIGNABLE→404 byte-idéntico, D-04), A4 (no-fuga en 422 de reason), M1 (503),
+> M2 (test de migración = verificación), M5 (code points). Conserva cobertura de G1 (actor FR-011, regresión sendError).
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -28,28 +30,29 @@ description: "Task list — 004-orden-reasignacion"
 **Purpose**: preparar el terreno; el proyecto y las dependencias ya existen (001/002).
 
 - [ ] T001 Verificar rama `004-orden-reasignacion`, BD de test arriba (`docker compose up -d db-test`, puerto 5433) y que `npm run test` de 002b pasa en verde (baseline antes de refactor).
-- [ ] T002 Confirmar que el contrato `contracts/orders.openapi.yaml` incluye `reassignOrder` (hecho en plan) y que `npm run build`/`tsc` compila el repo actual sin errores.
+- [ ] T002 Confirmar que el contrato `contracts/orders.openapi.yaml` incluye `reassignOrder` (200/401/403/404/409/422/500/503) y que `npm run build`/`tsc` compila el repo actual sin errores.
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: infraestructura de datos y dominio que TODA la feature necesita. Bloquea US1/US2.
+**Purpose**: datos, refactor del módulo write-side (COMPLETO, incl. rename infra) y contrato de errores. Bloquea US1/US2.
 
-**⚠️ CRITICAL**: ninguna US puede empezar hasta completar esta fase.
+**⚠️ CRITICAL**: ninguna US puede empezar hasta completar esta fase. El checkpoint es **real**: el arch test (T009) queda en verde aquí.
 
-- [ ] T003 [P] Extender `backend/prisma/schema.prisma`: añadir `enum OrderAuditEventType { transition reassignment }`; en `OrderAudit` añadir `eventType OrderAuditEventType @default(transition) @map("event_type")`, `fromAssignee String? @db.Uuid @map("from_assignee")`, `toAssignee String? @db.Uuid @map("to_assignee")` con relaciones FK→User `onDelete: Restrict` (ver data-model.md).
-- [ ] T004 Crear migración `backend/prisma/migrations/<ts>_extend_order_audit_reassignment/migration.sql`: `CREATE TYPE` + 3 `ADD COLUMN` (event_type NOT NULL DEFAULT 'transition' → backfill implícito; from/to_assignee UUID + FK Restrict); **conservar** el trigger append-only. Añadir `down.sql` (DROP columns + DROP TYPE).
-- [ ] T005 (TDD Red) Test de migración en `backend/tests/integration/order-audit-migration.spec.ts`: tras aplicar, las filas de auditoría legacy de 002b tienen `event_type='transition'` y `from_assignee/to_assignee` NULL; el trigger sigue rechazando UPDATE/DELETE con `restrict_violation`. **Commit en rojo.**
-- [ ] T006 Aplicar migración (`prisma migrate`) y regenerar el client; T005 pasa a verde.
-- [ ] T007 Refactor módulo write-side: crear `backend/src/domain/order/write-side/` y **mover** `apply-transition.ts` (y `transition-ports.ts` si aplica) desde `domain/order/`; actualizar todos los imports; `npm run test` de 002b debe seguir verde (sin cambio de comportamiento, XV).
-- [ ] T008 (TDD Red) Test de arquitectura en `backend/tests/unit/write-side-boundary.spec.ts`: ningún fichero fuera de `domain/order/write-side/*` (dominio) ni de `infra/repositories/order-write-side-repository.ts` (infra) referencia escrituras de `status`/`version` (`order.update*` con esos campos). **Commit en rojo** (cierra BL-065).
-- [ ] T009 [P] Extender contrato de error: añadir `agentAction?` a `DomainError` en `backend/src/domain/result.ts` y emitir `agent_action` en `sendError` de `backend/src/handlers/error-mapper.ts` **sólo cuando `DomainError` lo aporta** (opcional, retrocompatible); añadir `INVALID_ASSIGNEE→422` y `FORBIDDEN_ROLE→403` al catálogo `ErrorCode`/tabla `STATUS` (reusa `VERSION_CONFLICT→409`, `VALIDATION_ERROR→422`, `ORDER_NOT_FOUND→404`).
-- [ ] T010 (Guarda de regresión — I1) Re-ejecutar los contract/integration tests de error de **001** y **002** (`backend/tests/contract/*` y `backend/tests/integration/*` de auth/orders-list) y confirmar que el cambio de `sendError` (T009) es **retrocompatible**: los cuerpos de error existentes no se rompen (sin `agent_action` cuando el `DomainError` no lo aporta). Ajustar/asertar según convención de forma (`additionalProperties`/keys) usada en esos tests.
-- [ ] T011 [P] Ampliar `REDACT_PATHS` en `backend/src/infra/logger.ts` para cubrir `reason` **anidado** del payload real (`req.body.reason`, y `err.reason`/`error.cause` si el logger de errores las alcanza), FR-009/BL-059.
-- [ ] T012 Añadir catch-all de errores no mapeados → **500 genérico** `{code,message,agent_action}` en `backend/src/handlers/error-mapper.ts` (extiende `jsonErrorHandler`), sin filtrar detalle de Postgres (FR-010/BL-060). Mapear FK del asignatario (`P2003`) a `INVALID_ASSIGNEE`.
+- [ ] T003 [P] Extender `backend/prisma/schema.prisma`: `enum OrderAuditEventType { transition reassignment }`; en `OrderAudit` añadir `eventType OrderAuditEventType @default(transition) @map("event_type")`, `fromAssignee String? @db.Uuid @map("from_assignee")`, `toAssignee String? @db.Uuid @map("to_assignee")` con relaciones FK→User `onDelete: Restrict` (data-model.md).
+- [ ] T004 Crear migración `backend/prisma/migrations/<ts>_extend_order_audit_reassignment/migration.sql`: `CREATE TYPE` + `ADD COLUMN event_type NOT NULL DEFAULT 'transition'` (backfill implícito) + 2 `ADD COLUMN` UUID; FKs con **`ADD CONSTRAINT ... NOT VALID`** + `VALIDATE CONSTRAINT` (evita lock largo, D-05/M3); **conservar** el trigger append-only. Añadir `down.sql`.
+- [ ] T005 Aplicar migración (`prisma migrate`) y regenerar el client Prisma.
+- [ ] T006 (Verificación post-migración — M2) Test `backend/tests/integration/order-audit-migration.spec.ts` (**verde tras T005**): las filas de auditoría legacy de 002b tienen `event_type='transition'` y `from_assignee/to_assignee` NULL; el trigger append-only sigue rechazando UPDATE/DELETE con `restrict_violation`. (No es un Red de negocio; es aserción de corrección de datos/migración.)
+- [ ] T007 Refactor módulo write-side (dominio): crear `backend/src/domain/order/write-side/` y **mover** `apply-transition.ts` (+ `transition-ports.ts` si aplica) desde `domain/order/`; actualizar imports. `applyTransition` **sin cambio de comportamiento** (clasificador 002b intacto, XV).
+- [ ] T008 Refactor write-side (infra) — **rename adelantado a Foundational (A1)**: renombrar `backend/src/infra/repositories/order-transition-repository.ts` → `order-write-side-repository.ts`; extraer la primitiva privada `conditionalWriteWithAudit` (SOLO boilerplate: UPDATE condicional + insert auditoría en `$transaction`), **sin fusionar** los clasificadores de 0-filas (D-03/B2). `applyTransition` sigue usando su clasificador 002b. Actualizar `infra/container.ts`. `npm run test` de 002b **verde**.
+- [ ] T009 (TDD Red→Green en Foundational) Test de arquitectura `backend/tests/unit/write-side-boundary.spec.ts`: ningún fichero fuera de `domain/order/write-side/*` ni de `infra/repositories/order-write-side-repository.ts` referencia escrituras de `status`/`version`. Debe quedar **verde** al cierre de Foundational (por eso el rename es T008, no US1). **Commit del test primero** (cierra BL-065).
+- [ ] T010 [P] Extender catálogo de errores en `backend/src/domain/result.ts` (`ErrorCode`) y `backend/src/handlers/error-mapper.ts` (`STATUS`): añadir `INVALID_ASSIGNEE→422`, `FORBIDDEN_ROLE→403`, **`ORDER_NOT_REASSIGNABLE→404`** (reusa `VERSION_CONFLICT→409`, `VALIDATION_ERROR→422`, `ORDER_NOT_FOUND→404`, `SERVICE_UNAVAILABLE→503`). `ORDER_NOT_REASSIGNABLE` **colapsa a 404 byte-idéntico** a `ORDER_NOT_FOUND` (mismo `code` genérico al cliente, sin `details`) (D-04/A5). Añadir `agentAction?` a `DomainError` y emitir `agent_action` en `sendError` **sólo cuando el DomainError lo aporta** (opcional, retrocompatible).
+- [ ] T011 (Guarda de regresión — I1) Re-ejecutar los contract/integration tests de error de **001** y **002** y confirmar que el cambio de `sendError` (T010) es **retrocompatible** (cuerpos existentes intactos; sin `agent_action` cuando no se aporta).
+- [ ] T012 [P] Ampliar `REDACT_PATHS` en `backend/src/infra/logger.ts` para cubrir `reason` **anidado** del payload real (`req.body.reason`, `err.reason`/`error.cause`), FR-009/BL-059.
+- [ ] T013 Manejo de errores de BD en `backend/src/handlers/error-mapper.ts` (D-10/M1): BD **no disponible** (caída/timeout) → **503** `SERVICE_UNAVAILABLE` (fail-closed, como listOrders); error inesperado ≠ FK → **500** genérico sin detalle Postgres; FK del asignatario (`P2003`) → `INVALID_ASSIGNEE` (422). Catch-all de nivel superior (extiende `jsonErrorHandler`).
 
-**Checkpoint**: esquema migrado, módulo write-side aislado, contrato de errores completo y retrocompatible. US1 puede empezar.
+**Checkpoint**: esquema migrado, módulo write-side **completo y aislado** (arch test T009 verde), catálogo de errores y doctrina 503/500 listos. US1 puede empezar.
 
 ---
 
@@ -64,27 +67,28 @@ reason) → 200 + `assigned_to=T2` + estado intacto + `version`+1 + 1 fila audit
 
 ### Tests for User Story 1 (TDD — escribir y ver FALLAR antes de implementar) ⚠️
 
-- [ ] T013 [P] [US1] (Red) Contract test `backend/tests/contract/reassign.contract.spec.ts`: forma exacta de las respuestas 200/401/403/404/409/422/500 (status, header `ETag`, keys del body, `additionalProperties:false`, `agent_action` presente) por `operationId` reassignOrder. **Commit en rojo.**
-- [ ] T014 [P] [US1] (Red) Unit dominio `backend/tests/unit/reassign-order.spec.ts`: `reassignOrder` con fakes del puerto write-side — happy path, y clasificación 0-filas con **precedencia status>version** (404 fuera de ámbito antes que 409). **Commit en rojo.**
-- [ ] T015 [P] [US1] (Red) Integración happy path + auditoría `backend/tests/integration/reassign-order.spec.ts`: 200, `assigned_to=T2`, `status` intacto (assigned y in_progress), `version`+1, **1** fila `event_type=reassignment` con `from_assignee/to_assignee/reason`. Incluye **orden huérfana** (`assignedTo=null` → `from_assignee=NULL`). (SC-001, escenarios 1/2/11)
-- [ ] T016 [P] [US1] (Red) Integración RBAC `backend/tests/integration/reassign-order-rbac.spec.ts`: 401 sin auth; 403 technician/supervisor; sin efecto. (SC-002, FR-003)
-- [ ] T017 [P] [US1] (Red) Integración no-enumeración `backend/tests/integration/reassign-order-notfound.spec.ts`: 404 **byte-idéntico** (cuerpo+cabeceras) entre las **tres** vías — inexistente, existente-no-reasignable (pending_review/closed/draft), y colapso post-UPDATE (escenario 9). (SC-003/SC-008, FR-002/FR-004)
-- [ ] T018 [P] [US1] (Red) Integración destino inválido `backend/tests/integration/reassign-order-assignee.spec.ts`: 422 `INVALID_ASSIGNEE` con cuerpo **genérico idéntico** para las 4 causas (inexistente/no-technician/deshabilitado `disabledAt≠null`/igual al actual). (SC-005, FR-005)
-- [ ] T019 [P] [US1] (Red) Integración validación de `reason` `backend/tests/integration/reassign-order-validation.spec.ts`: 422 `VALIDATION_ERROR` para ausente/vacío/sólo whitespace/sólo control / >500 code points; acepta emoji (conteo por code points). (FR-006)
-- [ ] T020 [P] [US1] (Red) Integración concurrencia `backend/tests/integration/reassign-order-concurrency.spec.ts`: (a) N reasignaciones concurrentes misma version → exactamente 1 éxito, resto 409, sin doble auditoría; (b) carrera cruzada reasignación↔transición-FSM (via `applyTransition`) que saca la orden de ámbito → **404** (no 409). (SC-004, FR-008)
-- [ ] T021 [P] [US1] (Red) Integración atomicidad `backend/tests/integration/reassign-order-atomicity.spec.ts`: forzar fallo del insert de auditoría dentro de la tx → orden intacta (assigned_to/status/version), 0 filas auditoría; sin propagar SQL crudo. (SC-009, FR-007)
-- [ ] T022 [P] [US1] (Red) Integración fugas/errores `backend/tests/integration/reassign-order-security.spec.ts`: `reason` centinela ausente en logs (req/resp/error) y en body de error (grep negativo, incl. error tras aceptar payload); error de BD ≠ FK → 500 genérico sin SQLSTATE/constraint/columna/query. (SC-006/SC-007, FR-009/FR-010)
-- [ ] T023 [P] [US1] (Red — G1) Integración actor infalsificable `backend/tests/integration/reassign-order-actor.spec.ts`: enviar un `actor`/`actor_id` **espurio en el body** (además del token del dispatcher) → el schema `.strict()` lo rechaza (422) **o** se ignora, y en todo caso la fila de auditoría registra `actor_id = userId del token`, **nunca** el del body. (FR-011, cierra G1 de analyze)
+- [ ] T014 [P] [US1] (Red) Contract test `backend/tests/contract/reassign.contract.spec.ts`: forma exacta de 200/401/403/404/409/422/500/503 (status, header `ETag`, keys del body, `additionalProperties:false`, `agent_action` presente) por `operationId` reassignOrder. **Commit en rojo.**
+- [ ] T015 [P] [US1] (Red) Unit dominio `backend/tests/unit/reassign-order.spec.ts`: `reassignOrder` con fakes de `OrderVisibilityPort`/`UserLookupPort`/primitiva atómica — happy path; validación de destino (4 causas → INVALID_ASSIGNEE); clasificación 0-filas con **precedencia status>version** (404 fuera de ámbito antes que 409). **Commit en rojo.**
+- [ ] T016 [P] [US1] (Red) Integración happy path + auditoría `backend/tests/integration/reassign-order.spec.ts`: 200, `assigned_to=T2`, `status` intacto (assigned/in_progress), `version`+1, **1** fila `event_type=reassignment` con `from_assignee/to_assignee/reason`. Incluye **orden huérfana** (`assignedTo=null`→`from_assignee=NULL`). (SC-001; escenarios 1/2/11)
+- [ ] T017 [P] [US1] (Red) Integración RBAC `backend/tests/integration/reassign-order-rbac.spec.ts`: 401 sin auth; 403 `FORBIDDEN_ROLE` technician/supervisor; sin efecto. (SC-002, FR-003)
+- [ ] T018 [P] [US1] (Red) Integración no-enumeración `backend/tests/integration/reassign-order-notfound.spec.ts`: 404 **byte-idéntico** (cuerpo+cabeceras) entre las **tres** vías — inexistente, existente-no-reasignable (`ORDER_NOT_REASSIGNABLE` colapsado), colapso post-UPDATE (escenario 9); mismo `code` genérico que `ORDER_NOT_FOUND`, sin `details`. (SC-003/SC-008, FR-002/FR-004, A5)
+- [ ] T019 [P] [US1] (Red — B1/D-11) Integración **orden de validación** `backend/tests/integration/reassign-order-precedence.spec.ts`: **orden no visible × body inválido** (reason ausente/>500cp / campo extra / `assignee_id` mal formado) → **404** (no 422); confirma que la visibilidad precede a la validación de forma. **Commit en rojo.** (FR-004, D-11, cierra G2-B1)
+- [ ] T020 [P] [US1] (Red) Integración destino inválido `backend/tests/integration/reassign-order-assignee.spec.ts`: 422 `INVALID_ASSIGNEE` con cuerpo **genérico idéntico** para las 4 causas (inexistente/no-technician/deshabilitado/igual al actual), **sobre orden visible**. (SC-005, FR-005)
+- [ ] T021 [P] [US1] (Red) Integración validación+no-fuga de `reason` `backend/tests/integration/reassign-order-reason.spec.ts`: sobre orden visible, 422 `VALIDATION_ERROR` para ausente/vacío/whitespace/control / >500 code points (acepta emoji, conteo code points); **y el cuerpo del 422 NO reproduce el `reason`** (ni `message`, ni `details.fields`, ni logs) — no-fuga PII en el propio 422. (FR-006/FR-009, cierra G2-A4)
+- [ ] T022 [P] [US1] (Red) Integración concurrencia `backend/tests/integration/reassign-order-concurrency.spec.ts`: (a) N concurrentes misma version → 1 éxito, resto 409, sin doble auditoría; (b) carrera cruzada reasignación↔transición-FSM (via `applyTransition`) que saca la orden de ámbito → **404** (no 409). (SC-004, FR-008)
+- [ ] T023 [P] [US1] (Red) Integración atomicidad `backend/tests/integration/reassign-order-atomicity.spec.ts`: forzar fallo del insert de auditoría dentro de la tx → orden intacta, 0 filas auditoría; sin SQL crudo. (SC-009, FR-007)
+- [ ] T024 [P] [US1] (Red) Integración errores/500/503 `backend/tests/integration/reassign-order-errors.spec.ts`: error de BD inesperado ≠ FK → 500 genérico sin SQLSTATE/constraint/columna/query; **BD no disponible → 503** (fail-closed). (SC-007, FR-010, D-10/M1)
+- [ ] T025 [P] [US1] (Red — G1) Integración actor infalsificable `backend/tests/integration/reassign-order-actor.spec.ts`: `actor`/`actor_id` **espurio en el body** → rechazado por `.strict()` (422) **sobre orden visible**, y en cualquier caso la auditoría registra `actor_id = userId del token`, **nunca** el del body. (FR-011, cierra G1)
 
 ### Implementation for User Story 1
 
-- [ ] T024 [P] [US1] Zod `reassignRequestSchema` (`.strict()`) + DTOs snake_case en `backend/src/handlers/contract/schemas.ts` y `backend/src/handlers/contract/order-types.ts` (assignee_id uuid, reason 1..500 con refinamiento ≥1 imprimible / conteo code points; **sin** campo actor — se ignora/rechaza), derivados del contrato.
-- [ ] T025 [US1] Puerto write-side + primitiva compartida en `backend/src/domain/order/write-side/write-side-ports.ts`: firma de `reassignOrder` (input: orderId, assigneeId, actorId, reason, expectedVersion) y del método atómico `conditionalWriteWithAudit`.
-- [ ] T026 [US1] Caso de uso `backend/src/domain/order/write-side/reassign-order.ts`: orquesta validación de destino (puerto de usuarios), delega en el puerto atómico; clasifica 0-filas con precedencia status>version; devuelve `Result`. (depende de T025)
-- [ ] T027 [US1] Adaptador atómico: generalizar `infra/repositories/order-transition-repository.ts` → `backend/src/infra/repositories/order-write-side-repository.ts` con `conditionalWriteWithAudit` privado (UPDATE condicional `id ∧ version ∧ status∈{assigned,in_progress}` → `assigned_to=T2, version+1` + insert auditoría `reassignment` en misma `$transaction`); relee y clasifica 0-filas (ORDER_NOT_FOUND → ORDER_NOT_REASSIGNABLE(404) → VERSION_CONFLICT(409)); mapea `P2003`. (depende de T025; `applyTransition` sigue usando la misma primitiva)
-- [ ] T028 [US1] Handler `backend/src/handlers/orders/reassign.ts`: (1) `req.auth` (actor server-side, FR-011); (2) consulta de visibilidad única (id ∧ status reasignable) → releer version (expectedVersion base) → 0 filas ⇒ 404 genérico; (3) validar destino → 422; (4) invocar dominio; (5) 200 con `ETag`; errores vía `sendError` con `agent_action`. (depende de T026, T024)
-- [ ] T029 [US1] Cablear la ruta en `backend/src/handlers/app.ts`: `POST /orders/{orderId}/reassignments` con `authenticate` + `requireRole('dispatcher')` + `correlation`; exponer el puerto write-side en `AppDeps`/`infra/container.ts`. (depende de T028)
-- [ ] T030 [US1] Verificar en verde T013–T023; ajustar `agent_action` por código y correlation-ID en respuesta+logs (SC-010 correlation).
+- [ ] T026 [P] [US1] Zod `reassignRequestSchema` (`.strict()`) + DTOs snake_case en `backend/src/handlers/contract/schemas.ts` y `order-types.ts`: `assignee_id` uuid; `reason` refinamiento por **code points** (`[...reason].length ∈ [1,500]`) + ≥1 carácter imprimible (no `.max()` UTF-16, D-13/M5); sin campo actor.
+- [ ] T027 [US1] Puertos en `backend/src/domain/order/write-side/write-side-ports.ts`: `OrderVisibilityPort.findReassignable(orderId)→{id,assignedTo,version}|null` (D-12), `UserLookupPort.findAssignableTechnician(id)` (D-07), firma de `reassignOrder` y del método atómico `conditionalWriteWithAudit`.
+- [ ] T028 [US1] Caso de uso `backend/src/domain/order/write-side/reassign-order.ts`: **valida el técnico destino** (vía `UserLookupPort`, FR-005) y el `reason`; delega en la primitiva atómica; clasificador propio con **precedencia status>version**; devuelve `Result`. (depende de T027; NO duplica validación en el handler, A2)
+- [ ] T029 [US1] Adaptadores en `backend/src/infra/repositories/order-write-side-repository.ts`: implementar `OrderVisibilityPort` (consulta única `WHERE id AND status IN {assigned,in_progress}`) y el `conditionalWriteWithAudit` de reasignación (UPDATE `assigned_to=T2, version+1` + insert auditoría `reassignment`); relee y clasifica 0-filas (ORDER_NOT_FOUND → ORDER_NOT_REASSIGNABLE(404) → VERSION_CONFLICT(409)); mapea `P2003`. `UserLookupPort` sobre `user-repository`/Prisma. (depende de T027)
+- [ ] T030 [US1] Handler **delgado** `backend/src/handlers/orders/reassign.ts` (D-11): (1) `req.auth` (actor server-side); (2) `OrderVisibilityPort.findReassignable` → null ⇒ **404** genérico; (3) **sólo si visible**: parseo Zod del body + delega en `reassignOrder` (dominio valida destino) → 422; (4) 200 con `ETag`; errores vía `sendError` con `agent_action`. NO usa Prisma directo; NO valida destino él mismo. (depende de T028, T029, T026)
+- [ ] T031 [US1] Cablear ruta en `backend/src/handlers/app.ts`: `POST /orders/{orderId}/reassignments` con `authenticate` + `requireRole('dispatcher')` + `correlation`; exponer puertos en `AppDeps`/`infra/container.ts`. La validación de forma del body va **dentro del handler** (tras visibilidad), **no** como middleware previo (D-11). (depende de T030)
+- [ ] T032 [US1] Verificar en verde T014–T025; ajustar `agent_action` por código y correlation-ID en respuesta+logs. (SC-010 correlation)
 
 **Checkpoint**: US1 completa y testeable de forma independiente (MVP). Cobertura ≥80% dominio/handlers.
 
@@ -92,18 +96,18 @@ reason) → 200 + `assigned_to=T2` + estado intacto + `version`+1 + 1 fila audit
 
 ## Phase 4: User Story 2 - Concurrencia optimista explícita con If-Match (Priority: P3, stretch)
 
-**Goal**: exponer al cliente el control de concurrencia (`If-Match`), sin alterar la precedencia de FR-008.
+**Goal**: exponer al cliente el control de concurrencia (`If-Match`), sin alterar la precedencia de FR-008/D-11.
 
 **Independent Test**: `If-Match` obsoleto → 409; correcto → 200; fuera de ámbito + `If-Match` obsoleto → 404.
 
 ### Tests for User Story 2 (TDD — Red) ⚠️
 
-- [ ] T031 [P] [US2] (Red) Integración `backend/tests/integration/reassign-order-ifmatch.spec.ts`: `If-Match:"0"` obsoleto → 409 + `ETag` vigente; `If-Match:"1"` correcto → 200 + `ETag:"2"`; orden fuera de ámbito + `If-Match` obsoleto → **404** (precedencia, S-007). Sin cabecera → comportamiento de US1. **Commit en rojo.** (FR-012, SC-004)
+- [ ] T033 [P] [US2] (Red) Integración `backend/tests/integration/reassign-order-ifmatch.spec.ts`: `If-Match:"0"` obsoleto → 409 + `ETag` vigente; `If-Match:"1"` correcto → 200 + `ETag:"2"`; orden fuera de ámbito + `If-Match` obsoleto → **404** (precedencia, S-007). Sin cabecera → comportamiento de US1. **Commit en rojo.** (FR-012, SC-004)
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Parsear la cabecera `If-Match` en `backend/src/handlers/orders/reassign.ts`: si presente, `expectedVersion` = versión del cliente (en vez de la releída); la comprobación de ámbito/status **precede** a la de version por esta vía también. (depende de T028)
-- [ ] T033 [US2] Verificar T031 en verde; documentar que sin `If-Match` la concurrencia interna de FR-008 sigue protegiendo.
+- [ ] T034 [US2] Parsear `If-Match` en `backend/src/handlers/orders/reassign.ts`: si presente, `expectedVersion` = versión del cliente; la comprobación de visibilidad/status **precede** a la de version también por esta vía. (depende de T030)
+- [ ] T035 [US2] Verificar T033 en verde; documentar que sin `If-Match` la concurrencia interna de FR-008 sigue protegiendo.
 
 **Checkpoint**: US1 + US2 funcionan; US2 es opcional y no bloquea el gate.
 
@@ -111,10 +115,10 @@ reason) → 200 + `assigned_to=T2` + estado intacto + `version`+1 + 1 fila audit
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T034 [P] Actualizar `docs/traceability.md`: RF→endpoint→tarea→test de 004 (incl. fila "Migración (OrderAudit)" y el test negativo de actor FR-011/T023).
-- [ ] T035 [P] Test de latencia `backend/tests/integration/reassign-order-latency.spec.ts`: p95 de 50 reasignaciones secuenciales (BD caliente, warm-up descartado) < 300 ms; correlation-ID presente. (SC-010)
-- [ ] T036 Ejecutar `npm run test` completo con cobertura; confirmar gate (dominio ≥80%, handlers/servicios ≥80%, 100% contract + clasificación 0-filas) y `tsc`/`eslint` limpios; confirmar que 001/002 siguen verdes (regresión, I1).
-- [ ] T037 Ejecutar la validación de `quickstart.md` (18 escenarios) y anotar residuales abiertos (BL-063/064/065/BL-055/051/002) en `docs/backlog.md` si procede.
+- [ ] T036 [P] Actualizar `docs/traceability.md`: RF→endpoint→tarea→test de 004 (incl. "Migración (OrderAudit)", test de orden de validación T019, actor FR-011/T025).
+- [ ] T037 [P] Test de latencia `backend/tests/integration/reassign-order-latency.spec.ts`: p95 de 50 reasignaciones secuenciales (BD caliente, warm-up descartado) < 300 ms; correlation-ID presente. (SC-010)
+- [ ] T038 Ejecutar `npm run test` completo con cobertura; confirmar gate (dominio ≥80%, handlers/servicios ≥80%, 100% contract + clasificación 0-filas) y `tsc`/`eslint` limpios; confirmar 001/002 verdes (regresión, I1).
+- [ ] T039 Ejecutar la validación de `quickstart.md` (20 escenarios) y anotar residuales abiertos (BL-063/064/065/BL-055/051/002) en `docs/backlog.md` si procede.
 
 ---
 
@@ -123,22 +127,22 @@ reason) → 200 + `assigned_to=T2` + estado intacto + `version`+1 + 1 fila audit
 ### Phase Dependencies
 
 - **Setup (T001–T002)**: sin dependencias.
-- **Foundational (T003–T012)**: depende de Setup; **BLOQUEA** US1/US2. Orden interno: T003→T004→T005(Red)→T006; T007→T008(Red); T009→T010(guarda regresión); T011/T012 tras T009.
-- **US1 (T013–T030)**: depende de Foundational. Tests Red (T013–T023) antes de impl (T024–T030).
-- **US2 (T031–T033)**: depende de US1 (extiende el handler). Stretch.
-- **Polish (T034–T037)**: depende de las US deseadas.
+- **Foundational (T003–T013)**: depende de Setup; **BLOQUEA** US1/US2. Orden: T003→T004→T005→T006; T007→T008→T009 (arch test verde aquí); T010→T011; T012; T013.
+- **US1 (T014–T032)**: depende de Foundational. Tests Red (T014–T025) antes de impl (T026–T032).
+- **US2 (T033–T035)**: depende de US1 (extiende el handler). Stretch.
+- **Polish (T036–T039)**: depende de las US deseadas.
 
 ### Within User Story 1
 
-- Tests (T013–T023) **en rojo** antes de implementar.
-- Puerto (T025) → dominio (T026) y adaptador (T027) → handler (T028) → ruta (T029) → verde (T030).
-- Zod/DTOs (T024) [P] pueden ir en paralelo a T025.
+- Tests (T014–T025) **en rojo** antes de implementar.
+- Puertos (T027) → dominio (T028) + adaptadores (T029) → handler delgado (T030) → ruta (T031) → verde (T032).
+- Zod/DTOs (T026) [P] en paralelo a T027.
 
 ### Parallel Opportunities
 
-- Foundational: T009 y luego T011 en paralelo con otras; T010 depende de T009.
-- US1 tests: T013–T023 casi todos [P] (ficheros distintos).
-- Polish: T034, T035 [P].
+- Foundational: T003, T010, T012 [P]; T008 antes de T009.
+- US1 tests: T014–T025 casi todos [P] (ficheros distintos).
+- Polish: T036, T037 [P].
 
 ---
 
@@ -147,8 +151,8 @@ reason) → 200 + `assigned_to=T2` + estado intacto + `version`+1 + 1 fila audit
 ```bash
 Task: "Contract test reassignOrder en backend/tests/contract/reassign.contract.spec.ts"
 Task: "Unit dominio reassign-order en backend/tests/unit/reassign-order.spec.ts"
-Task: "Integración happy+audit en backend/tests/integration/reassign-order.spec.ts"
-Task: "Integración RBAC en backend/tests/integration/reassign-order-rbac.spec.ts"
+Task: "Integración orden de validación (no-visible × body inválido → 404) en backend/tests/integration/reassign-order-precedence.spec.ts"
+Task: "Integración no-enum (3 vías byte-idéntico) en backend/tests/integration/reassign-order-notfound.spec.ts"
 Task: "Integración actor infalsificable en backend/tests/integration/reassign-order-actor.spec.ts"
 ```
 
@@ -158,8 +162,8 @@ Task: "Integración actor infalsificable en backend/tests/integration/reassign-o
 
 ### MVP First (US1)
 
-1. Phase 1 Setup → 2. Phase 2 Foundational (CRÍTICO, bloquea) → 3. Phase 3 US1 → **STOP y validar** US1
-   independiente (escenarios 1–14, 16–18) → listo para G3.
+1. Phase 1 Setup → 2. Phase 2 Foundational (CRÍTICO, bloquea; arch test verde) → 3. Phase 3 US1 → **STOP y
+   validar** US1 independiente (escenarios 1–14, 16–20) → listo para G3.
 
 ### Incremental
 
@@ -171,7 +175,10 @@ Task: "Integración actor infalsificable en backend/tests/integration/reassign-o
 
 - `[P]` = ficheros distintos, sin dependencias abiertas.
 - TDD: verificar que cada test Red **falla** antes de implementar; commit del test en rojo (Constitution VII).
-- Commit por tarea o grupo lógico (Conventional Commits). No commitear con bloqueantes.
-- Cobertura de analyze: FR-011 con test negativo dedicado (T023, G1); regresión de `sendError` guardada (T010, I1).
+  Excepción: T006 es verificación post-migración (verde tras aplicar), no un Red de negocio (M2).
+- Cierres G2: B1→T019/T030/T031 (orden validación); B2→T008 (primitiva sin fusionar clasificadores);
+  A1→T008/T009 (rename en Foundational, arch test verde); A2→T028/T030 (destino en dominio); A3→T027/T029/T030
+  (puerto de visibilidad); A5→T010/T018 (ORDER_NOT_REASSIGNABLE→404 byte-idéntico); A4→T021 (no-fuga en 422);
+  M1→T013/T024 (503); M2→T006; M5→T026 (code points).
 - Residuales aceptados (documentados, no bloquean G3): BL-063 (TOCTOU destino), BL-064 (timing 422),
-  BL-065 (cerrado por T008), BL-051/055 (PII de reason), BL-002 (accesos denegados).
+  BL-065 (cerrado por T009), BL-051/055 (PII de reason), BL-002 (accesos denegados — Complexity Tracking).
