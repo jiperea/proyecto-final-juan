@@ -6,7 +6,7 @@ import { isLegalTransition } from '../../domain/order/transition-table';
 import type {
   ApplyTransitionInput,
   OrderTransitionPort,
-} from '../../domain/order/transition-ports';
+} from '../../domain/order/write-side/transition-ports';
 
 const PG_FOREIGN_KEY_VIOLATION = 'P2003';
 

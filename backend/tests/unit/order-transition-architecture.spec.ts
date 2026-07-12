@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const FORBIDDEN = ['express', '@prisma/client', 'prisma', 'jsonwebtoken', 'argon2', 'helmet', 'pino'];
-const TRANSITION_REPO = 'order-transition-repository.ts';
+const TRANSITION_REPO = 'order-write-side-repository.ts';
 
 function tsFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((e) => {
@@ -48,7 +48,7 @@ describe('arquitectura transición (FR-006, Const. III, D6)', () => {
 
     // Positivo: el repo de transición ES el único punto de escritura.
     const transitionRepo = readFileSync(
-      'src/infra/repositories/order-transition-repository.ts',
+      'src/infra/repositories/order-write-side-repository.ts',
       'utf8',
     );
     expect(/\.order\.updateMany\s*\(/.test(transitionRepo)).toBe(true);

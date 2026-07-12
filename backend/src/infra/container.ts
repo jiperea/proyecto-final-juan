@@ -9,7 +9,7 @@ import { InMemoryRateLimit } from './ratelimit/in-memory';
 import { RefreshSessionValidity } from './session-validity';
 import { PrismaAccountState, PrismaProbeRepository } from './repositories/account-state';
 import { PrismaOrderRepository } from './repositories/order-repository';
-import { PrismaOrderTransitionRepository } from './repositories/order-transition-repository';
+import { PrismaOrderTransitionRepository } from './repositories/order-write-side-repository';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
 import { PrismaSessionRepository } from './repositories/session-repository';
 import { PrismaUserRepository } from './repositories/user-repository';

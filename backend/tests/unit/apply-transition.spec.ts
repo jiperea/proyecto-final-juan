@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { applyTransition } from '../../src/domain/order/apply-transition';
+import { applyTransition } from '../../src/domain/order/write-side/apply-transition';
 import { ok } from '../../src/domain/result';
 import type {
   ApplyTransitionInput,
   OrderTransitionPort,
-} from '../../src/domain/order/transition-ports';
+} from '../../src/domain/order/write-side/transition-ports';
 import type { OrderRecord, OrderStatus } from '../../src/domain/order/model';
 
 function fakePort(): { port: OrderTransitionPort; calls: ApplyTransitionInput[] } {

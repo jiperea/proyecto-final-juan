@@ -4,7 +4,7 @@ import type { LoginDeps } from '../domain/auth/login';
 import type { LogoutDeps } from '../domain/auth/logout';
 import type { RefreshDeps } from '../domain/auth/refresh';
 import type { ListOrdersDeps } from '../domain/order/list-orders';
-import type { OrderTransitionPort } from '../domain/order/transition-ports';
+import type { OrderTransitionPort } from '../domain/order/write-side/transition-ports';
 import type {
   ProbeResourceRepositoryPort,
   UserRepositoryPort,

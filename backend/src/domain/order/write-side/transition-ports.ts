@@ -1,6 +1,6 @@
 // Puerto de transición de estado (Constitution III). El dominio no depende de Prisma.
-import type { OrderRecord, OrderStatus } from './model';
-import type { Result } from '../result';
+import type { OrderRecord, OrderStatus } from '../model';
+import type { Result } from '../../result';
 
 /** Guarda de pertenencia TIPADA (nunca SQL crudo del llamador). El repo la traduce a un WHERE parametrizado. */
 export interface TransitionGuard {

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { SEED_USERS } from '../../prisma/seed-data';
-import { PrismaOrderTransitionRepository } from '../../src/infra/repositories/order-transition-repository';
+import { PrismaOrderTransitionRepository } from '../../src/infra/repositories/order-write-side-repository';
 import { makeTestApp } from '../helpers/test-app';
 import { makeOrder } from '../helpers/transition';
 
