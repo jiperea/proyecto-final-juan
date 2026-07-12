@@ -43,6 +43,15 @@ dejó como "verificable sólo con endpoint" (BL-056/059/060/061/062).
   (nullable) ⇒ un technician deshabilitado no es destino válido. (`lockedUntil` es estado de login, no afecta a
   la elegibilidad como destino.)
 
+### Session 2026-07-12
+
+- Q: ¿Qué responde el endpoint ante un `orderId` de ruta **sintácticamente inválido** (no-uuid)? → A: el
+  **mismo 404 genérico byte-idéntico** que "no existe". Un identificador que **no puede nombrar ninguna orden**
+  equivale a inexistente (interpretación conforme de FR-004); se valida el formato uuid **antes** de tocar la BD
+  para evitar un error de cast (P2023) que se distinguiría como 500. Es una **4ª vía** de 404 que se suma a las
+  tres de SC-008 (inexistente / no-reasignable / colapso post-UPDATE), byte-idéntica a las demás. Ampliación
+  compatible (superconjunto); no cambia ningún otro comportamiento congelado.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Reasignar una orden a otro técnico (Priority: P1)
@@ -137,6 +146,9 @@ correcta → 200. Sin cabecera `If-Match` → comportamiento de US1 (concurrenci
   de orden huérfana.
 - **Técnico destino deshabilitado** (`disabledAt` no nulo, modelado por 001) → **422** `INVALID_ASSIGNEE`
   (no se reasigna a un usuario no operativo).
+- **`orderId` de ruta sintácticamente inválido** (no-uuid) → **404** genérico byte-idéntico a "no existe"
+  (Clarifications 2026-07-12): un identificador que no puede nombrar ninguna orden es indistinguible de
+  inexistente; se valida el uuid antes de la BD (evita P2023→500). 4ª vía de SC-008.
 - **`reason` ausente**: en reasignación el motivo es **obligatorio** (trazabilidad del reparto) → sin `reason`
   → **422** `VALIDATION_ERROR`. *(002b hace `reason` opcional a nivel de dominio; la obligatoriedad la impone
   esta feature consumidora, como previó 002b.)*
@@ -316,16 +328,16 @@ con el HTTP correcto; `reason` y detalle de Postgres nunca aparecen en `details`
 - **SC-007** *(saneo de errores de BD — BL-060)*: WHEN se fuerza un error de BD ≠ FK-asignatario, THE respuesta
   es **500** con cuerpo genérico y **no** contiene SQLSTATE, nombre de constraint/columna ni fragmento de
   query (grep negativo).
-- **SC-008** *(indistinguibilidad del 404 por construcción — BL-061)*: las tres vías que producen 404 —"no
-  existe", "no visible/estado no reasignable" (misma consulta de FR-004) y el colapso post-UPDATE de FR-008
-  (status salió de ámbito entre lectura y escritura)— responden por el **mismo camino de código** y son
-  **byte-idénticas** en `status`, cuerpo (mismo `code` genérico, sin `details`) y cabeceras. Verificación:
-  **tres** peticiones —(a) orden inexistente, (b) orden existente-no-reasignable, (c) colapso post-UPDATE de
-  FR-008 (orden fuera de ámbito entre lectura y escritura, escenario 9)— producen respuestas cuyo cuerpo y
-  cabeceras relevantes son **iguales byte a byte entre las tres** (aserción de igualdad estricta en test,
-  incluida la tercera vía; cierra T-003). Al ser el mismo
-  camino, **no se mide ni se fija umbral de latencia** (indistinguibilidad por construcción, no estadística); se
-  elimina cualquier escape "documentado/mitigado".
+- **SC-008** *(indistinguibilidad del 404 por construcción — BL-061)*: las **cuatro** vías que producen 404
+  —"no existe", "no visible/estado no reasignable" (misma consulta de FR-004), el colapso post-UPDATE de FR-008
+  (status salió de ámbito entre lectura y escritura) y **`orderId` sintácticamente inválido (no-uuid)**—
+  responden por el **mismo camino de código** y son **byte-idénticas** en `status`, cuerpo (mismo `code`
+  genérico, sin `details`) y cabeceras. Verificación: **cuatro** peticiones —(a) orden inexistente,
+  (b) orden existente-no-reasignable, (c) colapso post-UPDATE de FR-008 (escenario 9), (d) `orderId` malformado
+  (no-uuid)— producen respuestas cuyo cuerpo y cabeceras relevantes son **iguales byte a byte entre las cuatro**
+  (aserción de igualdad estricta en test, incluida la 4ª vía). Al ser el mismo camino, **no se mide ni se fija
+  umbral de latencia** (indistinguibilidad por construcción, no estadística); se elimina cualquier escape
+  "documentado/mitigado".
 - **SC-009** *(atomicidad real, sin mockear ORM)*: WHEN se fuerza el fallo de la inserción de auditoría (p. ej.
   actor/asignatario que viola FK dentro de la transacción), THE orden **no** queda reasignada (assigned_to,
   status, version intactos; 0 filas de auditoría) y el mensaje crudo de Postgres **no** se propaga.
