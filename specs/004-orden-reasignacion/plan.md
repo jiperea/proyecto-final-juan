@@ -151,12 +151,16 @@ Decisiones de diseño clave que cierran G2 (ver research.md D-11..D-13):
 - **Clasificación de 0-filas**: el puerto de negocio `OrderReassignmentPort.reassign` (impl infra) devuelve
   **resultado crudo** `{count, order|null}`; **el dominio clasifica** con precedencia status>version;
   `applyTransition` de 002b intacto (D-03, G2-N2/P3). `conditionalWriteWithAudit` es **privado de infra**.
-- **Auditoría de reasignación**: la ensambla **infra** dentro de la `$transaction`; `from_status==to_status` =
-  `status` releído within-tx (patrón 002b), no el del snapshot de visibilidad (D-03, G2-P1). El snapshot de
-  visibilidad incluye `status` (`{id,status,assignedTo,version}`). "Lectura única" (N7) = capa handler/dominio;
-  la relectura within-tx de infra es esperada y TOCTOU-safe (D-12, G2-P2).
-- **`P2003`** → `INVALID_ASSIGNEE` (422) **sólo** para la FK de `to_assignee`; `actor_id`/`from_assignee` → 500
-  (D-10, G2-P4).
+- **Auditoría de reasignación**: la ensambla **infra** dentro de la `$transaction` con **dos** relecturas
+  (patrón 002b): `before` **antes** del UPDATE → `from_status=to_status=before.status`, `from_assignee=
+  before.assignedTo` (antiguo); relectura **post-UPDATE** para la fila del 200/`ETag` (no reconstrucción en
+  memoria). No usa el `status` del snapshot de visibilidad (D-03, G2-P1/M2/M3). "Lectura única" (N7) = capa
+  handler/dominio; las relecturas within-tx de infra son esperadas y TOCTOU-safe (D-12, G2-P2).
+- **Invariante write-side**: toda escritura de `Order` desde el módulo incrementa `version` (garantiza que el
+  `before` within-tx no sea stale); test dedicado además del arch test (D-03, G2-H-003).
+- **`P2003`** lo traduce **infra** (como 002b) devolviendo `DomainError` tipado; el `error-mapper` no inspecciona
+  Prisma. → `INVALID_ASSIGNEE` (422) para la FK de destino (`order.assigned_to` **o** `audit.to_assignee`);
+  `actor_id`/`from_assignee` u otras → 500 (D-10, G2-P4/A1). Cubre el residual BL-063 como 422.
 - **Errores de BD**: **todo** error de BD ≠ FK-asignatario (incl. BD no disponible) → **500** genérico,
   conforme a la FR-010 congelada (D-10); reconciliación 503-vs-500 diferida a **BL-066**.
 - **`orderId` malformado** (no uuid) → **404 genérico byte-idéntico** antes de Prisma (D-14, G2-N5).

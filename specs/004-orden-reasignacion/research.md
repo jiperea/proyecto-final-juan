@@ -52,12 +52,24 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   - El **ensamblado de la fila de auditoría** de reasignación (`event_type='reassignment'`, `from_assignee`,
     `to_assignee`, `from_status==to_status`) ocurre en **INFRA** (dentro de `reassign`), que es quien tiene la
     `$transaction` y la fila; el dominio **no** ensambla la auditoría.
-- **Origen del `status` de auditoría (cierre G2-P1)**: `from_status`/`to_status` de la fila de auditoría
-  (NOT NULL, heredadas de 002b) = el **estado real de la orden**, obtenido por una **relectura dentro de la
-  misma `$transaction`** en infra (patrón `attempt()` de 002b: `before = tx.order.findUnique`), tras confirmar
-  el UPDATE condicional (`count=1`). Como la reasignación **conserva** el estado, `from_status == to_status ==`
-  ese `status` leído. **No** se usa el `status` del snapshot de visibilidad para la auditoría (evita que un
-  cambio `assigned↔in_progress` entre la lectura de visibilidad y el UPDATE grabe un `from_status` obsoleto).
+- **Origen de `status` y `from_assignee` de auditoría (cierre G2-P1/M3/A1)**: dentro de la `$transaction` en
+  infra hay **dos relecturas** (patrón `attempt()` de 002b), y su orden importa:
+  - **`before = tx.order.findUnique(orderId)` ANTES del UPDATE condicional**: da el `status` (conservado) y el
+    `assigned_to` **antiguo**. De aquí salen `from_status`/`to_status` (= `before.status`, NOT NULL) y
+    `from_assignee` (= `before.assignedTo`, el técnico **anterior**). **Crítico**: `from_assignee` se toma del
+    `before` (pre-UPDATE); tomarlo tras el UPDATE grabaría T2 y corrompería el par origen→destino (G2-M3/S-001).
+  - **UPDATE condicional** (`assigned_to=T2, version+1`, WHERE id ∧ version ∧ status∈{...}).
+  - **Relectura post-UPDATE** (`tx.order.findUniqueOrThrow`) para construir la **fila que se devuelve** (200 +
+    `ETag` con `assigned_to=T2`, `version`+1) — **no** se reconstruye en memoria, se relee (como 002b), para que
+    la respuesta refleje el estado real persistido (G2-M2/H-002).
+  - **No** se usa el `status` del snapshot de visibilidad para la auditoría (evitaría un `from_status` obsoleto
+    si el estado cambió entre la lectura de visibilidad y el UPDATE).
+- **Invariante del módulo write-side (cierre G2-M3/H-003)**: **toda** escritura de `Order` desde
+  `domain/order/write-side/` (`applyTransition` y `reassignOrder`) **incrementa `version`** en la misma
+  operación condicional. Por eso la relectura `before` within-tx nunca queda "stale" respecto al UPDATE: si el
+  estado cambió entremedias, `version` cambió y el `WHERE version=expectedVersion` afecta 0 filas (no se audita
+  con datos obsoletos). Se declara como invariante explícito y se cubre con un test (además del arch test de
+  ubicación T009).
 - **Rationale**: H-008 pedía evitar **divergencia accidental** del patrón atómico (que una ruta olvide la
   auditoría o el WHERE condicional), NO homogeneizar la clasificación (que debe divergir a propósito: 002b es
   dominio puro sin endpoint; reasignación expone endpoint y su predicado de visibilidad es el estado). Compartir
@@ -158,11 +170,18 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   —deadlock, timeout, BD no disponible/caída, UUID inválido no atrapado antes, constraint futura— colapsa a
   **500** genérico `{code,message,agent_action}`, sin filtrar SQLSTATE/constraint/columna/query. Un manejador de
   nivel superior convierte cualquier error no controlado en 500 genérico.
-- **Mapeo `P2003` acotado por constraint (cierre G2-P4)**: el insert de auditoría tiene **tres** FK
-  `onDelete:Restrict` (`actor_id`, `from_assignee`, `to_assignee`). El mapeo `P2003 → INVALID_ASSIGNEE (422)`
-  aplica **sólo** cuando la constraint violada es la de **`to_assignee`** (destino) — se inspecciona
-  `error.meta.field_name`/nombre de constraint. Una violación de `actor_id` o `from_assignee` (bug interno o
-  carrera) **NO** es "destino inválido": → **500** genérico (fallo del sistema, no culpa del cliente).
+- **Mapeo `P2003` acotado por constraint — lo traduce INFRA (cierre G2-P4/A1)**: la traducción de errores de
+  Prisma la hace **infra** (`order-write-side-repository.ts`), como el precedente de 002b
+  (`order-transition-repository.ts` traduce `P2003→ACTOR_INVALID` y devuelve un `DomainError` **tipado**); el
+  `error-mapper.ts` del handler **no** inspecciona `Prisma.*`/`meta.field_name` (se mantiene genérico,
+  compartido por 001/002/004 — hexagonal, Constitution III). **Qué FK → qué código** (hay que considerar
+  **cuatro** FK, no tres): el UPDATE de `Order` escribe `assigned_to=T2` (FK `order.assigned_to`→User) y el
+  insert de auditoría tiene `actor_id`/`from_assignee`/`to_assignee`. Un `P2003` por la FK de **destino** —sea
+  `order.assigned_to` **o** `audit.to_assignee`— → **`INVALID_ASSIGNEE` (422)** (ambas significan "el técnico
+  destino ya no existe", p. ej. borrado en la ventana TOCTOU de **BL-063** → residual se manifiesta como 422,
+  como estaba documentado). Un `P2003` por `actor_id` o `from_assignee` (bug interno/carrera) **NO** es destino
+  inválido → **500** genérico. Se inspecciona `meta.field_name`/nombre de constraint; cualquier FK no
+  contemplada → 500 por defecto.
 - **Rationale**: FR-010 (aprobada en G1) fija explícitamente 500 para estos casos; `reassignOrder` **NO** expone
   503. Evita fuga de detalle de Postgres (BL-060). Test: SC-007 (error ≠ FK → 500 sin detalle, grep negativo).
 - **Reconciliación diferida (BL-066)**: `listOrders` (002a) usa **503** fail-closed para BD no disponible.
