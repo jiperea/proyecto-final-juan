@@ -27,17 +27,27 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
 - **Riesgo**: churn de imports en 002b. Mitigación: sólo se mueve el fichero; los tests de 002b siguen verdes
   (verificación en G3). Test de arquitectura nuevo cierra BL-065.
 
-## D-03 · Primitiva atómica compartida (H-008)
+## D-03 · Primitiva atómica compartida (H-008) — alcance ACOTADO (cierre G2-B2)
 
 - **Decisión**: en infra, generalizar `order-transition-repository.ts` → `order-write-side-repository.ts` con
   un método privado `conditionalWriteWithAudit(tx, { where, data, audit })` que ejecuta el **UPDATE condicional
   `updateMany`** (WHERE `id ∧ version=expectedVersion ∧ status ∈ predicado`) + el **insert de auditoría** en la
   **misma** `$transaction`. `applyTransition` y `reassignOrder` lo consumen con distinto `data`/`audit`.
-- **Rationale**: evita divergencia entre las dos rutas de escritura (H-008); reutiliza el patrón ya probado de
-  002b (`updateMany` + `writeAudit` + `classifyZeroRows`). La reasignación pasa `data: { assignedTo: destino,
-  version: { increment: 1 } }` (NO toca `status`) y `audit: { event_type:'reassignment', from_assignee,
-  to_assignee, from_status==to_status }`.
-- **Alternativas**: repo separado para reasignación → duplica la lógica atómica y el mapeo P2003→FK.
+- **Lo que se comparte es SOLO el boilerplate** (el UPDATE condicional + insert de auditoría transaccional).
+  La **clasificación de 0-filas NO se comparte** y **NO** se fusiona en una función paramétrica única:
+  - `applyTransition` **conserva intacto** su clasificador de 002b (`classifyZeroRows`:
+    NOT_FOUND → VERSION_CONFLICT → INVALID_TRANSITION → GUARD_UNMET, version-first). **Sin cambio de
+    comportamiento** (Constitution XV) — verificado porque los tests de 002b siguen verdes (T007) y el arch
+    boundary test no altera su lógica.
+  - `reassignOrder` usa su **propio clasificador** con **precedencia status>version** (D-04). Vive junto al
+    caso de uso, no dentro de la primitiva compartida.
+- **Rationale**: H-008 pedía evitar **divergencia accidental** del patrón atómico (que una ruta olvide la
+  auditoría o el WHERE condicional), NO homogeneizar la clasificación (que debe divergir a propósito: 002b es
+  dominio puro sin endpoint; reasignación expone endpoint y su predicado de visibilidad es el estado). Compartir
+  el boilerplate cierra H-008 sin arriesgar la semántica de 002b.
+- **Alternativas**: (a) función de clasificación única paramétrica → riesgo de cambiar en silencio el código de
+  error de `applyTransition` en una carrera de 002b (rechazada, G2-B2); (b) repo separado para reasignación →
+  duplica el boilerplate atómico y el mapeo P2003→FK (rechazada).
 
 ## D-04 · Clasificación de 0-filas con precedencia status > version (S-001/H-006)
 
@@ -49,7 +59,13 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   concurrente saca la orden de ámbito **y** bumpea version; si se evaluara version primero se filtraría 409).
   Diverge conscientemente del `classifyZeroRows` de 002b (que devuelve `VERSION_CONFLICT` antes de estado): la
   reasignación necesita `ORDER_NOT_REASSIGNABLE→404` con precedencia, porque su predicado de visibilidad **es**
-  el estado (a diferencia de las transiciones internas de 002b, que no exponen endpoint).
+  el estado (a diferencia de las transiciones internas de 002b, que no exponen endpoint). Este clasificador es
+  **propio de `reassignOrder`** y **no** modifica el de 002b (ver D-03).
+- **`ORDER_NOT_REASSIGNABLE` colapsa a 404 byte-idéntico** (cierre G2-A5, SC-008): es un **diagnóstico interno**
+  (para logs/depuración), **nunca** un `code` distinto en el cuerpo al cliente. En `error-mapper.ts` se mapea al
+  **mismo 404 genérico** que `ORDER_NOT_FOUND` (idéntico `code`, sin `details`, mismas cabeceras). Se añade
+  `ORDER_NOT_REASSIGNABLE` al catálogo `ErrorCode`/`STATUS` (→404) para que `tsc` sea exhaustivo, pero su
+  serialización es indistinguible de `ORDER_NOT_FOUND`.
 - **Alternativas**: reutilizar `classifyZeroRows` de 002b tal cual → reintroduce S-001.
 
 ## D-05 · Extensión de OrderAudit + migración (H-007)
@@ -78,15 +94,19 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
 - **Alternativas**: exigir versión en el body base → fricción de cliente innecesaria (If-Match es el mecanismo
   estándar y ya es stretch).
 
-## D-07 · Validez del técnico destino y no-oráculo (S-003/S-006, FR-005)
+## D-07 · Validez del técnico destino y no-oráculo (S-003/S-006, FR-005) — validación en DOMINIO (cierre G2-A2)
 
-- **Decisión**: tras pasar la visibilidad (FR-004), validar destino con **una** consulta a `User`
-  (`existe ∧ role='technician' ∧ disabledAt IS NULL`) y comparar contra el `assigned_to` leído en visibilidad
-  ("mismo técnico"). Cualquier fallo → **422 `INVALID_ASSIGNEE`** con cuerpo **genérico idéntico** para las 4
-  causas (sin `details` distintivo). `reason` inválido → **422 `VALIDATION_ERROR`**.
-- **Rationale**: cuerpo idéntico cierra el oráculo de enumeración por contenido (S-003). Paridad de **latencia**
-  entre las 4 causas = residual documentado **BL-064** (no se fuerza en esta feature).
-- **Alternativas**: `details` con la causa concreta → oráculo de enumeración de usuarios/roles.
+- **Decisión**: la validación de destino es **regla de negocio del DOMINIO**, no del handler. El caso de uso
+  `reassign-order.ts` la ejecuta **una sola vez** a través de un **puerto de usuarios inyectado**
+  (`UserLookupPort.findAssignableTechnician(id)` → existe ∧ `role='technician'` ∧ `disabledAt IS NULL`) y compara
+  contra el `assigned_to` **leído en la consulta de visibilidad** (D-11). El **handler es delgado**: sólo
+  extrae `req.auth`, invoca la visibilidad (puerto, D-11) y delega en el dominio; **no** duplica la validación
+  de destino. Cualquier fallo → **422 `INVALID_ASSIGNEE`**, cuerpo **genérico idéntico** para las 4 causas.
+- **Rationale**: evita la doble validación handler↔dominio (H-003/G2-A2) y respeta hexagonal (Constitution III:
+  dominio con la regla, handler orquesta). Cuerpo idéntico cierra el oráculo por contenido (S-003). Paridad de
+  **latencia** entre las 4 causas = residual documentado **BL-064**.
+- **Alternativas**: validar en el handler → viola hexagonal y arriesga divergencia con el dominio (rechazada).
+  `details` con la causa concreta → oráculo de enumeración (rechazada).
 
 ## D-08 · Contrato de errores con agent_action (gap del error-mapper)
 
@@ -108,11 +128,52 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
 - **Rationale**: el `pino redact` con comodín cubre un nivel; el `reason` anidado en el body de request necesita
   ruta explícita (BL-059).
 
-## D-10 · Catch-all de errores de BD → 500 genérico (FR-010, BL-060)
+## D-10 · Doctrina de errores de BD: 503 (BD no disponible) vs 500 (inesperado) (FR-010, BL-060; cierre G2-M1)
 
-- **Decisión**: un manejador de nivel superior (extensión de `jsonErrorHandler`/`error-mapper`) convierte
-  cualquier error no mapeado (incluido error de BD ≠ FK-asignatario: deadlock, timeout, UUID inválido) en
-  **500** con cuerpo genérico `{code,message,agent_action}`, sin filtrar SQLSTATE/constraint/columna/query. La
-  FK del asignatario (Postgres `P2003`) sí se mapea a `INVALID_ASSIGNEE`/`ACTOR_INVALID` según origen.
-- **Rationale**: evita fuga de detalle de Postgres (BL-060); test que fuerza un error ≠ FK y hace grep negativo
-  (SC-007).
+- **Decisión**: dos casos distintos, coherentes con `listOrders` (que ya usa 503) y con Constitution X:
+  - **BD no disponible / caída / timeout de conexión** → **503** (fail-closed, reintentable), **misma doctrina**
+    que `listOrders`. Reutiliza el `SERVICE_UNAVAILABLE→503` ya existente en el catálogo.
+  - **Error de BD inesperado ≠ FK-asignatario** (deadlock, constraint futura, UUID inválido no atrapado antes)
+    → **500** genérico `{code,message,agent_action}`, sin filtrar SQLSTATE/constraint/columna/query.
+  - **FK del asignatario** (Postgres `P2003`) → `INVALID_ASSIGNEE` (422) según origen.
+- **Rationale**: un cliente/agente distingue transitorio-reintentable (503) de fallo real (500), consistente
+  con el resto de la API para el mismo tipo de incidente (G2-M1/H-007). Evita fuga de detalle de Postgres
+  (BL-060). El contrato de `reassignOrder` añade **503**. Tests: SC-007 (error ≠ FK → 500 sin detalle) + caso
+  de BD no disponible → 503.
+
+## D-11 · Orden de validación en el handler: visibilidad ANTES que forma del body (cierre G2-B1)
+
+- **Decisión**: el pipeline del handler ejecuta, en **este orden estricto** (FR-004): (1) `authenticate` →
+  401; (2) `requireRole('dispatcher')` → 403; (3) **consulta de visibilidad** (puerto D-12) → 0 filas ⇒ **404**
+  genérico; (4) **sólo con la orden visible**: parseo/validación de forma del body (Zod `.strict()` + `reason`)
+  y validez de destino → **422** (`VALIDATION_ERROR`/`INVALID_ASSIGNEE`); (5) guarda atómica → 409/200. La
+  validación de forma del body **NO** se monta como middleware previo genérico (patrón habitual de 001/002),
+  sino **dentro del handler, después** de la visibilidad.
+- **Rationale**: garantiza que **ningún 422 es alcanzable para una orden no visible** — el 422 nunca precede al
+  404. Así, para una orden inexistente o no reasignable, la respuesta es **siempre 404** con independencia de si
+  el body es válido (cierra el oráculo 404-vs-422, G2-B1). Verificación: test que cruza **"orden no visible ×
+  body inválido (reason ausente/>500cp / campo extra / assignee_id mal formado)"** → **404** (no 422).
+- **Alternativas**: validar el body como middleware antes de la visibilidad → un body inválido daría 422 antes
+  del 404, desviándose del orden de FR-004 (rechazada, G2-B1). *(Aunque un 422 uniforme por body-inválido no
+  filtra existencia por sí solo, se adopta el orden de FR-004 al pie de la letra para no dejar la garantía
+  dependiente de ese matiz y simplificar el razonamiento de seguridad.)*
+
+## D-12 · Consulta de visibilidad como puerto inyectado (cierre G2-A3)
+
+- **Decisión**: la consulta de visibilidad de FR-004 (`WHERE id=:orderId AND status IN
+  ('assigned','in_progress')`, que decide el 404 y de la que se relee `version`) se expone como **método de
+  puerto inyectado** —`OrderVisibilityPort.findReassignable(orderId)` → `{ id, assignedTo, version } | null`—
+  implementado en infra (Prisma); **no** se llama a Prisma directamente desde el handler.
+- **Rationale**: respeta la inyección de dependencias del Constitution Check; permite **testear la
+  no-enumeración con fakes** en unit (no sólo integración) y mantiene los handlers sin import de Prisma
+  (hexagonal, Constitution III). Cierra G2-A3/H-004.
+- **Alternativas**: Prisma directo en el handler → fuga de infra sin fake (rechazada).
+
+## D-13 · Conteo de longitud de `reason`: code points en ambas capas (cierre G2-M5)
+
+- **Decisión**: el límite `1..500` de `reason` se cuenta en **code points Unicode** en las dos capas. En el
+  contrato OpenAPI, `maxLength`/`minLength` de JSON Schema ya se definen **por code points** (spec JSON Schema),
+  así que ajv cuenta bien. En Zod, **no** usar `.min()/.max()` (cuentan UTF-16 code units) sino un
+  **refinamiento** sobre `[...reason].length` (más el requisito ≥1 carácter imprimible, FR-006).
+- **Rationale**: evita discrepancia entre el contract test (ajv) y el test de FR-006 (Zod) en inputs con
+  caracteres astrales (emoji) en el límite (G2-M5/H-005).

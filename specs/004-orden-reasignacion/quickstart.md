@@ -55,6 +55,8 @@ npm run test              # todo + cobertura (gate: dominio ≥80%, handlers/ser
 | 16 | Migración | filas de auditoría legacy (002b) quedan `event_type=transition`, par NULL; trigger sigue bloqueando UPDATE/DELETE | H-203, D-05 |
 | 17 | p95 de 50 reasignaciones secuenciales (BD caliente, warm-up descartado) | < 300 ms; correlation-ID en respuesta y logs | SC-010 |
 | 18 | Test de arquitectura | ningún fichero fuera de `domain/order/write-side/*` (ni del repo write-side) muta `status`/`version` | FR-007, BL-065 |
+| 19 | Orden **no visible** (inexistente/no-reasignable) + **body inválido** (reason ausente/>500cp / campo extra / assignee_id mal formado) | **404** (no 422): la visibilidad precede a la validación de forma | FR-004, D-11 (G2-B1) |
+| 20 | BD no disponible (caída/timeout de conexión) | **503** (fail-closed, reintentable), no 500 | FR-010, D-10 (G2-M1) |
 
 ## Notas
 

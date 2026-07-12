@@ -64,7 +64,8 @@ infalsificable server-side (FR-011); catch-all de errores de BD → 500 genéric
 - [x] `reassignOrder` valida **rol dispatcher** (`requireRole('dispatcher')`) + **visibilidad por ámbito** (estado reasignable) + **estado de origen** en el UPDATE condicional. La pertenencia `assigned_to==actor` **no aplica** (el dispatcher no es el asignatario); guarda declarada = (status reasignable ∧ version), FR-008.
 - [x] 401/403/404/409/422/500 distinguidos; test negativo por rol no autorizado y por cada causa. No-enumeración: 404 genérico indistinguible por construcción (FR-004).
 - [x] PII: `reason` redactado en logs (ruta HTTP real, FR-009) + longitud 1..500 code points. Cifrado en reposo de `reason` = residual heredado **BL-051**; purga/anonimización **BL-055** (fuera de alcance). `assigned_to`/`from_assignee`/`to_assignee` son UUIDs opacos (no PII).
-- [x] Auditoría append-only en la misma transacción; `event_type='reassignment'` con par de asignatarios. Registro de accesos denegados = **BL-002** (diferido, heredado de 001/002b).
+- [x] Auditoría append-only en la misma transacción; `event_type='reassignment'` con par de asignatarios.
+- [~] **Desviación de Constitution XI (registro de accesos denegados 401/403/404)**: NO se implementa en esta feature; se difiere a **BL-002** (heredado de 001/002b). Justificada en **Complexity Tracking** (no es un PASS silencioso — G2-M4).
 
 ### Gate · Arquitectura Hexagonal (Principio III)
 
@@ -103,14 +104,14 @@ backend/
 │   ├── domain/
 │   │   └── order/
 │   │       ├── write-side/                 # NUEVO módulo (único punto de escritura status/version)
-│   │       │   ├── apply-transition.ts     # REUBICADO desde domain/order/ (002b)
-│   │       │   ├── reassign-order.ts       # NUEVO caso de uso reassignOrder
-│   │       │   └── write-side-ports.ts     # puerto compartido (primitiva atómica) + errores
+│   │       │   ├── apply-transition.ts     # REUBICADO desde domain/order/ (002b) — clasificador 002b INTACTO
+│   │       │   ├── reassign-order.ts       # NUEVO caso de uso; valida destino (dominio) + clasificador propio status>version
+│   │       │   └── write-side-ports.ts     # primitiva atómica compartida (solo boilerplate) + OrderVisibilityPort + UserLookupPort + errores
 │   │       ├── transition-table.ts         # FSM (sin cambios; reasignación NO añade pares)
 │   │       ├── scope-policy.ts             # orderScopeFor(dispatcher) reutilizado para visibilidad
 │   │       └── model.ts
 │   ├── handlers/
-│   │   ├── orders/reassign.ts              # NUEVO handler HTTP (POST .../reassignments)
+│   │   ├── orders/reassign.ts              # NUEVO handler DELGADO: auth→visibilidad(404)→[body/destino 422]→dominio; sin Prisma directo, sin validar destino él mismo
 │   │   ├── contract/order-types.ts         # DTOs snake_case (req/resp de reasignación)
 │   │   ├── contract/schemas.ts             # Zod reassignRequestSchema (.strict())
 │   │   ├── error-mapper.ts                 # + INVALID_ASSIGNEE→422; agent_action en ErrorBody
@@ -131,12 +132,35 @@ contracts/orders.openapi.yaml               # + path POST /orders/{orderId}/reas
 
 **Structure Decision**: web service hexagonal, sólo `backend/`. Se introduce `domain/order/write-side/`
 reubicando `apply-transition.ts` (002b) y añadiendo `reassign-order.ts`, para materializar el "único punto de
-escritura de status/version" que reconcilia FR-006 de 002b (BL-065). En infra, se **generaliza**
-`order-transition-repository.ts` a `order-write-side-repository.ts` con una primitiva privada
-`conditionalWriteWithAudit` compartida por transición y reasignación (evita divergencia, H-008), preservando el
-comportamiento de 002b (no viola XV). El contrato vive en el `contracts/orders.openapi.yaml` de raíz (fuente de
-verdad única).
+escritura de status/version" que reconcilia FR-006 de 002b (BL-065). En infra se **generaliza**
+`order-transition-repository.ts` → `order-write-side-repository.ts` con una primitiva privada
+`conditionalWriteWithAudit` que comparte **sólo el boilerplate** (UPDATE condicional + insert de auditoría
+transaccional); **cada caso de uso conserva su propio clasificador de 0-filas** — el de `applyTransition`
+(002b, version-first) queda **intacto** y el de `reassignOrder` tiene precedencia status>version (D-03/D-04,
+cierre G2-B2), sin funciones paramétricas que arriesguen la semántica de 002b (XV).
+
+Decisiones de diseño clave que cierran G2 (ver research.md D-11..D-13):
+- **Orden de validación** (D-11, G2-B1): el handler valida la **visibilidad (404) ANTES** que la forma del
+  body/destino (422); ningún 422 es alcanzable para una orden no visible.
+- **Handler delgado** (D-07, G2-A2): la validación del técnico destino (FR-005) vive en el **dominio**
+  (`reassign-order.ts` vía `UserLookupPort`), no en el handler (que sólo orquesta).
+- **Visibilidad por puerto** (D-12, G2-A3): `OrderVisibilityPort` inyectado; el handler **no** usa Prisma
+  directo (testeable con fakes).
+- **`ORDER_NOT_REASSIGNABLE`** colapsa a 404 **byte-idéntico** a `ORDER_NOT_FOUND` en `error-mapper` (D-04,
+  G2-A5).
+- **Errores de BD**: BD no disponible → **503**; inesperado ≠ FK → **500** (D-10, G2-M1).
+
+El **rename del repo de infra** a `order-write-side-repository.ts` se hace en **Foundational** (no en US1) para
+que el test de arquitectura del boundary pueda estar en verde al cerrar esa fase (cierre G2-A1). El contrato
+vive en el `contracts/orders.openapi.yaml` de raíz (fuente de verdad única).
 
 ## Complexity Tracking
 
-> Sin violaciones de Constitution Check. No aplica.
+> Una desviación justificada de un principio SHALL de la constitución (registrada aquí, no como PASS silencioso — G2-M4).
+
+| Violación | Por qué se acepta ahora | Alternativa más simple rechazada porque |
+|-----------|-------------------------|------------------------------------------|
+| **Constitution XI — no se registran los accesos denegados** (401/403/404: actor, endpoint, recurso) en la auditoría append-only para `reassignOrder` | Desviación **heredada** de 001/002b (ninguna feature previa la implementó); introducir el registro forense de accesos denegados es un slice transversal propio (**BL-002**) que afecta a todos los endpoints, no sólo a éste. Hacerlo aquí ampliaría el alcance de la feature de reasignación. | Implementarlo sólo para `reassignOrder` → inconsistencia (unos endpoints lo registran y otros no) y trabajo transversal metido en una feature de negocio; se prefiere abordarlo de una vez en BL-002. |
+
+> El resto del Constitution Check queda en PASS sin condicionantes. La auditoría de **acciones exitosas** de
+> reasignación sí es append-only y atómica (FR-007); lo diferido es sólo el registro de **accesos denegados**.

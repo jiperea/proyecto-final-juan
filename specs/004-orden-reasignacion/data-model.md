@@ -65,7 +65,16 @@ Operaciones (aditivas, seguras con el trigger existente — `ALTER`/`CREATE TYPE
    → **backfill** implícito: todas las filas de 002b existentes quedan `'transition'`.
 3. `ALTER TABLE "order_audit" ADD COLUMN "from_assignee" UUID;` (+ FK a `user(id)` `ON DELETE RESTRICT`).
 4. `ALTER TABLE "order_audit" ADD COLUMN "to_assignee" UUID;` (+ FK a `user(id)` `ON DELETE RESTRICT`).
-5. Índice opcional `@@index([event_type])` si las consultas de auditoría filtran por tipo (evaluar en tasks).
+5. **Índice `@@index([event_type])`: NO se añade** (decisión, cierre G2-M7). Esta feature no ejecuta ninguna
+   consulta que filtre por `event_type`; añadir un índice sin consumidor es peso muerto. Si una feature futura
+   (p. ej. vista de auditoría por tipo, XI) lo necesita, se añadirá entonces.
+
+**Estrategia de lock (append-only que sólo crece — cierre G2-M3)**: `order_audit` es append-only y crece de
+forma monótona. Las columnas nuevas son **nullable** (`from_assignee`/`to_assignee`) y `event_type` usa
+`DEFAULT` constante, por lo que `ADD COLUMN` en Postgres ≥11 es **metadata-only** (no reescribe la tabla). Para
+las **FK nuevas**, crearlas con `ADD CONSTRAINT ... NOT VALID` y luego `VALIDATE CONSTRAINT` en un paso aparte,
+para evitar un `ACCESS EXCLUSIVE` lock prolongado que bloquearía los inserts de auditoría en una tabla grande.
+En la BD de test (efímera, vacía) es irrelevante; se documenta para el despliegue real.
 
 `down.sql`: `DROP COLUMN` × 3 + `DROP TYPE` (Prisma no lo ejecuta solo; documentado en quickstart como en 002b).
 

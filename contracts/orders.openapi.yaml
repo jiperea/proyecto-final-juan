@@ -117,8 +117,14 @@ paths:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '500':
           description: >
-            Error interno genérico (incl. error de BD ≠ FK-asignatario). Cuerpo genérico; nunca filtra detalle
-            de Postgres (SQLSTATE, constraint, columna, query).
+            Error interno inesperado (error de BD ≠ FK-asignatario ni indisponibilidad: deadlock, constraint
+            futura). Cuerpo genérico; nunca filtra detalle de Postgres (SQLSTATE, constraint, columna, query).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: >
+            BD no disponible (fail-closed, reintentable). Misma doctrina que listOrders (Constitution X);
+            se distingue del 500 (fallo inesperado no reintentable).
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
@@ -175,7 +181,10 @@ components:
           type: string
           minLength: 1
           maxLength: 500
-          description: Motivo operativo del reparto. Debe contener ≥1 carácter imprimible (no sólo whitespace/control).
+          description: >
+            Motivo operativo del reparto. `minLength`/`maxLength` se cuentan en code points Unicode (JSON Schema);
+            el Zod derivado debe contar code points (no UTF-16). Debe contener ≥1 carácter imprimible (no sólo
+            whitespace/control). Nunca aparece en logs ni en cuerpos de error.
 
     ErrorResponse:
       type: object
