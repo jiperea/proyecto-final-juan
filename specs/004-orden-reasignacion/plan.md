@@ -72,7 +72,7 @@ backend/
 │   │   ├── error-mapper.ts             # +INVALID_ASSIGNEE→422, +FORBIDDEN_ROLE→403; agent_action; catch-all 500
 │   │   └── app.ts                      # monta POST .../reassignments con authenticate+requireRole('dispatcher')
 │   └── infra/repositories/
-│       └── order-write-side-repository.ts  # generaliza order-transition-repository: primitiva atómica compartida
+│       └── order-write-side-repository.ts  # renombra order-transition-repository + AÑADE método reassign (applyTransition intacto, optimista)
 ├── prisma/
 │   ├── schema.prisma                   # +from/to_assignee, +event_type; from_status/to_status → nullable
 │   └── migrations/<ts>_extend_order_audit_reassignment/
@@ -82,15 +82,21 @@ contracts/orders.openapi.yaml           # +POST .../reassignments (200/401/403/4
 
 **Assumptions clave** (cierre G2): las órdenes **no se borran físicamente** en el sistema (no hay endpoint de
 delete; `Order.assigned_to` usa `onDelete:SetNull` sólo al borrar un `User`) → el `SELECT … FOR UPDATE` de
-FR-007 siempre encuentra la fila salvo id inexistente, que se maneja como 404 (K-001). `applyTransition` de
-002b **no cambia** su estrategia de concurrencia (optimista) al añadir `reassign` al repo (H-004).
+FR-007 siempre encuentra la fila salvo id inexistente, que se maneja como 404 (órdenes no se borran
+físicamente). `applyTransition` de 002b **no cambia** su estrategia de concurrencia (optimista) al añadir
+`reassign` al repo. *(Nota H-102: el CHECK de invariante `transition` exige `from_status`/`to_status` no nulos;
+si la futura feature de creación de órdenes registrara un evento con estado previo nulo, deberá reconciliar ese
+CHECK entonces — acoplamiento consciente con la nota de creación de T009.)*
 
 **Structure Decision**: web service hexagonal, solo `backend/`. Se crea `domain/order/write-side/` (reubica
 `apply-transition.ts`, añade `reassign-order.ts`) como **único punto de escritura** de `status`/`version`/
-`assigned_to` (arch test, reconcilia FR-006 de 002b). En infra, `order-transition-repository.ts` →
-`order-write-side-repository.ts` con una **primitiva atómica privada** (SELECT FOR UPDATE + UPDATE condicional
-+ insert auditoría en `$transaction`) que comparte **sólo el boilerplate**; `applyTransition` conserva su
-clasificador de 002b **intacto** (sin cambio de comportamiento, XV). Contrato en `contracts/orders.openapi.yaml`.
+`assigned_to` (arch test, reconcilia FR-006 de 002b). En infra, `order-transition-repository.ts` se **renombra** a
+`order-write-side-repository.ts` y se le **añade** el método `reassign` (SELECT FOR UPDATE + UPDATE condicional
++ insert auditoría en `$transaction`, propio de la reasignación). **`applyTransition` NO cambia su cuerpo**:
+conserva su lectura **optimista** (`findUnique`+`updateMany` por `version`) y su clasificador de 002b —sin
+cambio de concurrencia (XV, cierre G2-H-004)—; **no** se le impone la primitiva `FOR UPDATE`. No hay "primitiva
+de locking compartida" forzada; a lo sumo se comparten helpers sin efecto sobre la concurrencia. Contrato en
+`contracts/orders.openapi.yaml`.
 
 ## Complexity Tracking
 
