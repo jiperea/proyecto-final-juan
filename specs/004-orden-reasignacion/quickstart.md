@@ -56,7 +56,8 @@ npm run test              # todo + cobertura (gate: dominio ≥80%, handlers/ser
 | 17 | p95 de 50 reasignaciones secuenciales (BD caliente, warm-up descartado) | < 300 ms; correlation-ID en respuesta y logs | SC-010 |
 | 18 | Test de arquitectura | ningún fichero fuera de `domain/order/write-side/*` (ni del repo write-side) muta `status`/`version` | FR-007, BL-065 |
 | 19 | Orden **no visible** (inexistente/no-reasignable) + **body inválido** (reason ausente/>500cp / campo extra / assignee_id mal formado) | **404** (no 422): la visibilidad precede a la validación de forma | FR-004, D-11 (G2-B1) |
-| 20 | BD no disponible (caída/timeout de conexión) | **503** (fail-closed, reintentable), no 500 | FR-010, D-10 (G2-M1) |
+| 20 | Error de BD ≠ FK-asignatario (deadlock/timeout/**BD no disponible**) | **500** genérico, sin detalle Postgres | FR-010, D-10 |
+| 21 | `orderId` de la ruta **malformado** (no uuid) | **404** genérico byte-idéntico (cortocircuito antes de Prisma; no 400/500) | FR-004, D-14 (G2-N5) |
 
 ## Notas
 

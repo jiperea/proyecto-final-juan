@@ -117,14 +117,9 @@ paths:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '500':
           description: >
-            Error interno inesperado (error de BD ≠ FK-asignatario ni indisponibilidad: deadlock, constraint
-            futura). Cuerpo genérico; nunca filtra detalle de Postgres (SQLSTATE, constraint, columna, query).
-          content:
-            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
-        '503':
-          description: >
-            BD no disponible (fail-closed, reintentable). Misma doctrina que listOrders (Constitution X);
-            se distingue del 500 (fallo inesperado no reintentable).
+            Error interno genérico. Cubre TODO error de BD ≠ FK-asignatario (deadlock, timeout, BD no
+            disponible, UUID no atrapado, constraint futura), conforme a FR-010. Cuerpo genérico; nunca filtra
+            detalle de Postgres (SQLSTATE, constraint, columna, query).
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
@@ -190,7 +185,11 @@ components:
       type: object
       additionalProperties: false
       required: [code, message]
-      description: "Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/409/422/500. `agent_action` presente en respuestas de 004."
+      description: >
+        Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/409/422/500.
+        `agent_action` se emite en las respuestas de **negocio** del handler de 004 (404/409/422/500); los
+        401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es
+        opcional, no `required`).
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }

@@ -146,9 +146,13 @@ Decisiones de diseño clave que cierran G2 (ver research.md D-11..D-13):
   (`reassign-order.ts` vía `UserLookupPort`), no en el handler (que sólo orquesta).
 - **Visibilidad por puerto** (D-12, G2-A3): `OrderVisibilityPort` inyectado; el handler **no** usa Prisma
   directo (testeable con fakes).
-- **`ORDER_NOT_REASSIGNABLE`** colapsa a 404 **byte-idéntico** a `ORDER_NOT_FOUND` en `error-mapper` (D-04,
-  G2-A5).
-- **Errores de BD**: BD no disponible → **503**; inesperado ≠ FK → **500** (D-10, G2-M1).
+- **`ORDER_NOT_REASSIGNABLE`** colapsa a 404 **byte-idéntico** a `ORDER_NOT_FOUND` (caso explícito en
+  `error-mapper` que reescribe `body.code`) (D-04, G2-A5/N3).
+- **Clasificación de 0-filas**: la primitiva atómica devuelve **snapshot crudo**; **el dominio clasifica** con
+  precedencia status>version; `applyTransition` de 002b intacto (D-03, G2-N2).
+- **Errores de BD**: **todo** error de BD ≠ FK-asignatario (incl. BD no disponible) → **500** genérico,
+  conforme a la FR-010 congelada (D-10); reconciliación 503-vs-500 diferida a **BL-066**.
+- **`orderId` malformado** (no uuid) → **404 genérico byte-idéntico** antes de Prisma (D-14, G2-N5).
 
 El **rename del repo de infra** a `order-write-side-repository.ts` se hace en **Foundational** (no en US1) para
 que el test de arquitectura del boundary pueda estar en verde al cerrar esa fase (cierre G2-A1). El contrato

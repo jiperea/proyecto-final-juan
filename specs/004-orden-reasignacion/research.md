@@ -34,13 +34,17 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   `updateMany`** (WHERE `id ∧ version=expectedVersion ∧ status ∈ predicado`) + el **insert de auditoría** en la
   **misma** `$transaction`. `applyTransition` y `reassignOrder` lo consumen con distinto `data`/`audit`.
 - **Lo que se comparte es SOLO el boilerplate** (el UPDATE condicional + insert de auditoría transaccional).
-  La **clasificación de 0-filas NO se comparte** y **NO** se fusiona en una función paramétrica única:
-  - `applyTransition` **conserva intacto** su clasificador de 002b (`classifyZeroRows`:
-    NOT_FOUND → VERSION_CONFLICT → INVALID_TRANSITION → GUARD_UNMET, version-first). **Sin cambio de
-    comportamiento** (Constitution XV) — verificado porque los tests de 002b siguen verdes (T007) y el arch
-    boundary test no altera su lógica.
-  - `reassignOrder` usa su **propio clasificador** con **precedencia status>version** (D-04). Vive junto al
-    caso de uso, no dentro de la primitiva compartida.
+  La **clasificación de 0-filas NO se comparte** y **NO** se fusiona en una función paramétrica única.
+- **Contrato de retorno de la primitiva (cierre G2-N2)**: `conditionalWriteWithAudit` devuelve un resultado
+  **crudo, sin clasificar**: en éxito `{ count: 1, order: <fila actualizada> }`; en 0 filas
+  `{ count: 0, order: <snapshot re-leído {id,status,version}> | null }` (null si la orden no existe). **No**
+  devuelve `DomainError` ni decide 404/409. La decisión de qué error corresponde la toma **quien llama**:
+  - `applyTransition` **conserva intacto** su camino de 002b: su `classifyZeroRows`
+    (NOT_FOUND → VERSION_CONFLICT → INVALID_TRANSITION → GUARD_UNMET, version-first) **no se toca**. **Sin
+    cambio de comportamiento** (Constitution XV) — los tests de 002b siguen verdes (T008).
+  - `reassignOrder` (DOMINIO, `reassign-order.ts`) recibe ese snapshot crudo y aplica su **propio clasificador**
+    con **precedencia status>version** (D-04). Por eso el unit test de dominio (con un **fake** de la primitiva
+    que devuelve snapshots) prueba la **clasificación real**, no una reimplementación paralela.
 - **Rationale**: H-008 pedía evitar **divergencia accidental** del patrón atómico (que una ruta olvide la
   auditoría o el WHERE condicional), NO homogeneizar la clasificación (que debe divergir a propósito: 002b es
   dominio puro sin endpoint; reasignación expone endpoint y su predicado de visibilidad es el estado). Compartir
@@ -61,11 +65,15 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   reasignación necesita `ORDER_NOT_REASSIGNABLE→404` con precedencia, porque su predicado de visibilidad **es**
   el estado (a diferencia de las transiciones internas de 002b, que no exponen endpoint). Este clasificador es
   **propio de `reassignOrder`** y **no** modifica el de 002b (ver D-03).
-- **`ORDER_NOT_REASSIGNABLE` colapsa a 404 byte-idéntico** (cierre G2-A5, SC-008): es un **diagnóstico interno**
-  (para logs/depuración), **nunca** un `code` distinto en el cuerpo al cliente. En `error-mapper.ts` se mapea al
-  **mismo 404 genérico** que `ORDER_NOT_FOUND` (idéntico `code`, sin `details`, mismas cabeceras). Se añade
-  `ORDER_NOT_REASSIGNABLE` al catálogo `ErrorCode`/`STATUS` (→404) para que `tsc` sea exhaustivo, pero su
-  serialización es indistinguible de `ORDER_NOT_FOUND`.
+- **`ORDER_NOT_REASSIGNABLE` colapsa a 404 byte-idéntico** (cierre G2-A5/N3, SC-008): es un **diagnóstico
+  interno** (para logs/depuración), **nunca** un `code` distinto en el cuerpo al cliente. **Mecanismo concreto**
+  (no basta con mapearlo a 404, porque el patrón por defecto del catálogo serializa el nombre del `ErrorCode`
+  como `code`): en `error-mapper.ts` se añade un **caso explícito** que, cuando el `DomainError` interno es
+  `ORDER_NOT_REASSIGNABLE`, **reescribe el cuerpo** al de `ORDER_NOT_FOUND` (mismo `code` genérico, sin
+  `details`, mismas cabeceras) **antes de serializar** — es decir, `body.code` sale como `ORDER_NOT_FOUND`. Se
+  añade `ORDER_NOT_REASSIGNABLE` al catálogo `ErrorCode`/`STATUS` (→404) para exhaustividad de `tsc`, pero su
+  serialización al cliente es **idéntica** a `ORDER_NOT_FOUND`. El test de no-enumeración (T018) verifica la
+  igualdad byte a byte.
 - **Alternativas**: reutilizar `classifyZeroRows` de 002b tal cual → reintroduce S-001.
 
 ## D-05 · Extensión de OrderAudit + migración (H-007)
@@ -99,9 +107,12 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
 - **Decisión**: la validación de destino es **regla de negocio del DOMINIO**, no del handler. El caso de uso
   `reassign-order.ts` la ejecuta **una sola vez** a través de un **puerto de usuarios inyectado**
   (`UserLookupPort.findAssignableTechnician(id)` → existe ∧ `role='technician'` ∧ `disabledAt IS NULL`) y compara
-  contra el `assigned_to` **leído en la consulta de visibilidad** (D-11). El **handler es delgado**: sólo
-  extrae `req.auth`, invoca la visibilidad (puerto, D-11) y delega en el dominio; **no** duplica la validación
-  de destino. Cualquier fallo → **422 `INVALID_ASSIGNEE`**, cuerpo **genérico idéntico** para las 4 causas.
+  contra el `assigned_to` **del snapshot de visibilidad** (leído por el puerto D-12). **Lectura única (N7)**: el
+  handler hace **una sola** llamada a `OrderVisibilityPort.findReassignable` y **pasa ese snapshot** al dominio;
+  el dominio **no** dispara una segunda lectura de la orden (evita una ventana TOCTOU entre dos lecturas). El
+  **handler es delgado**: extrae `req.auth`, invoca la visibilidad (puerto D-12) y delega en el dominio; **no**
+  duplica la validación de destino. Cualquier fallo → **422 `INVALID_ASSIGNEE`**, cuerpo **genérico idéntico**
+  para las 4 causas.
 - **Rationale**: evita la doble validación handler↔dominio (H-003/G2-A2) y respeta hexagonal (Constitution III:
   dominio con la regla, handler orquesta). Cuerpo idéntico cierra el oráculo por contenido (S-003). Paridad de
   **latencia** entre las 4 causas = residual documentado **BL-064**.
@@ -128,18 +139,21 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
 - **Rationale**: el `pino redact` con comodín cubre un nivel; el `reason` anidado en el body de request necesita
   ruta explícita (BL-059).
 
-## D-10 · Doctrina de errores de BD: 503 (BD no disponible) vs 500 (inesperado) (FR-010, BL-060; cierre G2-M1)
+## D-10 · Catch-all de errores de BD → 500 genérico (FR-010, BL-060)
 
-- **Decisión**: dos casos distintos, coherentes con `listOrders` (que ya usa 503) y con Constitution X:
-  - **BD no disponible / caída / timeout de conexión** → **503** (fail-closed, reintentable), **misma doctrina**
-    que `listOrders`. Reutiliza el `SERVICE_UNAVAILABLE→503` ya existente en el catálogo.
-  - **Error de BD inesperado ≠ FK-asignatario** (deadlock, constraint futura, UUID inválido no atrapado antes)
-    → **500** genérico `{code,message,agent_action}`, sin filtrar SQLSTATE/constraint/columna/query.
-  - **FK del asignatario** (Postgres `P2003`) → `INVALID_ASSIGNEE` (422) según origen.
-- **Rationale**: un cliente/agente distingue transitorio-reintentable (503) de fallo real (500), consistente
-  con el resto de la API para el mismo tipo de incidente (G2-M1/H-007). Evita fuga de detalle de Postgres
-  (BL-060). El contrato de `reassignOrder` añade **503**. Tests: SC-007 (error ≠ FK → 500 sin detalle) + caso
-  de BD no disponible → 503.
+- **Decisión** (conforme a la spec CONGELADA, FR-010): **todo** error de BD que **no** sea la FK del asignatario
+  —deadlock, timeout, BD no disponible/caída, UUID inválido no atrapado antes, constraint futura— colapsa a
+  **500** genérico `{code,message,agent_action}`, sin filtrar SQLSTATE/constraint/columna/query. La FK del
+  asignatario (Postgres `P2003`) → `INVALID_ASSIGNEE` (422). Un manejador de nivel superior convierte cualquier
+  error no controlado en 500 genérico.
+- **Rationale**: FR-010 (aprobada en G1) fija explícitamente 500 para estos casos; `reassignOrder` **NO** expone
+  503. Evita fuga de detalle de Postgres (BL-060). Test: SC-007 (error ≠ FK → 500 sin detalle, grep negativo).
+- **Reconciliación diferida (BL-066)**: `listOrders` (002a) usa **503** fail-closed para BD no disponible.
+  Distinguir 503 (transitorio-reintentable) de 500 en `reassignOrder` sería una mejora de doctrina, pero
+  **cambia el contrato observable** y contradice la FR-010 congelada; se difiere a **BL-066** (reconciliar la
+  doctrina 503/500 entre endpoints en una **revisión de spec** futura, no en 004).
+- **Alternativas**: añadir 503 ahora → contradice la spec congelada e introduce deriva spec↔plan (rechazada,
+  G2-N1).
 
 ## D-11 · Orden de validación en el handler: visibilidad ANTES que forma del body (cierre G2-B1)
 
@@ -177,3 +191,17 @@ mapa del código dejó abierto. Sin `NEEDS CLARIFICATION` pendientes.
   **refinamiento** sobre `[...reason].length` (más el requisito ≥1 carácter imprimible, FR-006).
 - **Rationale**: evita discrepancia entre el contract test (ajv) y el test de FR-006 (Zod) en inputs con
   caracteres astrales (emoji) en el límite (G2-M5/H-005).
+
+## D-14 · Validación del path param `orderId` → 404 genérico (cierre G2-N5/S-101)
+
+- **Decisión**: el path param `orderId` se valida como **uuid** en el handler, **tras** `authenticate`/
+  `requireRole` y como parte de la resolución de visibilidad. Si `orderId` **no es un uuid válido**, se responde
+  el **mismo 404 genérico byte-idéntico** que `ORDER_NOT_FOUND` (un id malformado no puede corresponder a
+  ninguna orden), **cortocircuitando ANTES de tocar Prisma**.
+- **Rationale**: evita que un `orderId` malformado llegue a Prisma y provoque un cast error `P2023` que la
+  doctrina D-10 mapearía a **500** — lo que abriría una **4ª vía** de respuesta no cubierta por el test
+  byte-idéntico de SC-008. Tratarlo como 404 genérico (no 400) lo integra en la no-enumeración: inexistente,
+  no-reasignable, colapso post-UPDATE y **orderId malformado** dan **todos** el mismo 404. No filtra nada (un
+  id malformado no es un identificador enumerable). El test de no-enumeración (T018) añade esta 4ª vía.
+- **Alternativas**: 400/422 por id malformado → introduce un código distinguible por forma del id (rechazada);
+  dejar que Prisma lance P2023→500 → 4ª vía inconsistente con SC-008 (rechazada, S-101).

@@ -264,4 +264,13 @@
   de reconciliación como fuente de verdad única para 005/006. Verificado por el test de arquitectura de FR-007
   (nada fuera de `write-side/` muta status/version). No re-escribe la spec de 002b (ya mergeada).
 
+- **BL-066** (004/005/006 · MEDIA, gobernanza/contrato) — **Reconciliar la doctrina de errores de BD 503 vs
+  500 entre endpoints** (G2-004 re-entrada · cínico:H-007): `listOrders` (002a) responde **503** fail-closed
+  cuando la BD no está disponible, mientras `reassignOrder` (004), conforme a su FR-010 congelada, colapsa
+  **todo** error de BD (incl. indisponibilidad) a **500** genérico. Distinguir 503 (transitorio-reintentable)
+  de 500 (fallo inesperado) en los endpoints de escritura sería más coherente, pero **cambia el contrato
+  observable** y contradice la FR-010 ya aprobada en G1; se difiere a una **revisión de spec** futura (no se
+  hizo en 004 para no reabrir la spec congelada ni introducir deriva spec↔plan). Aplica a los endpoints de
+  escritura de 005/006 también.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
