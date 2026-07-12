@@ -96,30 +96,49 @@ reasignable o un técnico destino inválido son rechazados **sin efecto**.
   **200** con la orden actualizada.
 - **FR-002** *(estados reasignables)*: THE sistema SHALL considerar reasignables **exactamente** los estados
   `assigned` e `in_progress`. La **visibilidad del dispatcher es ese predicado**; una orden en cualquier otro
-  estado no está en su ámbito.
+  estado no está en su ámbito. *(Acople con la FSM de 002b: este conjunto está acoplado a los estados de 002b;
+  si una feature futura añade un estado a la FSM, FR-002 debe revisarse explícitamente —nota de trazabilidad
+  cruzada 004↔002b, no se asume reasignable por omisión.)*
 - **FR-003** *(RBAC dispatcher-only)*: WHEN quien solicita **no está autenticado** → **401**. WHEN está
   autenticado pero su rol **no es dispatcher** → **403** (`FORBIDDEN_ROLE`) sin efecto. La autorización se
   resuelve en backend (rol del token de 001), nunca desde parámetros del cliente.
 - **FR-004** *(no-enumeración)*: THE visibilidad se resuelve con **una única consulta** `WHERE id=:orderId AND
   status IN ('assigned','in_progress')`. WHEN devuelve **0 filas** —orden **inexistente** o en estado **no
   reasignable**— THE sistema SHALL responder **404** con cuerpo **genérico idéntico** (mismo `code`, sin
-  `details`) para ambas causas. Un `orderId` sintácticamente inválido (no-uuid) se valida **antes** de la
-  consulta y responde el **mismo 404 genérico**. **Orden de comprobación**: (1) 401 si no autenticado; (2) 403
-  si rol ≠ dispatcher; (3) 404 si la orden no es visible (incluye id malformado); (4) sólo con la orden visible
-  se valida destino y motivo (422). Así el **422 nunca es alcanzable para una orden no visible**.
-- **FR-005** *(validez del técnico destino)*: WHEN el técnico destino **no existe**, **no tiene rol
-  technician**, está **deshabilitado** (`disabledAt` no nulo), o **coincide** con el asignatario actual, THE
-  sistema SHALL responder **422** (`INVALID_ASSIGNEE`) sin efecto. THE cuerpo del 422 SHALL ser **genérico e
-  idéntico** para las cuatro causas (mismo `code`/`message`, sin `details` que revele cuál falló).
-- **FR-006** *(motivo obligatorio y validado)*: WHEN la petición **no** incluye `reason` con contenido
-  no-whitespace de **1 a 500 caracteres**, THE sistema SHALL responder **422** (`VALIDATION_ERROR`). El
-  `reason` es obligatorio en reasignación (a diferencia del opcional de 002b a nivel de dominio).
-- **FR-007** *(atomicidad + auditoría append-only)*: WHEN la reasignación procede, THE sistema SHALL aplicar en
-  **una sola transacción** (todo o nada): (a) `assigned_to`→destino, (b) `version`+1, (c) inserción de la fila
-  de auditoría de reasignación. Si cualquier paso falla, la transacción **revierte** por completo. La auditoría
-  es **append-only inmutable** (trigger de BD de 002b, conservado). `status`/`version` sólo se mutan desde el
-  **módulo write-side del dominio** (junto a `applyTransition`), nunca por un camino ad-hoc (verificable por
-  test de arquitectura).
+  `details`) para ambas causas. **Orden de comprobación estricto**: (1) **401** si no autenticado; (2) **403**
+  si rol ≠ dispatcher; (3) **resolución de visibilidad → 404**: dentro de este paso (y por tanto **después** de
+  401/403, nunca como middleware previo al auth) se valida primero el formato uuid del `orderId` —un id no-uuid
+  responde el **mismo 404 genérico**— y luego se ejecuta la consulta; 0 filas ⇒ 404; (4) sólo con la orden
+  **visible**: primero la **forma del cuerpo** (`reason`/`assignee_id`, FR-006 → `VALIDATION_ERROR`) y después
+  la **validez del destino** (FR-005 → `INVALID_ASSIGNEE`). Así una petición **sin auth con `orderId`
+  malformado responde 401** (no 404), y el **422 nunca es alcanzable para una orden no visible**.
+- **FR-005** *(validez del técnico destino)*: WHEN el técnico destino (`assignee_id`, un uuid válido) **no
+  existe**, **no tiene rol technician**, está **deshabilitado** (`disabledAt` no nulo), o **coincide** con el
+  asignatario actual, THE sistema SHALL responder **422** (`INVALID_ASSIGNEE`) sin efecto. THE cuerpo del 422
+  SHALL ser **genérico e idéntico** para las cuatro causas (mismo `code`/`message`, sin `details` que revele
+  cuál falló). *(TOCTOU: existencia/rol/distinto se comprueban en una lectura previa best-effort; si el destino
+  se invalida —deshabilitado **o borrado**— entre esa lectura y el commit, la FK de `assigned_to` en el UPDATE
+  lo rechaza; residual aceptado **BL-063**, ampliado a "invalidado", no sólo `disabledAt`.)*
+- **FR-006** *(validación de forma del cuerpo — motivo y destino sintáctico)*: WHEN el cuerpo es mal formado
+  —`reason` ausente, o sin contenido imprimible tras `trim()`, o de más de **500 code points Unicode**, o con
+  caracteres de **control/formato** (`\p{Cc}`/`\p{Cf}`); o `assignee_id` ausente o no-uuid— THE sistema SHALL
+  responder **422** (`VALIDATION_ERROR`). *(Unidad de conteo: code points sobre el string crudo; `reason`
+  válido = 1..500 code points con ≥1 carácter imprimible.)* Se distingue de `INVALID_ASSIGNEE` (FR-005): éste
+  aplica sólo a un `assignee_id` **uuid válido** que no resuelve a destino elegible. `reason` es **obligatorio**
+  en reasignación (a diferencia del opcional de 002b a nivel de dominio).
+- **FR-007** *(mutación atómica condicional + auditoría append-only)*: THE cambio de `assigned_to` SHALL
+  aplicarse mediante un **UPDATE condicional atómico** cuyo `WHERE` revalida, dentro de la misma operación,
+  `id` **y** `status ∈ {assigned, in_progress}` (guarda anti-carrera con la FSM). En **una sola transacción**
+  (todo o nada): (a) `assigned_to`→destino, (b) `version`+1, (c) inserción de la fila de auditoría, con
+  `from_assignee` = el `assigned_to` **anterior leído atómicamente del row actualizado** (p. ej. `RETURNING` /
+  lectura within-tx), **nunca** de una lectura previa potencialmente obsoleta. **Si el UPDATE afecta 0 filas**
+  (la orden dejó de ser reasignable entre la visibilidad de FR-004 y el commit, p. ej. una transición FSM
+  concurrente), THE sistema SHALL responder **404** genérico —sin mutar la orden ni insertar auditoría— (nunca
+  un 200 con auditoría "fantasma"). Si cualquier paso falla, la transacción **revierte** por completo. La
+  auditoría es **append-only inmutable** (trigger de BD de 002b, conservado). `status`, `version` **y
+  `assigned_to`** sólo se mutan desde el **módulo write-side del dominio** (junto a `applyTransition`), nunca
+  por un camino ad-hoc — **verificable por test de arquitectura** (regla de imports/dependency-cruiser o grep
+  sobre el árbol: ningún fichero fuera de ese módulo escribe esos campos).
 - **FR-008** *(actor infalsificable)*: THE `actor_id` de la auditoría SHALL derivarse **exclusivamente** del
   contexto de autenticación verificado server-side (el `userId` del token de 001), **nunca** de un parámetro de
   la request.
@@ -150,7 +169,10 @@ con el HTTP correcto; `reason` y detalle de Postgres nunca aparecen en el cuerpo
 
 - **SC-001** *(happy path + auditoría)*: el 100% de las reasignaciones válidas responden **200**, cambian
   `assigned_to`, conservan `status`, incrementan `version` en 1 y crean **exactamente 1** fila de auditoría
-  `reassignment` con `from_assignee`/`to_assignee` correctos y `from_status`/`to_status` NULL.
+  `reassignment` con `from_assignee`/`to_assignee` correctos y `from_status`/`to_status` NULL. **Bajo dos
+  reasignaciones concurrentes (last-write-wins)**: cada fila de auditoría registra el `from_assignee` **real
+  inmediatamente anterior a su propia escritura** (capturado within-tx, FR-007), verificado con un test que
+  encadena A(T1→T2) y B(T2→T3) y comprueba que la auditoría de B tiene `from_assignee=T2` (no T1).
 - **SC-002** *(matriz RBAC)*: el 100% de los casos de autorización responden el código correcto: sin auth →
   **401**; rol ≠ dispatcher → **403**; sin efecto en los rechazos.
 - **SC-003** *(estados no reasignables)*: el 100% de los intentos sobre `pending_review`/`closed`/`draft`
@@ -167,8 +189,10 @@ con el HTTP correcto; `reason` y detalle de Postgres nunca aparecen en el cuerpo
   **no aparece** en ningún log ni en el cuerpo de la respuesta de error (grep negativo).
 - **SC-009** *(saneo de errores de BD)*: WHEN se fuerza un error de BD, THE respuesta es **500** con cuerpo
   genérico y **no** contiene SQLSTATE, nombre de constraint/columna ni fragmento de query.
-- **SC-010** *(latencia)*: el p95 de la reasignación (happy path, BD de test local caliente, 50 peticiones
-  secuenciales) responde en **< 300 ms**; correlation-ID presente en la respuesta y en los logs.
+- **SC-010** *(latencia)*: medido sobre **50 peticiones secuenciales** de reasignación (happy path) contra la
+  BD de test local caliente, **descartando una petición de warm-up** previa (cold-start del pool), el **p95**
+  calculado por **nearest-rank** (índice ⌈0.95·50⌉ = 48 sobre los tiempos ordenados) responde en **< 300 ms**;
+  correlation-ID presente en la respuesta y en los logs.
 
 > Cada SC es **medible** (Constitution XIV) y se verifica con **Vitest + Supertest** contra Postgres real
 > (dominio puro + integración HTTP). Esta feature no tiene componente IA → sin eval de promptfoo.
@@ -204,6 +228,16 @@ está "hecho". FR-001..009 → `reassignOrder`; SC-001..010 → tests de contrat
   como readiness). `If-Match`→409 explícito = **stretch** (BL-001).
 - **`reason`**: pre-saneado por esta feature; PII cruda es residual heredado (cifrado en reposo **BL-051**,
   purga/anonimización **BL-055**, fuera de alcance).
+- **Autenticación reutilizada de 001**: el 401 cubre **sin credenciales, token expirado y sesión
+  revocada/cuenta inactiva** porque se reutiliza **literalmente** el middleware `authenticate` de 001 (no se
+  reimplementa el chequeo). Se verifica con un test de token expirado/revocado → 401 (no 403/500).
+- **Lectura de la auditoría restringida por RBAC (XI)**: esta feature **no** expone ningún endpoint de lectura
+  de `OrderAudit`; los nuevos campos (`from_assignee`/`to_assignee`/`event_type`, y `reason` con posible PII)
+  quedan sujetos al RBAC de lectura de auditoría cuando una feature futura exponga ese histórico (restricción
+  forward, no se relaja aquí).
+- **Semántica REST del endpoint**: `POST .../reassignments` responde **200 con la orden actualizada** (el
+  recurso conceptual es la orden; `reassignments` es el verbo/evento de acción, no un recurso con identidad
+  expuesta). Decisión consciente (no 201+Location).
 - **Sin API de pago**: verificación 100% determinista (Vitest + Supertest + Postgres docker-compose de test);
   sin componente IA → sin eval de promptfoo.
 
@@ -218,10 +252,13 @@ cuantificada.
 **Fuera / Stretch (aislado por XV — deuda diferida, no en este MVP)**:
 
 - **Concurrencia optimista explícita** `If-Match`→409 `VERSION_CONFLICT` (BL-001, stretch).
-- **Endurecimiento del 404** más allá del cuerpo genérico: paridad de **cabeceras/latencia** byte-idénticas,
-  colapso post-UPDATE con precedencia status>version (BL-061/062).
-- **Mapeo fino de errores de BD** (P2003 por FK a 422; 503 fail-closed específico) (BL-063/064/066).
-- **Auditoría forense** de accesos denegados (BL-002); cifrado en reposo de `reason` (BL-051); purga PII
-  (BL-055).
+- **Endurecimiento del no-oráculo por timing**: paridad de **cabeceras/latencia** byte-idénticas del 404
+  (BL-061/062) y paridad de **latencia** entre las 4 causas del 422 `INVALID_ASSIGNEE` (BL-064). El MVP cierra
+  el oráculo por **cuerpo** (idéntico); el timing es residual documentado.
+- **Mapeo fino de errores de BD** (P2003 por FK a 422; 503 fail-closed específico) (BL-063/066).
+- **Auditoría forense de accesos denegados** (401/403/404: actor/endpoint/recurso): **desviación explícita de
+  Constitution XI** (que lo exige sin condicional), diferida a **BL-002** y justificada en **Complexity
+  Tracking del plan** (no es endurecimiento opcional ordinario, sino excepción a un principio inamovible —
+  heredada de 001/002b). Cifrado en reposo de `reason` (BL-051); purga PII (BL-055).
 - Creación/alta de órdenes, ejecución (roadmap 004), revisión (roadmap 005), resumen IA (roadmap 006),
   notificaciones, multi-tenant.
