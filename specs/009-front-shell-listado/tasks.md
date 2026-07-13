@@ -117,10 +117,10 @@
 
 ## Phase 6: Polish & transversales
 
-- [ ] T044 [P] E2E Playwright en `frontend/tests/e2e/`: navegación por teclado (SC-004), reflow 320px/zoom 200% (SC-007), bfcache (FR-030), flujos por rol (login→listado→detalle), **barrido de que toda vista/estado expone un control de retorno navegable** (SC-001, G2 K-004)
-- [ ] T045 [P] Barrido a11y axe en todas las pantallas y estados (login, listado, detalle, vacío/error/sin-permiso) — 0 violaciones serias/críticas (SC-003)
-- [ ] T046 Cablear gates deterministas en `frontend/package.json` + CI: `lint` (stylelint+eslint, SC-008a), `typecheck` (tsc strict + badge exhaustivo SC-008c), `codegen` diff (SC-008b)
-- [ ] T047 [P] Actualizar `docs/traceability.md` con FR→endpoint→tarea→test de FE-1
+- [X] T044 [P] E2E Playwright en `frontend/tests/e2e/`: navegación por teclado (SC-004), reflow 320px/zoom 200% (SC-007), bfcache (FR-030), flujos por rol (login→listado→detalle), **barrido de que toda vista/estado expone un control de retorno navegable** (SC-001, G2 K-004)
+- [X] T045 [P] Barrido a11y axe en todas las pantallas y estados (login, listado, detalle, vacío/error/sin-permiso) — 0 violaciones serias/críticas (SC-003)
+- [X] T046 Cablear gates deterministas en `frontend/package.json` + CI: `lint` (stylelint+eslint, SC-008a), `typecheck` (tsc strict + badge exhaustivo SC-008c), `codegen` diff (SC-008b)
+- [X] T047 [P] Actualizar `docs/traceability.md` con FR→endpoint→tarea→test de FE-1
 - [ ] T048 Validación `quickstart.md`: front + back (docker compose) + tests en verde a la vez («definición de hecho»)
 
 ---
