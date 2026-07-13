@@ -131,11 +131,19 @@ Las enmiendas se aplican **al entrar en cada fase, no por adelantado**:
 ## Orden y paralelismo
 
 ```
-001 (auth+RBAC) ──► 002a (Order+listado) ──► 002b (FSM+auditoría)
-                                                  ├── 003 (reasignación)
-                                                  └── 004 (ejecución) ──► 005 (revisión) ──► 006 (resumen IA)
+DO-1 (spec pipeline) ──► DO-2 (contenerización) ──► DO-3 (PR-gate back) ──► DO-4 (CI develop) ──► DO-5 (CI main) ──► DO-7 (CD, opc.)
+   │  (transversal, antes de cualquier .yml)                                                       ▲
+   ▼                                                                                                │
+001 (auth+RBAC) ──► 002a (Order+listado) ──► 002b (FSM+auditoría)                                   │
+   │                     │                       ├── 003 (reasignación)                             │
+   │                     │                       └── 004 (ejecución) ──► 005 (revisión) ──► 006 (IA)│
+   ▼                     ▼                                                                          │
+FE-1 (shell+listado) ──► FE-2 (técnico)  [dep 004/#007]                                             │
+                    ├──► FE-3 (dispatcher) [dep 003]                       DO-6 (workflows front) ───┘
+                    └──► FE-4 (supervisor) [dep 005, 006]                    [inerte hasta FE-1]
 ```
 
+### Backend (API-first)
 - **001 → 002a → 002b** primero (todo depende del auth/RBAC, luego de la entidad Order y de la FSM+auditoría).
 - **002a** (read-side) es demostrable por sí sola ("veo mis órdenes por rol"); **002b** añade las transiciones.
 - **003** puede ir en paralelo a **004** una vez cerrada **002b** (ambas hacen transiciones de estado).
@@ -145,6 +153,18 @@ Las enmiendas se aplican **al entrar en cada fase, no por adelantado**:
   evidencia) tras #004, antes de considerar "registro de ejecución" cerrado de cara al usuario final; **#008**
   (endurecimiento write-side) cuando el MVP funcional esté completo (endurece 003/004/005); **#009** (auditoría
   de accesos denegados) a nivel de fundación/gobernanza. Ninguno bloquea el MVP funcional del brief.
+
+### Front (consume contratos congelados)
+- **FE-1** entra en cuanto están 001 + 002a (shell + login + listado por rol read-only); es la base de FE-2/3/4.
+- **FE-2/FE-3/FE-4** van **en paralelo** sobre FE-1, cada una tras su feature de backend (FE-2→004/#007,
+  FE-3→003, FE-4→005+006). El **sistema de diseño se define justo antes de FE-1** (no por adelantado).
+
+### DevOps (transversal, ADR-0004)
+- **DO-1 primero de todo lo de pipeline**: la spec del pipeline debe ser **anterior** al primer `.yml` (git lo
+  demuestra). No bloquea el backend/front, pero **sí** precede a DO-2..7.
+- **DO-2 → DO-3 → DO-4 → DO-5** en cadena (contenerización → PR-gate → CI develop → CI main).
+- **DO-6** (workflows de front) queda **inerte hasta FE-1** (no existe `frontend/` antes). **DO-7** (CD) es
+  opcional y depende de DO-4/5 + un target cloud.
 
 ## Cada feature, al entrar, dispara el flujo con gates
 
@@ -161,12 +181,18 @@ Las enmiendas se aplican **al entrar en cada fase, no por adelantado**:
   actor/timestamp/motivo, atómica).
 - **004** (ejecución): evidencia **validada** antes de adjuntar.
 - **006** (IA): no-inventar + **rate-limit** del endpoint.
+- **Front (FE-1..4):** exigido por la "definición de hecho" del enunciado (front+back+tests en verde a la
+  vez); responsive, RBAC en UI espejo del backend, accesibilidad **WCAG 2.1 AA**.
+- **DevOps (DO-1..5):** "Mínima" del reto M12 — spec-antes-que-YAML, contenerización, PR-gate con guardián de
+  Constitución, CI develop/main con imágenes en GHCR. **DO-6** (workflows front) obligatorio pero inerte hasta FE-1.
 - **Transversal:** correlation-ID; NFR "rápido" **cuantificado en los SC** de cada spec.
 
 **Stretch (opcional; no bloquea gate; solo si da tiempo):**
+
 - idempotency-key + concurrencia optimista (If-Match→409) — en 003/004.
 - auditoría **forense** (accesos denegados, evidencia versionada por intento) — en 002/004.
 - resumen IA con **procedencia + staleness** — en 006.
+- **DO-7 (CD)**: dev/pre auto + prod con aprobación manual (topa con el muro de repo privado Free, M9 J2).
 
 ## Fuera de alcance (declarado)
 
