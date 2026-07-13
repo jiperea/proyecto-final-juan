@@ -26,6 +26,7 @@ import { submitOrderExecutionHandler } from './orders/execution';
 import type { SubmitExecutionDeps } from '../domain/order/write-side/submit-execution';
 import { reviewOrderHandler } from './orders/review';
 import type { ReviewOrderDeps } from '../domain/order/write-side/review-order';
+import { summarizeIncidentHandler, type SummarizeIncidentHandlerDeps } from './orders/ai-summary';
 import { authenticate } from './middleware/authenticate';
 import { authorizeProbe } from './middleware/authorize';
 import { csrf, type SessionValidityPort } from './middleware/csrf';
@@ -56,6 +57,8 @@ export interface AppDeps {
   readonly executionDeps: SubmitExecutionDeps;
   // 006 — revisión del supervisor (write-side propio de 006).
   readonly reviewDeps: ReviewOrderDeps;
+  // 007 — resumen de incidencia por IA (guards dentro del handler, K5).
+  readonly summaryDeps: SummarizeIncidentHandlerDeps;
   readonly cookie: CookieOptions;
 }
 
@@ -106,4 +109,7 @@ function registerOrderRoutes(app: Express, deps: AppDeps): void {
   app.post('/v1/orders/:orderId/execution', auth, requireRole('technician'), submitOrderExecutionHandler(deps.executionDeps));
   // Revisión del supervisor (006): 401→403→422 (VALIDATION_ERROR/INVALID_REASON)→404 (no visible)→409 (evidencia).
   app.post('/v1/orders/:orderId/review', auth, requireRole('supervisor'), reviewOrderHandler(deps.reviewDeps));
+  // Resumen de incidencia por IA (007): SÓLO `auth`; rol/rate-limit/visibilidad los aplica el handler para
+  // emitir el evento de acceso `denied` en cada rechazo (K5). Precedencia 401→403→429→404→proveedor.
+  app.post('/v1/orders/:orderId/ai-summary', auth, summarizeIncidentHandler(deps.summaryDeps));
 }

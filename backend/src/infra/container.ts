@@ -4,8 +4,13 @@ import type { AppDeps } from '../handlers/app';
 import { Argon2PasswordHasher } from './crypto/password-hasher';
 import { JwtTokenIssuer } from './crypto/token-issuer';
 import { checkDb, createPrisma } from './prisma';
+import { createLogger } from './logger';
 import { InMemoryGraceCache } from './grace-cache/in-memory';
 import { InMemoryRateLimit } from './ratelimit/in-memory';
+import { PrismaIncidentSourceRepository } from './repositories/incident-source-repository';
+import { ClaudeCliProvider } from './ai/claude-cli-provider';
+import { MockAiSummaryProvider } from './ai/mock-provider';
+import { PinoAccessLog } from './ai/access-logger';
 import { RefreshSessionValidity } from './session-validity';
 import { PrismaAccountState, PrismaProbeRepository } from './repositories/account-state';
 import { PrismaOrderRepository } from './repositories/order-repository';
@@ -61,6 +66,19 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
       max: config.lockoutMax,
       windowMs: config.lockoutWindowMin * MIN_MS,
       lockoutMs: config.lockoutWindowMin * MIN_MS,
+      lockoutSecret: config.lockoutSecret,
+    }),
+    // 007 — resumen de incidencia por IA.
+    incidentSource: new PrismaIncidentSourceRepository(prisma),
+    aiProvider:
+      config.aiProvider === 'mock'
+        ? new MockAiSummaryProvider()
+        : new ClaudeCliProvider({ timeoutMs: config.aiTimeoutMs, temperature: config.aiTemperature }),
+    aiAccessLog: new PinoAccessLog(createLogger()),
+    aiRateLimit: new InMemoryRateLimit({
+      max: config.aiRateMax,
+      windowMs: config.aiRateWindowMs,
+      lockoutMs: config.aiRateWindowMs,
       lockoutSecret: config.lockoutSecret,
     }),
   };
@@ -120,6 +138,13 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
     startDeps: { start: a.startOrderWork }, // 005 US1
     executionDeps: { execution: a.orderExecution }, // 005 US2
     reviewDeps: { review: a.orderReview }, // 006
+    summaryDeps: {
+      source: a.incidentSource,
+      provider: a.aiProvider,
+      accessLog: a.aiAccessLog,
+      rateLimit: a.aiRateLimit,
+      thresholds: { minNotesChars: config.aiMinNotesChars, minEvidence: config.aiMinEvidence },
+    }, // 007
 
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,

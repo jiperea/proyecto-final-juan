@@ -56,3 +56,9 @@ export function domainError(
 ): DomainError {
   return { code, message, ...extra };
 }
+
+// Type guard: ¿es `e` un DomainError? (para que un handler distinga un error de dominio propagado
+// por `throw` —p. ej. SERVICE_UNAVAILABLE de un repo ante BD caída— de un error inesperado → 500).
+export function isDomainError(e: unknown): e is DomainError {
+  return typeof e === 'object' && e !== null && 'code' in e && 'message' in e;
+}

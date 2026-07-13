@@ -33,3 +33,11 @@ export interface ReviewRequestDto {
   decision: 'approve' | 'reject';
   reason?: string;
 }
+
+// 007 — respuesta del resumen de incidencia (derivada de IncidentSummaryResponse del contrato).
+// `summary` = texto cuando sufficient=true; null cuando sufficient=false (fallback). El cliente
+// distingue resumen/fallback por `sufficient`, sin heurística de texto (FR-011).
+export interface IncidentSummaryResponseDto {
+  summary: string | null;
+  sufficient: boolean;
+}

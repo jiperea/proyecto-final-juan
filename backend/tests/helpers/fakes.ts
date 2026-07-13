@@ -161,6 +161,13 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
     reviewDeps: {
       review: { review: async () => err(domainError('GUARD_UNMET', 'no-op fake')) },
     },
+    summaryDeps: {
+      source: { findSummarizable: async () => null },
+      provider: { generate: async () => err(domainError('SERVICE_UNAVAILABLE', 'no-op fake')) },
+      accessLog: { record: () => undefined },
+      rateLimit,
+      thresholds: { minNotesChars: 30, minEvidence: 1 },
+    },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,
   };

@@ -1,0 +1,25 @@
+# Success Criteria medibles de 007 (mapa SC → verificación). Los SC deterministas (RBAC, rate-limit,
+# precedencia, robustez, evento de acceso) se verifican con Vitest+Supertest (provider mock); los SC de
+# calidad IA (fidelidad, no-fuga semántica, fallback) se anclan a promptfoo (este arnés, gate G3).
+sc:
+  - id: SC-001
+    enunciado: "faithfulness >= 0.90 y tasa_alucinacion <= 0.05 en golden cases con contenido suficiente"
+    verificacion: "promptfoo (llm-rubric por afirmación atómica, media del set) — ia-resumen/golden-cases.yaml"
+  - id: SC-002
+    enunciado: "100% de golden cases de evidencia insuficiente → fallback, 0 resúmenes fabricados"
+    verificacion: "promptfoo (sufficient=false) + unit/summarize-incident + integration/ai-summary-fallback"
+  - id: SC-003
+    enunciado: "0 apariciones de PII del golden case en prompt, salida y logs"
+    verificacion: "promptfoo (not-contains literales) + integration/ai-summary-pii (prompt) + logger REDACT"
+  - id: SC-004
+    enunciado: "100% roles != supervisor → 403/401; 100% órdenes fuera de pending_review → 404; sin proveedor"
+    verificacion: "integration/ai-summary-authz + contract/ai-summary"
+  - id: SC-005
+    enunciado: "superar el límite → 429 + Retry-After, sin proveedor"
+    verificacion: "integration/ai-summary-ratelimit"
+  - id: SC-006
+    enunciado: "100% timeout/fallo → 503; 100% salidas no conformes → 200 fallback; 0 cuelgues/fugas"
+    verificacion: "integration/ai-summary-provider-failure + integration/ai-summary-fallback + unit/*"
+  - id: SC-007
+    enunciado: "100% de solicitudes emiten evento de acceso sin PII (incl. denied + deniedReason)"
+    verificacion: "integration/ai-summary-access-event"

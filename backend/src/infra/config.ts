@@ -17,6 +17,14 @@ const schema = z.object({
   DB_QUERY_TIMEOUT_MS: z.coerce.number().int().positive(),
   PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // --- 007: resumen de incidencia por IA ---
+  AI_PROVIDER: z.enum(['claude-cli', 'mock']).default('claude-cli'),
+  AI_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000), // FR-010 timeout duro
+  AI_TEMPERATURE: z.coerce.number().min(0).max(1).default(0), // FR-009b determinismo/reproducibilidad
+  AI_MIN_NOTES_CHARS: z.coerce.number().int().nonnegative().default(30), // FR-015 umbral (Constitution VIII)
+  AI_MIN_EVIDENCE: z.coerce.number().int().nonnegative().default(1), // FR-015 nº mínimo de evidencia
+  AI_RATE_MAX: z.coerce.number().int().positive().default(10), // FR-008 10/60s por usuario
+  AI_RATE_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
 });
 
 export interface Config {
@@ -33,6 +41,14 @@ export interface Config {
   readonly dbQueryTimeoutMs: number;
   readonly port: number;
   readonly nodeEnv: 'development' | 'test' | 'production';
+  // 007
+  readonly aiProvider: 'claude-cli' | 'mock';
+  readonly aiTimeoutMs: number;
+  readonly aiTemperature: number;
+  readonly aiMinNotesChars: number;
+  readonly aiMinEvidence: number;
+  readonly aiRateMax: number;
+  readonly aiRateWindowMs: number;
 }
 
 function assertSecretsDistinct(jwt: string, csrf: string, lockout: string): void {
@@ -74,5 +90,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dbQueryTimeoutMs: v.DB_QUERY_TIMEOUT_MS,
     port: v.PORT,
     nodeEnv: v.NODE_ENV,
+    aiProvider: v.AI_PROVIDER,
+    aiTimeoutMs: v.AI_TIMEOUT_MS,
+    aiTemperature: v.AI_TEMPERATURE,
+    aiMinNotesChars: v.AI_MIN_NOTES_CHARS,
+    aiMinEvidence: v.AI_MIN_EVIDENCE,
+    aiRateMax: v.AI_RATE_MAX,
+    aiRateWindowMs: v.AI_RATE_WINDOW_MS,
   };
 }

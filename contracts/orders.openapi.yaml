@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FieldOps — Orders API
-  version: 1.3.0
+  version: 1.4.0
   description: >
     Feature 002a (read-side): listado de órdenes filtrado por rol sobre el auth/RBAC de 001.
     Feature 004 (write-side): reasignación de una orden por el dispatcher (POST .../reassignments),
@@ -11,6 +11,8 @@ info:
     ≥1 evidencia por referencia + notas).
     Feature 006 (write-side): revisión por el supervisor — reviewOrder (POST .../review): approve
     (pending_review→closed, guard ≥1 evidencia → 409) o reject (pending_review→in_progress con motivo).
+    Feature 007 (IA, read-only): summarizeOrderIncident (POST .../ai-summary): resumen IA de la incidencia para
+    el supervisor (fallback no-inventa, minimización de PII, rate-limit 10/60s, timeout 10s).
     Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
     Reutiliza bearerAuth y ErrorResponse de contracts/auth.openapi.yaml (001).
 servers:
@@ -284,6 +286,70 @@ paths:
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
+  /orders/{orderId}/ai-summary:
+    post:
+      operationId: summarizeOrderIncident
+      tags: [orders]
+      summary: Resumen IA de la incidencia de una orden en pending_review (sólo supervisor)
+      description: >
+        Feature 007. Un supervisor obtiene un resumen en lenguaje natural de la incidencia (notas de ejecución +
+        metadatos de evidencia de 005) para apoyar la revisión (006). La IA nunca inventa (fallback
+        sufficient=false) ni filtra PII (minimización por capas antes del proveedor + chequeo de salida;
+        Constitution VIII). Proveedor por CLI (claude -p) en dev, mock en tests; timeout duro 10 s. Rate-limit
+        10/60 s por usuario. Precedencia 401→403→429→404→proveedor(503 timeout/fallo | 200 resumen/fallback). El
+        prompt/resumen no se persisten ni se loguean; se emite un evento de acceso sin PII (server-side).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: >
+            Resultado del resumen. `sufficient=true` → `summary` con el texto (≤1200); `sufficient=false` →
+            `summary=null` (fallback: evidencia insuficiente, salida no conforme, o PII detectada — la causa NO
+            se revela al cliente).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/IncidentSummaryResponse' } }
+        '401':
+          description: No autenticado. Uniforme (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Rol no supervisor (FORBIDDEN_ROLE). Sin llamar al proveedor.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            Orden inexistente, orderId malformado, o en estado ≠ pending_review (no visible). Cuerpo genérico
+            (no-enumeración). Sin llamar al proveedor.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '429':
+          description: Rate-limit por usuario superado (10/60 s). RATE_LIMITED + Retry-After. Sin llamar al proveedor.
+          headers:
+            Retry-After:
+              description: Segundos hasta que expira la ventana de rate-limit (coherente con 001).
+              schema: { type: integer }
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: >
+            Error interno genérico (INTERNAL). Cubre cualquier fallo inesperado; cuerpo genérico, nunca filtra
+            detalle de Postgres/proveedor. (Un fallo de conexión/indisponibilidad de BD NO es 500: es 503,
+            convención transversal 001/006.)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: >
+            No disponible (SERVICE_UNAVAILABLE): timeout (>10 s) o fallo de proceso del proveedor IA, **o** BD no
+            disponible al leer la fuente (convención 001/006). Cuerpo genérico; nunca filtra detalle. (Una salida
+            vacía/no-conforme/con-PII NO es 503: es 200 fallback.)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -391,6 +457,25 @@ components:
           items: { $ref: '#/components/schemas/EvidenceRef' }
           description: ≥1 y ≤10 evidencias; sin object_ref duplicados (igualdad exacta). Bloqueante (Brief "≥1 foto").
 
+    IncidentSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [summary, sufficient]
+      description: >
+        Resultado del resumen IA (feature 007). `sufficient=true` → `summary` es el texto (≤1200 code points);
+        `sufficient=false` → `summary` es `null` (fallback: no inventa). El cliente distingue por `sufficient`,
+        sin heurística de texto. La causa del fallback (insuficiente / no-conforme / PII) NO se expone.
+      properties:
+        summary:
+          oneOf:
+            - type: string
+              maxLength: 1200
+              description: Resumen en lenguaje natural (español) sin PII.
+            - type: 'null'
+        sufficient:
+          type: boolean
+          description: true si el proveedor pudo resumir con fidelidad; false implica fallback (summary null).
+
     ReviewRequest:
       type: object
       additionalProperties: false
@@ -428,9 +513,12 @@ components:
         EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e
         INVALID_TRANSITION (422). 006 (reviewOrder) 401/403/404/409/422/500/503 — VALIDATION_ERROR (422,
         decision/body), INVALID_REASON (422, motivo), GUARD_UNMET (404, no visible), EVIDENCE_MISSING (409,
-        guard de evidencia en approve). `agent_action` se emite en las respuestas de **negocio** de los handlers
-        de 004/005/006 (404/409/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no
-        llevarlo (por eso `agent_action` es opcional, no `required`).
+        guard de evidencia en approve). 007 (summarizeOrderIncident) 401/403/404/429/500/503 — FORBIDDEN_ROLE (403),
+        404 genérico (no-enumeración, orden no visible/estado ≠ pending_review), RATE_LIMITED (429, con header
+        Retry-After), INTERNAL (500, error inesperado), SERVICE_UNAVAILABLE (503, timeout/fallo del proveedor **o**
+        BD no disponible al leer la fuente, convención 001/006). `agent_action` se emite en las
+        respuestas de **negocio** de los handlers de 004/005/006 (404/409/422/500); los 401/403 provienen del
+        middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es opcional, no `required`).
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }

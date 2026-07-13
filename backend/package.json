@@ -17,7 +17,8 @@
     "prisma:migrate": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
     "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "eval": "promptfoo eval -c ../evals/promptfooconfig.yaml"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",
@@ -42,6 +43,7 @@
     "eslint": "^9.9.0",
     "openapi-typescript": "^7.3.0",
     "prisma": "^5.18.0",
+    "promptfoo": "^0.121.18",
     "supertest": "^7.0.0",
     "tsx": "^4.17.0",
     "typescript": "^5.5.4",

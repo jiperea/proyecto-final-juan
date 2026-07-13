@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import type { PrismaClient } from '@prisma/client';
-import { buildApp } from '../../src/handlers/app';
+import { buildApp, type AppDeps } from '../../src/handlers/app';
 import type { Config } from '../../src/infra/config';
 import { buildContainer } from '../../src/infra/container';
 
@@ -23,6 +23,14 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     dbQueryTimeoutMs: 2000,
     port: 3000,
     nodeEnv: 'test',
+    // 007: proveedor IA mock por defecto en tests (deterministas, sin red/CLI).
+    aiProvider: 'mock',
+    aiTimeoutMs: 10_000,
+    aiTemperature: 0,
+    aiMinNotesChars: 30,
+    aiMinEvidence: 1,
+    aiRateMax: 10,
+    aiRateWindowMs: 60_000,
     ...overrides,
   };
 }
@@ -30,6 +38,18 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
 export function makeTestApp(overrides: Partial<Config> = {}): { app: Express; prisma: PrismaClient } {
   const { deps, prisma } = buildContainer(testConfig(overrides));
   return { app: buildApp(deps), prisma };
+}
+
+// 007 — app con override de summaryDeps (provider spy / accessLog captor / thresholds), conservando el
+// repo de fuente real (Postgres). Patrón de inyección de fallo/observabilidad (cf. review-db-errors).
+type SummaryOverride = Partial<AppDeps['summaryDeps']>;
+export function makeTestAppWithSummary(
+  summaryOver: SummaryOverride,
+  overrides: Partial<Config> = {},
+): { app: Express; prisma: PrismaClient } {
+  const { deps, prisma } = buildContainer(testConfig(overrides));
+  const app = buildApp({ ...deps, summaryDeps: { ...deps.summaryDeps, ...summaryOver } });
+  return { app, prisma };
 }
 
 export function cookieValue(setCookie: string[] | string | undefined, name: string): string {
