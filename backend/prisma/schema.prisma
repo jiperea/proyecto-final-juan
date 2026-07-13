@@ -30,7 +30,9 @@ model User {
   identifiers Identifier[]
   sessions    Session[]
   orders      Order[]
-  audits      OrderAudit[]
+  auditsAsActor OrderAudit[] @relation("OrderAuditActor")
+  auditsAsFrom  OrderAudit[] @relation("OrderAuditFromAssignee")
+  auditsAsTo    OrderAudit[] @relation("OrderAuditToAssignee")
 
   @@map("users")
 }
@@ -108,18 +110,31 @@ model Order {
   @@map("orders")
 }
 
+// Feature 004 — tipo de evento de auditoría (transición FSM vs reasignación de asignatario).
+enum OrderAuditEventType {
+  transition
+  reassignment
+}
+
 // Feature 002b — OrderAudit (write-side). Append-only (TRIGGER a nivel de BD, no REVOKE — el rol es
 // propietario, G2:S-002). Una fila por transición aplicada, en la MISMA transacción (atomicidad, FR-004).
+// Feature 004 (aditivo): +event_type, +from/to_assignee; from/to_status RELAJADOS a nullable (NULL en
+// reassignment, que no cambia estado). CHECK de invariantes por event_type en la migración.
 model OrderAudit {
-  id         String      @id @db.Uuid
-  orderId    String      @map("order_id") @db.Uuid
-  order      Order       @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  actorId    String      @map("actor_id") @db.Uuid
-  actor      User        @relation(fields: [actorId], references: [id], onDelete: Restrict)
-  fromStatus OrderStatus @map("from_status")
-  toStatus   OrderStatus @map("to_status")
-  reason     String?     @db.Text // pre-saneado por el llamador; NUNCA en logs/errores (FR-008/SC-006)
-  at         DateTime    @default(now()) @db.Timestamptz(3)
+  id           String              @id @db.Uuid
+  orderId      String              @map("order_id") @db.Uuid
+  order        Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  actorId      String              @map("actor_id") @db.Uuid
+  actor        User                @relation("OrderAuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  eventType    OrderAuditEventType @default(transition) @map("event_type") // 004
+  fromStatus   OrderStatus?        @map("from_status") // nullable desde 004 (NULL en reassignment)
+  toStatus     OrderStatus?        @map("to_status") // nullable desde 004 (NULL en reassignment)
+  fromAssignee String?             @map("from_assignee") @db.Uuid // 004: asignatario origen (NULL si huérfana/transition)
+  toAssignee   String?             @map("to_assignee") @db.Uuid // 004: asignatario destino (NULL en transition)
+  fromUser     User?               @relation("OrderAuditFromAssignee", fields: [fromAssignee], references: [id], onDelete: Restrict)
+  toUser       User?               @relation("OrderAuditToAssignee", fields: [toAssignee], references: [id], onDelete: Restrict)
+  reason       String?             @db.Text // pre-saneado por el llamador; NUNCA en logs/errores (FR-009)
+  at           DateTime            @default(now()) @db.Timestamptz(3)
 
   @@index([orderId])
   @@map("order_audit")

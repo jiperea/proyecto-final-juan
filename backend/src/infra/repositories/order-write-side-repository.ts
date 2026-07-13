@@ -6,7 +6,15 @@ import { isLegalTransition } from '../../domain/order/transition-table';
 import type {
   ApplyTransitionInput,
   OrderTransitionPort,
-} from '../../domain/order/transition-ports';
+} from '../../domain/order/write-side/transition-ports';
+import type {
+  AssignableTechnician,
+  OrderReassignmentPort,
+  OrderVisibilityPort,
+  ReassignCommand,
+  ReassignmentSnapshot,
+  UserLookupPort,
+} from '../../domain/order/write-side/write-side-ports';
 
 const PG_FOREIGN_KEY_VIOLATION = 'P2003';
 
@@ -116,5 +124,91 @@ export class PrismaOrderTransitionRepository implements OrderTransitionPort {
       },
     });
     return tx.order.findUniqueOrThrow({ where: { id: input.orderId } });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Feature 004 — reasignación (write-side). Comparte fichero con la transición (mismo módulo de escritura);
+// applyTransition NO se toca. `assigned_to` sólo se muta aquí (arch test, FR-007).
+
+const REASSIGNABLE = ['assigned', 'in_progress'] as const;
+
+// Consulta de visibilidad de FR-004: una orden reasignable (status ∈ {assigned,in_progress}) o null.
+export class PrismaOrderVisibilityRepository implements OrderVisibilityPort {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async findReassignable(orderId: string): Promise<ReassignmentSnapshot | null> {
+    const o = await this.prisma.order.findFirst({
+      where: { id: orderId, status: { in: REASSIGNABLE as unknown as OrderStatus[] } },
+      select: { id: true, status: true, assignedTo: true, version: true },
+    });
+    return o === null ? null : { id: o.id, status: o.status as OrderStatus, assignedTo: o.assignedTo, version: o.version };
+  }
+}
+
+// Técnico destino elegible (FR-005): existe ∧ role='technician' ∧ disabledAt IS NULL.
+export class PrismaUserLookupRepository implements UserLookupPort {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async findAssignableTechnician(userId: string): Promise<AssignableTechnician | null> {
+    const u = await this.prisma.user.findFirst({
+      where: { id: userId, role: 'technician', disabledAt: null },
+      select: { id: true },
+    });
+    return u === null ? null : { id: u.id };
+  }
+}
+
+// Reasignación atómica (FR-007): SELECT FOR UPDATE (captura assigned_to previo) + UPDATE condicional
+// (id ∧ status reasignable ∧ assigned_to IS DISTINCT FROM destino) + auditoría reassignment, en una tx.
+export class PrismaOrderReassignmentRepository implements OrderReassignmentPort {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async reassign(cmd: ReassignCommand): Promise<Result<OrderRecord>> {
+    const { orderId, assigneeId, reason, actorId } = cmd;
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Bloqueo de la fila (captura estado + asignatario PREVIO; null si no existe).
+      const locked = await tx.$queryRaw<
+        Array<{ status: OrderStatus; assigned_to: string | null }>
+      >`SELECT status, assigned_to FROM orders WHERE id = ${orderId}::uuid FOR UPDATE`;
+      const before = locked[0] ?? null;
+
+      // 2. UPDATE condicional (null-safe con IS DISTINCT FROM → orden huérfana reasignable). Raw: Prisma no
+      //    expresa IS DISTINCT FROM.
+      const affected = await tx.$executeRaw`
+        UPDATE orders SET assigned_to = ${assigneeId}::uuid, version = version + 1, updated_at = now()
+        WHERE id = ${orderId}::uuid
+          AND status IN ('assigned','in_progress')
+          AND assigned_to IS DISTINCT FROM ${assigneeId}::uuid`;
+
+      if (affected === 1) {
+        // 3. Auditoría reassignment en la misma tx (from_status/to_status NULL; from_assignee = previo).
+        await tx.orderAudit.create({
+          data: {
+            id: uuidv7(),
+            orderId,
+            actorId,
+            eventType: 'reassignment',
+            fromStatus: null,
+            toStatus: null,
+            fromAssignee: before?.assigned_to ?? null,
+            toAssignee: assigneeId,
+            reason,
+          },
+        });
+        const updated = await tx.order.findUniqueOrThrow({ where: { id: orderId } });
+        return ok(toRecord(updated));
+      }
+
+      // 4. 0 filas: reclasificar sobre la fila bloqueada, PRECEDENCIA status→404 antes que mismo destino→422.
+      if (before === null || !(REASSIGNABLE as readonly string[]).includes(before.status)) {
+        return err(domainError('ORDER_NOT_FOUND', 'La orden no existe.'));
+      }
+      return err(
+        domainError('INVALID_ASSIGNEE', 'El técnico destino no es válido.', {
+          agentAction: 'Elige un técnico distinto, activo y con rol technician.',
+        }),
+      );
+    });
   }
 }

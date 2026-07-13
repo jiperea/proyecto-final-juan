@@ -247,4 +247,39 @@
 > se ataca en su momento natural: **003/004/005** (BL-050/051/055/056/059/060/061/062), no en un slice
 > prematuro.
 
+- **BL-063** (004 · MEDIA) — **Revalidar `disabledAt` del destino dentro de la transacción de reasignación**
+  (G1-004 re-entrada · cínico:H-104): la validez del técnico destino (FR-005) se comprueba fuera del UPDATE
+  condicional atómico de FR-008 (que sólo revalida id/status/version). Existe una ventana TOCTOU en la que el
+  destino puede deshabilitarse entre la validación y el commit. Aceptado como **residual best-effort
+  documentado** en la spec de 004; la mitigación completa (revalidar `disabledAt` del destino dentro de la
+  transacción) se difiere aquí.
+- **BL-064** (004 · MEDIA) — **Paridad de latencia entre las 4 causas de 422 `INVALID_ASSIGNEE`**
+  (G1-004 re-entrada · rbac:S-006): el cuerpo del 422 ya es idéntico para las 4 causas (FR-005), pero la causa
+  "mismo asignatario actual" se resuelve en memoria (O(1)) mientras las otras tres consultan `User`, dejando un
+  side-channel de timing. Mismo tratamiento residual aceptado que BL-061; igualar el camino de comprobación se
+  difiere aquí.
+- **BL-065** (004 · MEDIA, gobernanza) — **Reconciliación del invariante "único punto de escritura de
+  status/version"** (G1-004 re-entrada · cínico:H-107): 002b (FR-006) declara "sólo `applyTransition`"; 004 lo
+  amplía a "sólo el módulo `domain/order/write-side/` (`applyTransition` + `reassignOrder`)". Registrar nota/ADR
+  de reconciliación como fuente de verdad única para 005/006. Verificado por el test de arquitectura de FR-007
+  (nada fuera de `write-side/` muta status/version). No re-escribe la spec de 002b (ya mergeada).
+
+- **BL-066** (004/005/006 · MEDIA, gobernanza/contrato) — **Reconciliar la doctrina de errores de BD 503 vs
+  500 entre endpoints** (G2-004 re-entrada · cínico:H-007): `listOrders` (002a) responde **503** fail-closed
+  cuando la BD no está disponible, mientras `reassignOrder` (004), conforme a su FR-010 congelada, colapsa
+  **todo** error de BD (incl. indisponibilidad) a **500** genérico. Distinguir 503 (transitorio-reintentable)
+  de 500 (fallo inesperado) en los endpoints de escritura sería más coherente, pero **cambia el contrato
+  observable** y contradice la FR-010 ya aprobada en G1; se difiere a una **revisión de spec** futura (no se
+  hizo en 004 para no reabrir la spec congelada ni introducir deriva spec↔plan). Aplica a los endpoints de
+  escritura de 005/006 también.
+
+- **BL-067** (fundación · gobernanza) — **Reconciliar contradicción interna de la constitution sobre XI
+  (auditoría de accesos denegados)** (G1-004 magra · rbac:S-006): Governance declara que los principios de
+  seguridad (IV/IX/XI) **no son excepcionables** ("deben resolverse, no sortearse"), pero el bloque MVP/Stretch
+  clasifica la **auditoría forense de accesos denegados** (401/403/404) como stretch que no bloquea gate. Las
+  features (001/002b/004) la difieren (BL-002) apoyándose en el bloque MVP/Stretch. Resolver a **nivel de
+  fundación** (rama de gobernanza, ADR): o se reconoce como excepción trazada, o se implementa un registro
+  mínimo de accesos denegados transversal. **No se resuelve embebiéndolo en una feature de negocio.** No tocar
+  la constitution sin verificar fidelidad al brief (docs/00-brief-original.md).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

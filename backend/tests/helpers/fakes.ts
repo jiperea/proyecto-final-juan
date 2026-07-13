@@ -149,6 +149,11 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
     orderTransition: {
       applyTransition: async () => err(domainError('ORDER_NOT_FOUND', 'no-op fake')),
     },
+    reassignDeps: {
+      visibility: { findReassignable: async () => null },
+      users: { findAssignableTechnician: async () => null },
+      reassignment: { reassign: async () => err(domainError('ORDER_NOT_FOUND', 'no-op fake')) },
+    },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,
   };

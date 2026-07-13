@@ -1,16 +1,18 @@
 openapi: 3.1.0
 info:
-  title: FieldOps — Orders (listado por rol) API
-  version: 1.0.0
+  title: FieldOps — Orders API
+  version: 1.1.0
   description: >
     Feature 002a (read-side): listado de órdenes filtrado por rol sobre el auth/RBAC de 001.
+    Feature 004 (write-side): reasignación de una orden por el dispatcher (POST .../reassignments),
+    primer endpoint que muta una orden (conserva estado, version+1, auditoría append-only atómica).
     Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
     Reutiliza bearerAuth y ErrorResponse de contracts/auth.openapi.yaml (001).
 servers:
   - url: /v1
 tags:
   - name: orders
-    description: Órdenes de trabajo (listado)
+    description: Órdenes de trabajo (listado + reasignación)
 
 paths:
   /orders:
@@ -41,6 +43,63 @@ paths:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '503':
           description: BD no disponible (fail-closed; nunca cuelga ni fail-open). Convención transversal (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
+  /orders/{orderId}/reassignments:
+    post:
+      operationId: reassignOrder
+      tags: [orders]
+      summary: Reasignar una orden reasignable a otro técnico (sólo dispatcher)
+      description: >
+        Un dispatcher reasigna una orden reasignable (status assigned/in_progress) a un técnico destino válido,
+        conservando el status, con version+1 y auditoría append-only en la misma transacción.
+        No-enumeración: una única consulta de visibilidad decide 404 (inexistente o no reasignable, cuerpo
+        genérico idéntico). Orden 401→403→404→422. Actor derivado server-side del token (nunca del cuerpo).
+        MVP sin concurrencia optimista explícita (If-Match/409 = stretch, fuera de alcance).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReassignmentRequest' }
+      responses:
+        '200':
+          description: Reasignación aplicada. Orden actualizada (nuevo assigned_to, version+1).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        '401':
+          description: No autenticado (sin access válido / sesión revocada / cuenta disabled). Uniforme.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Autenticado pero el rol no es dispatcher (FORBIDDEN_ROLE, default-deny). Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            Orden inexistente, no visible/no reasignable, u orderId malformado (no-uuid). Cuerpo genérico e
+            indistinguible entre las causas (no-enumeración).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '422':
+          description: >
+            INVALID_ASSIGNEE (destino inexistente / no-technician / deshabilitado / igual al actual — cuerpo
+            genérico idéntico para las 4 causas) o VALIDATION_ERROR (reason ausente/vacío/sólo whitespace o
+            control / >500 code points, o cuerpo mal formado). Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: >
+            Error interno genérico. Cubre TODO error de base de datos (deadlock, timeout, BD no disponible,
+            constraint), conforme a FR-009. Cuerpo genérico; nunca filtra detalle de Postgres (SQLSTATE,
+            constraint, columna, query).
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
@@ -83,11 +142,34 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Order' }
 
+    ReassignmentRequest:
+      type: object
+      additionalProperties: false
+      required: [assignee_id, reason]
+      description: >
+        Cuerpo de la reasignación. `assignee_id` = técnico destino. `reason` obligatorio (1..500 code points,
+        ≥1 carácter imprimible; nunca aparece en logs ni en cuerpos de error). El actor NO se envía (se deriva
+        del token server-side).
+      properties:
+        assignee_id: { type: string, format: uuid, description: UUID del técnico destino. }
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: >
+            Motivo operativo del reparto. `minLength`/`maxLength` se cuentan en code points Unicode (JSON Schema);
+            el Zod derivado debe contar code points (no UTF-16). Debe contener ≥1 carácter imprimible (no sólo
+            whitespace/control). Nunca aparece en logs ni en cuerpos de error.
+
     ErrorResponse:
       type: object
       additionalProperties: false
       required: [code, message]
-      description: "Contrato de error accionable (igual que 001). Códigos en 002a: 401/403/503."
+      description: >
+        Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/422/500.
+        `agent_action` se emite en las respuestas de **negocio** del handler de 004 (404/422/500); los
+        401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es
+        opcional, no `required`).
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }

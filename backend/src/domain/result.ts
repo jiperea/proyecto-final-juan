@@ -27,7 +27,11 @@ export type ErrorCode =
   | 'VERSION_CONFLICT' // 409 expectedVersion obsoleta (concurrencia optimista)
   | 'INVALID_TRANSITION' // 422 par origen→destino no legal (FSM)
   | 'GUARD_UNMET' // guarda de pertenencia no satisfecha; HTTP gobernado por el llamador (FR-009)
-  | 'ACTOR_INVALID'; // FK de actor_id inválida; error interno, sin filtrar detalle de BD
+  | 'ACTOR_INVALID' // FK de actor_id inválida; error interno, sin filtrar detalle de BD
+  // --- 004: reasignación de orden ---
+  | 'FORBIDDEN_ROLE' // 403 rol autenticado ≠ dispatcher (FR-003)
+  | 'INVALID_ASSIGNEE' // 422 técnico destino inválido (4 causas, cuerpo genérico idéntico, FR-005)
+  | 'INTERNAL'; // 500 genérico (error de BD/inesperado); nunca filtra detalle de Postgres (FR-009)
 
 export interface DomainError {
   readonly code: ErrorCode;
@@ -35,12 +39,14 @@ export interface DomainError {
   readonly details?: { readonly fields?: readonly string[] };
   /** Segundos hasta reintentar (429). */
   readonly retryAfterSeconds?: number;
+  /** Acción sugerida para el agente/cliente (Constitution X). Opcional, retrocompatible (004). */
+  readonly agentAction?: string;
 }
 
 export function domainError(
   code: ErrorCode,
   message: string,
-  extra?: Pick<DomainError, 'details' | 'retryAfterSeconds'>,
+  extra?: Pick<DomainError, 'details' | 'retryAfterSeconds' | 'agentAction'>,
 ): DomainError {
   return { code, message, ...extra };
 }

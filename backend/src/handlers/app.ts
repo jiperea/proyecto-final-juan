@@ -4,7 +4,7 @@ import type { LoginDeps } from '../domain/auth/login';
 import type { LogoutDeps } from '../domain/auth/logout';
 import type { RefreshDeps } from '../domain/auth/refresh';
 import type { ListOrdersDeps } from '../domain/order/list-orders';
-import type { OrderTransitionPort } from '../domain/order/transition-ports';
+import type { OrderTransitionPort } from '../domain/order/write-side/transition-ports';
 import type {
   ProbeResourceRepositoryPort,
   UserRepositoryPort,
@@ -19,6 +19,7 @@ import type { CookieOptions } from './auth/cookies';
 import { probeHandler } from './rbac/probe';
 import { jsonErrorHandler } from './error-mapper';
 import { listOrdersHandler } from './orders/list';
+import { reassignOrderHandler, type ReassignHandlerDeps } from './orders/reassign';
 import { authenticate } from './middleware/authenticate';
 import { authorizeProbe } from './middleware/authorize';
 import { csrf, type SessionValidityPort } from './middleware/csrf';
@@ -41,6 +42,8 @@ export interface AppDeps {
   readonly orderListDeps: ListOrdersDeps;
   // 002b — dominio puro: puerto disponible para 003/004/005 (aún sin ruta montada).
   readonly orderTransition: OrderTransitionPort;
+  // 004 — reasignación (write-side): visibilidad + lookup de técnico + puerto atómico de reasignación.
+  readonly reassignDeps: ReassignHandlerDeps;
   readonly cookie: CookieOptions;
 }
 
@@ -77,6 +80,14 @@ export function buildApp(deps: AppDeps): Express {
     authenticate(deps.tokens, deps.sessionState),
     requireRole('dispatcher', 'technician', 'supervisor'),
     listOrdersHandler(deps.orderListDeps),
+  );
+
+  // Orders write-side (/v1) — reasignación (004). 401 vía authenticate; 403 FORBIDDEN_ROLE dentro del
+  // handler (controla el orden 401→403→404→422 de FR-004).
+  app.post(
+    '/v1/orders/:orderId/reassignments',
+    authenticate(deps.tokens, deps.sessionState),
+    reassignOrderHandler(deps.reassignDeps),
   );
 
   app.use(jsonErrorHandler);

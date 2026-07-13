@@ -1,6 +1,7 @@
 <!-- SPECKIT START -->
-Plan activo: `specs/001-fundacion-auth-rbac/plan.md` (+ research.md, data-model.md, quickstart.md).
-Contrato: `contracts/auth.openapi.yaml` (OpenAPI 3.1). Para tecnologías, estructura y comandos, leer ese plan.
+Plan activo: `specs/004-orden-reasignacion/plan.md` (+ research.md, data-model.md, quickstart.md).
+Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1, operación `reassignOrder`). Para tecnologías,
+estructura y comandos, leer ese plan.
 <!-- SPECKIT END -->
 
 # FieldOps — Guía operativa para Claude

@@ -21,6 +21,11 @@ const REDACT_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
   'res.headers["set-cookie"]',
+  'req.body.reason', // 004: reason anidado en el body real del endpoint de reasignación (FR-009)
+  'req.body.title',
+  'req.body.description',
+  'err.reason', // 004: reason que pudiera colarse por error.cause/serialización de error
+  '*.err.reason',
   '*.password',
   '*.identifier',
   '*.access_token',
