@@ -81,13 +81,23 @@ extract_json() {
 }
 
 echo "== Gate $PHASE sobre $FEATURE_NAME =="
-ALL_HUECOS="[]"
+
+# Fase 1 — LANZAR EN PARALELO: los agentes son independientes (misma entrada, JSON propio, sin estado
+# compartido) → cada `claude -p` corre en background escribiendo su salida cruda a un fichero temporal.
+pids=()
 for agent in "${AGENTS[@]}"; do
   role="$(cat "$AGENTS_DIR/$agent.md")"
   prompt=$'Adopta EXACTAMENTE el rol siguiente y devuelve SOLO el JSON que especifica.\n\n'"$role"$'\n\n===== ARTEFACTOS A REVISAR =====\n'"$ARTIFACTS""$DISPOSITIONED"
-  echo "  - ejecutando $agent ..."
-  raw="$(claude -p "$prompt" --output-format json 2>/dev/null || echo '')"
-  json="$(extract_json "$raw")"
+  echo "  - lanzando $agent (paralelo) ..."
+  ( claude -p "$prompt" --output-format json 2>/dev/null || echo '' ) > "$TMP_DIR/$agent.raw" &
+  pids+=("$!")
+done
+wait "${pids[@]}" 2>/dev/null || true  # espera a TODOS (los subshells salen 0 por el `|| echo ''`)
+
+# Fase 2 — CONSOLIDAR (secuencial, barato): parsea/valida cada salida y acumula los huecos.
+ALL_HUECOS="[]"
+for agent in "${AGENTS[@]}"; do
+  json="$(extract_json "$(cat "$TMP_DIR/$agent.raw" 2>/dev/null || echo '')")"
   if ! printf '%s' "$json" | jq -e '.huecos' >/dev/null 2>&1; then
     echo "    aviso: $agent no devolvió JSON válido; se cuenta como 0 huecos" >&2
     json='{"huecos":[],"veredicto":"APROBADA_CON_COMENTARIOS","resumen":"sin salida válida"}'
