@@ -15,3 +15,15 @@ export interface OrderDto {
 export interface OrderListResponseDto {
   orders: OrderDto[];
 }
+
+// 005 — DTOs del registro de ejecución (snake_case externo, derivados del contrato ExecutionRequest/EvidenceRef).
+export interface EvidenceRefDto {
+  object_ref: string;
+  content_type: string;
+  size_bytes: number;
+}
+
+export interface ExecutionRequestDto {
+  notes: string;
+  evidence: EvidenceRefDto[];
+}
