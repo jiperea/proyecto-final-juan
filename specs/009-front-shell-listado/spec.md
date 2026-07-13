@@ -24,7 +24,7 @@ orders.openapi.yaml) y el design system propio (docs/design-system.md)."
   `/orders/:id`), back/forward nativo del navegador (habilita el deep-link ya especificado).
 - Q: ¿Layout del technician en pantalla ancha? → A: Campo-first — el technician usa **una columna**
   (lista→detalle) en cualquier ancho; **master-detail** (≥1024px) solo para dispatcher/supervisor.
-- Q: ¿Patrón de paginación del listado? → A: **Ninguno.** El contrato de `getOrderList` declara
+- Q: ¿Patrón de paginación del listado? → A: **Ninguno.** El contrato de `listOrders` declara
   explícitamente *"Sin paginación"* (`orders.openapi.yaml`, `OrderListResponse` solo expone `orders[]`, sin
   cursor). La app renderiza la lista completa que devuelve el backend. (Corrige la asunción inicial de
   cursor/«Cargar más»; detectado en gate G1 B-01.)
@@ -66,7 +66,7 @@ saber en qué trabajar, con un estado visible por cada orden.
 completa el MVP mínimo demostrable de la fase Front.
 
 **Independent Test**: Con datos semilla, cada rol inicia sesión y ve **exactamente** las órdenes que el
-backend (getOrderList) devuelve para su ámbito, ni más ni menos, con su badge de estado correcto; una
+backend (listOrders) devuelve para su ámbito, ni más ni menos, con su badge de estado correcto; una
 cuenta sin órdenes en ámbito ve el estado «vacío».
 
 **Acceptance Scenarios**:
@@ -79,8 +79,10 @@ cuenta sin órdenes en ámbito ve el estado «vacío».
    `assigned`/`in_progress` de su ámbito.
 4. **Given** un rol cuyo ámbito no tiene órdenes, **When** abre el listado, **Then** ve un estado «vacío»
    explicativo, no una lista en blanco ambigua ni un error.
-5. **Given** el backend no disponible (503) o error (500), **When** se carga el listado, **Then** ve un
-   estado de error con opción de reintento, no una pantalla colgada.
+5. **Given** el backend no disponible (503), **When** se carga el listado, **Then** ve un estado de error con
+   opción de reintento, no una pantalla colgada.
+6. **Given** un rol sin acceso al listado (403 de listOrders), **When** se carga, **Then** degrada al estado
+   «sin-permiso» (FR-014), distinguible del error de 503.
 
 ---
 
@@ -122,7 +124,7 @@ notas/evidencia; abrir un id fuera de ámbito muestra el mensaje uniforme «no d
 - **Pantalla estrecha (≥320px) y zoom 200%**: el contenido y las acciones siguen accesibles sin scroll
   horizontal del body ni pérdida de función (reflow) — ver FR-019/SC-007.
 - **`prefers-reduced-motion`**: sin animaciones no esenciales — ver FR-028.
-- **Lista larga**: `getOrderList` no pagina (contrato); la app renderiza la lista completa devuelta. Si el
+- **Lista larga**: `listOrders` no pagina (contrato); la app renderiza la lista completa devuelta. Si el
   volumen se volviera un problema, sería una enmienda del contrato de 002a, fuera del alcance de FE-1.
 - **Refresh concurrente**: varios 401 simultáneos comparten una única renovación (FR-004); el refresh es
   single-use y no debe dispararse dos veces.
@@ -178,20 +180,21 @@ notas/evidencia; abrir un id fuera de ámbito muestra el mensaje uniforme «no d
 **Listado por rol (US2)**
 
 - **FR-006**: WHEN un usuario autenticado abre el listado THE app SHALL mostrar **exactamente** las órdenes
-  que getOrderList devuelve para su rol, sin filtrar ni añadir en cliente, cada una con su badge de estado.
+  que `listOrders` devuelve para su rol, sin filtrar ni añadir en cliente, cada una con su badge de estado.
 - **FR-007**: THE app SHALL renderizar el estado de cada orden con **color + etiqueta de texto en español**
   (nunca solo color) según el mapa de `docs/design-system.md §2.3`. El mapa `status → {etiqueta, color}`
   SHALL ser **exhaustivo contra el enum `OrderStatus` derivado del contrato** (p. ej. `satisfies
   Record<OrderStatus, …>`), de modo que la compilación **falle** si el contrato añade un estado sin badge.
-- **FR-008**: WHEN getOrderList devuelve una lista vacía THE app SHALL mostrar un estado «vacío» con un
+- **FR-008**: WHEN listOrders devuelve una lista vacía THE app SHALL mostrar un estado «vacío» con un
   mensaje **no genérico** que indique que no hay órdenes en el ámbito del rol (p. ej. «No tienes órdenes
   asignadas» / «No hay órdenes en revisión»), distinguible del estado de carga y del de error.
-- **FR-009**: WHEN getOrderList devuelve 503/500 THE app SHALL mostrar un estado de error con acción de
-  reintento, sin colgar la vista.
+- **FR-009**: WHEN listOrders devuelve **503** THE app SHALL mostrar un estado de error con acción de
+  reintento, sin colgar la vista. (El contrato de `listOrders` expone 200/401/403/503 — **no 500**; el 401 va
+  por FR-004 y el 403 degrada a «sin-permiso» por FR-014.)
 - **FR-009b**: WHEN el usuario entra o vuelve a la vista de listado (montaje de ruta) THE app SHALL
   **revalidar** (refetch) los datos, y SHALL ofrecer un control manual de **«Actualizar»**. El listado **no
   es tiempo real** (sin polling); se asume que dispatcher/supervisor lo refrescan al actuar (ver Assumptions).
-- **FR-010**: THE app SHALL renderizar la **lista completa** que devuelve getOrderList; `getOrderList` **no
+- **FR-010**: THE app SHALL renderizar la **lista completa** que devuelve listOrders; `listOrders` **no
   pagina** (contrato), luego NO SHALL implementar control de paginación ni cursor en cliente.
 
 **Detalle read-only (US3)**
@@ -335,7 +338,7 @@ notas/evidencia; abrir un id fuera de ámbito muestra el mensaje uniforme «no d
 FE-1 **no introduce endpoints nuevos ni modifica** los contratos; los **consume** congelados:
 
 - **`contracts/auth.openapi.yaml`** — login, identidad (`me`), refresh, logout. Roles: los tres.
-- **`contracts/orders.openapi.yaml`** — `getOrderList` (listado por rol) y `getOrderDetail` (#010, detalle
+- **`contracts/orders.openapi.yaml`** — `listOrders` (listado por rol) y `getOrderDetail` (#010, detalle
   read-side por rol; 404 uniforme sin 403; `last_rejection_reason` solo al technician dueño).
 
 Reglas de consumo (verificadas por `revisor-front-a11y-ux` y `revisor-consistencia`):
@@ -348,22 +351,22 @@ Reglas de consumo (verificadas por `revisor-front-a11y-ux` y `revisor-consistenc
 
 | FR | Endpoint(s) consumido(s) | Tarea(s) | Test(s) |
 |----|--------------------------|----------|---------|
-| FR-001/002/003 | `login`, `me` | T0xx | `should enter shell with role when credentials valid` / `should show generic error on 401` |
-| FR-004/022/029 | `refresh` | T0xx | `dedupe concurrent refresh` / `retry original request once after refresh` / `login (no loop) on repeated 401` / `send X-CSRF-Token on refresh` / `re-mount shell on role change` |
-| FR-005/022 | `logout` | T0xx | `revoke+purge client state → login` / `best-effort on any failure (net/401/403/5xx)` / `discard in-flight responses` / `send X-CSRF-Token on logout` |
-| FR-023/030 | `refresh`, `me` | T0xx | `silent-refresh on boot → shell or login` / `resume route after relogin` / `no-store + revalidate on bfcache pageshow` |
-| FR-006/007/008/009/009b/010 | `getOrderList` | T0xx | `render only role-scoped orders` / `exhaustive status→badge (compile fail if missing)` / `role-specific empty message` / `error+retry` / `refetch on mount + manual refresh` / `full list, no pagination` |
-| FR-011/011b/012/013/013b | `getOrderDetail` | T0xx | `role fields by presence` / `escapes notes (no raw html)` / `owner sees rejection reason` / `uniform not-available` / `detail error 500/503` |
-| FR-014/015 | (todos) | T0xx | `mirror RBAC and map contract errors` / `generic fallback for unmapped code` |
-| FR-016/017 | (contrato/DS) | T0xx | `codegen types diverge → CI fails` / `loose style CSS+inline JSX → lint fails` |
-| FR-018/019/024/025/026/031/032 | — | T0xx | `keyboard nav` / `technician single-column` / `master-detail ≥1024 + focus on select` / `collapse to detail on resize` / `44px all layouts` / `focus to h1 on route change` / `no prefetch` / `aria-busy loading` / `live-region on state change` / `skip-link + landmarks` |
-| FR-020/021/027/028 | — | T0xx | `es labels` / `deep-link → login → resource (in-memory)` / `network fail → sin conexión` / `reduced-motion off` / `reflow 320px` |
+| FR-001/002/003 | `login`, `me` | T025, T028, T032, T018 | `should enter shell with role when credentials valid` / `should show generic error on 401` |
+| FR-004/022/029 | `refresh` | T015, T016, T026, T031 | `dedupe concurrent refresh` / `retry 401'd requests once after refresh` / `login (no loop) on repeated 401` / `send X-CSRF-Token on refresh` / `re-mount shell on role change` |
+| FR-005/022 | `logout` | T017, T027, T030 | `revoke+purge client state → login` / `best-effort on any failure (net/401/403/5xx)` / `discard in-flight responses` / `send X-CSRF-Token on logout` |
+| FR-023/030 | `refresh`, `me` | T022, T026, T029, T049 | `silent-refresh on boot → shell or login` / `resume route after relogin` / `no-store + revalidate on bfcache pageshow` |
+| FR-006/007/008/009/009b/010/014 | `listOrders` | T033, T035–T038, T051 | `render only role-scoped orders` / `exhaustive status→badge (compile fail if missing)` / `role-specific empty message` / `error+retry (503)` / `403 → sin-permiso` / `refetch on mount + manual refresh` / `full list, no pagination` |
+| FR-011/011b/012/013/013b/031 | `getOrderDetail` | T039, T041, T042 | `role fields by presence` / `escapes notes (no raw html)` / `owner sees rejection reason` / `uniform not-available` / `detail error 500/503` / `live-region on refresh fail` |
+| FR-015 | (todos) | T023, T037, T042 | `map contract errors` / `generic fallback for unmapped code` |
+| FR-016/017 | (contrato/DS) | T003–T005, T013, T046 | `codegen types+zod diverge → CI fails` / `loose style CSS+inline JSX+const → lint fails` |
+| FR-018/019/024/025/026/031/032 | — | T011, T012, T021, T024, T043, T044, T049, T050, T051, T052 | `keyboard nav` / `technician single-column ≥1024` / `master-detail focus on select + collapse/expand (dynamic resize)` / `44px all layouts` / `focus to h1 on route change` / `no prefetch` / `aria-busy loading` / `live-region on state change` / `skip-link + landmarks` |
+| FR-020/021/027/028 | — | T014, T020, T023, T028, T049 | `es labels` / `deep-link → login → resource (in-memory)` / `network fail → sin conexión` / `reduced-motion off` / `reflow 320px` |
 
 > Se mantiene en `docs/traceability.md` al cerrar el plan/tasks.
 
 ## Assumptions
 
-- **Backend disponible y congelado**: 001 (auth+RBAC), 002a (getOrderList) y #010/008 (getOrderDetail) están
+- **Backend disponible y congelado**: 001 (auth+RBAC), 002a (listOrders) y #010/008 (getOrderDetail) están
   mergeados y estables; FE-1 consume sus contratos tal cual (no los cambia).
 - **Design system**: `docs/design-system.md` es la fuente de tokens/componentes; su implementación en
   `frontend/src/ui/` se crea en FE-1 (parte de esta feature).
