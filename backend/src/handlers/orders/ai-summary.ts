@@ -10,7 +10,7 @@ import type {
   IncidentSourcePort,
 } from '../../domain/ai/summary-ports';
 import type { RateLimitPort } from '../../domain/ports/services';
-import { domainError, type DomainError } from '../../domain/result';
+import { domainError, isDomainError, type DomainError } from '../../domain/result';
 import type { AuthContext } from '../http-types';
 import type { IncidentSummaryResponseDto } from '../contract/order-types';
 import { sendError } from '../error-mapper';
@@ -62,6 +62,20 @@ function respondDenied(
   sendError(res, d.error);
 }
 
+// Error atrapado (outcome=error): un DomainError propagado (p. ej. SERVICE_UNAVAILABLE de la fuente ante BD
+// caída, 503 declarado) se responde con su código; cualquier otro error inesperado → 500 genérico (sin
+// filtrar Postgres/proveedor).
+function respondError(accessLog: AccessLogPort, res: Response, auth: AuthContext, orderId: string, e: unknown): void {
+  accessLog.record({ actor: auth.userId, orderId, outcome: 'error' });
+  if (isDomainError(e)) {
+    sendError(res, e);
+    return;
+  }
+  sendError(res, domainError('INTERNAL', 'Error interno.', {
+    agentAction: 'Reintenta más tarde; si persiste, contacta soporte.',
+  }));
+}
+
 // POST /v1/orders/:orderId/ai-summary — solo supervisor. app.ts monta SÓLO `authenticate` (401 sin actor,
 // sin evento). Los GUARDS viven AQUÍ (K5) para emitir el evento de acceso `denied` en cada rechazo.
 // Precedencia FR-012: 401 → 403 (rol) → 429 (rate-limit) → 404 (visibilidad) → proveedor (503 | 200).
@@ -103,14 +117,8 @@ export function summarizeIncidentHandler(deps: SummarizeIncidentHandlerDeps): Re
       deps.accessLog.record({ actor: auth.userId, orderId, outcome: r.outcome });
       const body: IncidentSummaryResponseDto = { summary: r.summary, sufficient: r.sufficient };
       res.status(200).json(body);
-    } catch {
-      deps.accessLog.record({ actor: auth.userId, orderId, outcome: 'error' });
-      sendError(
-        res,
-        domainError('INTERNAL', 'Error interno.', {
-          agentAction: 'Reintenta más tarde; si persiste, contacta soporte.',
-        }),
-      );
+    } catch (e) {
+      respondError(deps.accessLog, res, auth, orderId, e);
     }
   };
 }

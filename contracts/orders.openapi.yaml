@@ -335,10 +335,18 @@ paths:
               schema: { type: integer }
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: >
+            Error interno genérico (INTERNAL). Cubre cualquier fallo inesperado; cuerpo genérico, nunca filtra
+            detalle de Postgres/proveedor. (Un fallo de conexión/indisponibilidad de BD NO es 500: es 503,
+            convención transversal 001/006.)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '503':
           description: >
-            Proveedor IA no disponible: timeout (>10 s) o fallo de proceso (SERVICE_UNAVAILABLE). Cuerpo genérico;
-            nunca filtra detalle del proveedor. (Una salida vacía/no-conforme/con-PII NO es 503: es 200 fallback.)
+            No disponible (SERVICE_UNAVAILABLE): timeout (>10 s) o fallo de proceso del proveedor IA, **o** BD no
+            disponible al leer la fuente (convención 001/006). Cuerpo genérico; nunca filtra detalle. (Una salida
+            vacía/no-conforme/con-PII NO es 503: es 200 fallback.)
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
@@ -505,9 +513,10 @@ components:
         EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e
         INVALID_TRANSITION (422). 006 (reviewOrder) 401/403/404/409/422/500/503 — VALIDATION_ERROR (422,
         decision/body), INVALID_REASON (422, motivo), GUARD_UNMET (404, no visible), EVIDENCE_MISSING (409,
-        guard de evidencia en approve). 007 (summarizeOrderIncident) 401/403/404/429/503 — FORBIDDEN_ROLE (403),
+        guard de evidencia en approve). 007 (summarizeOrderIncident) 401/403/404/429/500/503 — FORBIDDEN_ROLE (403),
         404 genérico (no-enumeración, orden no visible/estado ≠ pending_review), RATE_LIMITED (429, con header
-        Retry-After), SERVICE_UNAVAILABLE (503, timeout/fallo del proveedor). `agent_action` se emite en las
+        Retry-After), INTERNAL (500, error inesperado), SERVICE_UNAVAILABLE (503, timeout/fallo del proveedor **o**
+        BD no disponible al leer la fuente, convención 001/006). `agent_action` se emite en las
         respuestas de **negocio** de los handlers de 004/005/006 (404/409/422/500); los 401/403 provienen del
         middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es opcional, no `required`).
       properties:

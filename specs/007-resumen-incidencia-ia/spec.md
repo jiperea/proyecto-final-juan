@@ -283,9 +283,11 @@ en los logs; superar el límite de peticiones → `429`.
   para acotarlos; y se **acepta el residual** documentado: ante conflicto, **la minimización de PII (Constitution
   VIII) manda sobre la fidelidad** (mejor redactar de más que filtrar PII).
 - **FR-004** (no-fuga de PII en salida): WHILE se procesa la salida del proveedor THE sistema SHALL aplicar en
-  **producción** el **detector estructural** de FR-003 (email/teléfono/DNI-NIF/matrícula/`object_ref`); si detecta
+  **producción** el **detector estructural** de FR-003 (email/teléfono/DNI-NIF/matrícula); si detecta
   PII estructurada, THE sistema SHALL tratar la salida como **no conforme → fallback `sufficient=false`**,
-  **nunca** devolver un resumen alterado in-place. Para **nombres/direcciones** (texto libre) **no** existe un
+  **nunca** devolver un resumen alterado in-place. *(El `object_ref` **no** forma parte del detector de salida:
+  se previene en la **entrada** por la allowlist estructural de FR-003a —nunca entra al prompt—, no por regex de
+  salida.)* Para **nombres/direcciones** (texto libre) **no** existe un
   chequeo de runtime en producción (no hay campo estructurado de identidad de cliente contra el que comparar): su
   cobertura es (i) la instrucción al proveedor (FR-003c, entrada) y (ii) la **verificación en el eval** con
   golden cases de literales conocidos (ausencia del literal en la salida = oráculo binario determinista), que el
@@ -447,7 +449,7 @@ en los logs; superar el límite de peticiones → `429`.
 - **Fichero**: extiende `contracts/orders.openapi.yaml` (OpenAPI 3.1), reutilizando `bearerAuth`/`ErrorResponse`.
 - **Endpoint** (propuesta; forma exacta en `/speckit-plan`):
   - `summarizeOrderIncident` — `POST /orders/{orderId}/ai-summary` — roles `supervisor` — respuestas
-    `200 / 401 / 403 / 404 / 429 / 503`.
+    `200 / 401 / 403 / 404 / 429 / 500 / 503`.
 - **Esquema** `IncidentSummaryResponse` `{ summary: string | null, sufficient: boolean }` (`summary=null` cuando
   `sufficient=false`); errores `{code, message, details, agent_action}` (`FORBIDDEN_ROLE` 403, genérico 404,
   `RATE_LIMITED` 429, `SERVICE_UNAVAILABLE` 503). El `200` incluye tanto resumen como fallback (distinguidos por
@@ -621,7 +623,8 @@ en los logs; superar el límite de peticiones → `429`.
 - **FR-009c — invocación segura del subproceso (S-001, cerrado en runtime)**: las notas del technician llegan al
   binario `claude` por **`execFile`/`spawn` con argv + `stdin`, nunca shell** → sin inyección de comandos del SO.
   Es un control **de runtime** (no residual). *Nota de plataforma: esta regla es transversal (cualquier feature
-  que lance procesos); candidata a subir a la constitution.*
+  que lance procesos) y **ya está promovida** a garantía de plataforma en **Constitution IX (≥ v1.8.0)** — ver el
+  ancla en el propio FR-009c.*
 - **H-005 — la medición de fidelidad es específica del proveedor (ligado a `BL-072`)**: `faithfulness`/no-fuga/
   fallback se miden contra `claude -p`; **cambiar el proveedor de producción (BL-072) invalida las mediciones** y
   **exige re-ejecutar el eval completo** para re-anclar VIII con el nuevo proveedor. Se añade explícitamente al
