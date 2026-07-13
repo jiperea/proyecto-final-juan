@@ -13,10 +13,12 @@ rechazo). El brief (`docs/00-brief-original.md`) dice *"el usuario puede ver sus
 aprobar/rechazar; el ciclo de 006 rechaza devolviendo la **misma** orden a `in_progress` (no crea una nueva),
 así que el técnico necesita ver **por qué** para corregir y reenviar.
 
-> **Alcance MVP (Constitution XV)**: sólo **LECTURA** del detalle de una orden visible según el rol. **No**
-> incluye: mutaciones (son 004/005/006); subida/descarga del binario de evidencia (es #007-subida); listado
-> (es 002a); histórico completo de auditoría (restringido, Constitution XI). Read-side puro sobre lo ya
-> persistido por 002a/005/006.
+> **Alcance MVP (Constitution XV)**: **LECTURA** del detalle de una orden visible según el rol, **+ el
+> *plumbing* del motivo denormalizado** (`Order.last_rejection_reason`): migración (columna + backfill único),
+> escritura en **006** (reject) y limpieza en **005** (resubmit). **No** incluye: otras mutaciones; subida/
+> descarga del binario de evidencia (#007-subida); listado (002a); histórico de auditoría (restringido, XI);
+> detalle de órdenes `closed` (futuro). Nota: por el campo denormalizado, #010 **toca 005/006 de forma aditiva**
+> (no cambia su contrato ni su comportamiento observable salvo la escritura/limpieza del nuevo campo).
 
 ## Clarifications
 
@@ -26,9 +28,31 @@ así que el técnico necesita ver **por qué** para corregir y reenviar.
   **columna denormalizada `last_rejection_reason` en `Order`**, escrita por **006 en el reject** (write-through,
   misma transacción, texto saneado); #010 la **lee** como dato operativo. **XI queda intacta** (no se lee
   `OrderAudit`). Consecuencia: 006 añade la escritura de ese campo + **migración reversible** (columna nueva).
-- Q: ¿Qué roles ven el motivo en el detalle? → A: **technician (solo SU propia orden)** + **supervisor**
-  (cualquier orden visible). El **dispatcher NO** ve el motivo (no participa en la revisión), aunque vea el resto
-  del detalle.
+- Q: ¿Qué roles ven el motivo en el detalle? → A: [SUPERADA en ronda 2 — ver abajo].
+
+### Session 2026-07-13 — remediación gate G1
+
+- Q: **(mecanismo, revisado)** La columna denormalizada toca 006, necesita backfill y no distingue ciclo. → A:
+  **mantener la columna, ATADA AL CICLO**: 006 escribe `Order.last_rejection_reason` (saneado) en el reject; **005
+  la LIMPIA (a NULL) en el resubmit** (submitOrderExecution) → así la columna refleja **solo el rechazo del ciclo
+  vigente** o NULL. **Backfill único** en la migración (rellena las órdenes hoy en `in_progress` con su último
+  motivo de rechazo — operación de migración, no lectura de auditoría en runtime → XI intacta). #010 **deja de ser
+  read-side puro**: incluye el *plumbing* del campo en 005/006 + migración reversible.
+- Q: **(quién ve el motivo, revisado)** El motivo vive en órdenes rechazadas (`in_progress`), fuera del alcance
+  del supervisor (`pending_review`). → A: **solo el technician dueño**. Supervisor y dispatcher **no** ven el
+  motivo en el detalle (el supervisor ya lo conoce al escribirlo). Sin ampliar alcances.
+- Q: **(403 vs 404)** ¿Qué código para orden no visible? → A: **404 genérico uniforme** (no-enumeración). El
+  endpoint es de lectura abierto a los 3 roles autenticados; la visibilidad filtra a 404. **No se usa 403** (se
+  retira del contrato de este endpoint).
+- Q: **(campos de fecha)** → A: `created_at` y `updated_at` (ISO-8601 UTC), como `OrderDto` de 002a.
+- Q: **(ausencia de valor)** → A: **omitir la clave** del JSON cuando no aplica (notes/evidence/motivo);
+  convención uniforme (no `null`).
+- Q: **(metadatos de evidencia)** → A: `content_types` **lista** (un `content_type` por evidencia del ciclo,
+  duplicados posibles) + `count`, igual que la `EvidenceMeta` de 007.
+- Q: **(órdenes `closed`)** → A: **fuera de alcance** de #010 (ningún rol tiene `closed` en su alcance de
+  trabajo; el detalle de cerradas es una necesidad futura, no del brief). Documentado.
+- Q: **(ciclo vigente tras rechazo, antes de reenviar)** → A: el "ciclo vigente" son las notas/evidencia del
+  **último `submitOrderExecution`** (el que fue rechazado) — es justo lo que el técnico debe ver para corregir.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -52,8 +76,8 @@ sobre una orden ajena recibe `404`.
    **motivo del último rechazo**.
 2. **Given** una orden **ajena** (de otro técnico) en cualquier estado, **When** el technician pide el detalle,
    **Then** `404` genérico (no-enumeración), sin filtrar existencia.
-3. **Given** una orden propia que **nunca** fue rechazada, **When** pide el detalle, **Then** `200` con el
-   detalle y **sin** campo de motivo (o motivo nulo/omitido).
+3. **Given** una orden propia que **nunca** fue rechazada (o ya reenviada), **When** pide el detalle, **Then**
+   `200` con el detalle y la clave del motivo **omitida** del JSON (`last_rejection_reason` = NULL).
 
 ### User Story 2 - Supervisor y dispatcher ven el detalle según su alcance (Priority: P2)
 
@@ -94,24 +118,33 @@ alcance → `404`. Igual para dispatcher con su alcance.
 - **FR-001** (detalle por visibilidad): WHEN un usuario autenticado pide el detalle de una orden **visible para
   su rol** (mismo criterio de alcance que 002a: technician = sus órdenes activas; supervisor = `pending_review`;
   dispatcher = `assigned`/`in_progress`) THE sistema SHALL devolver `200` con el detalle: `id`, `title`,
-  `description`, `status`, `assigned_to`, `version`, fechas.
+  `description`, `status`, `assigned_to`, `version`, `created_at`, `updated_at` (ISO-8601 UTC). Los campos
+  opcionales (notas/evidencia/motivo) se **omiten** del JSON cuando no aplican (convención uniforme, no `null`).
 - **FR-002** (notas + metadatos de evidencia del ciclo vigente): THE detalle SHALL incluir las **notas de
-  ejecución** y los **metadatos de evidencia** (conteo + `content_type`) del **ciclo vigente** (el `auditId` del
-  último `submitOrderExecution`); **nunca** el `object_ref` crudo ni el binario.
-- **FR-003** (motivo del rechazo como DATO OPERATIVO): WHEN la orden fue rechazada en su ciclo vigente THE
-  detalle SHALL incluir el **motivo del último rechazo**, servido desde una **columna denormalizada
-  `last_rejection_reason` en `Order`** que **006 escribe en el reject** (write-through, misma transacción, texto
-  saneado). Es **retroalimentación operativa del ciclo**, **no** lectura del registro de auditoría: Constitution
-  **XI queda intacta** (no se accede a `OrderAudit`). El motivo ya está **saneado / sin PII cruda** (XI). *(Añade
-  la escritura del campo en 006 + migración reversible; lo detalla `/plan`.)*
+  ejecución** y los **metadatos de evidencia** `{ count, content_types }` (donde `content_types` es la **lista**
+  de `content_type` por evidencia del ciclo, duplicados posibles) del **ciclo vigente** (el `auditId` del último
+  `submitOrderExecution`, aunque ese submit haya sido rechazado — es lo que el técnico debe ver para corregir);
+  **nunca** el `object_ref` crudo ni el binario.
+- **FR-003** (motivo del rechazo como DATO OPERATIVO, atado al ciclo): THE detalle SHALL incluir el **motivo del
+  último rechazo** desde la columna denormalizada **`Order.last_rejection_reason`** (saneada, nullable), que:
+  (a) **006 escribe** en el reject (write-through, misma transacción); (b) **005 LIMPIA a NULL** en el resubmit
+  (`submitOrderExecution`) → así refleja **solo el rechazo del ciclo vigente** o NULL (resuelve la ambigüedad de
+  ciclo). El campo se **omite** del JSON cuando es NULL. Es **retroalimentación operativa**, **no** lectura de
+  auditoría: **XI intacta** (no se accede a `OrderAudit` en runtime). La **migración** añade la columna + un
+  **backfill único** (rellena las órdenes hoy en `in_progress` con su último motivo — operación de migración, no
+  lectura de auditoría en runtime). *(Detalle de migración/orden de despliegue en `/plan`.)*
 - **FR-004** (RBAC + no-enumeración): WHEN el usuario no está autenticado THE sistema SHALL responder `401`;
-  WHEN pide una orden **no visible** para su rol (inexistente, ajena, `orderId` malformado, o fuera de su alcance
-  de estado) THE sistema SHALL responder `404` genérico e indistinguible, **sin** revelar existencia (coherente
-  con 002a/006). El rol sin alcance de lectura del detalle recibe `403`/`404` según la política reutilizada.
-- **FR-005** (quién ve el motivo — mínimo privilegio): el **technician** SHALL ver el motivo **solo de SU propia
-  orden** (la asignada a él), **nunca** el de otra orden ni ningún otro registro de auditoría; el **supervisor**
-  lo ve en cualquier orden visible (lo escribe/revisa); el **dispatcher NO** recibe el motivo en el detalle
-  (aunque vea el resto), pues no participa en la revisión. El campo se **omite** cuando el rol no debe verlo.
+  WHEN un usuario autenticado pide una orden **no visible** para su rol (inexistente, ajena, `orderId`
+  malformado, o fuera de su alcance de estado) THE sistema SHALL responder **`404` genérico e indistinguible**,
+  **sin** revelar existencia (coherente con 002a/006). El endpoint es de **lectura abierto a los tres roles**
+  autenticados; la **visibilidad filtra a `404`** — **no se usa `403`** en este endpoint (un `403` sobre un
+  `orderId` concreto rompería la no-enumeración). `closed` no está en el alcance de ningún rol → `404` (detalle
+  de cerradas fuera de #010).
+- **FR-005** (quién ve el motivo — mínimo privilegio): **SOLO el technician dueño** (la orden asignada a él) ve
+  `last_rejection_reason` en el detalle, para corregir su orden rechazada. **Supervisor y dispatcher NO** reciben
+  el motivo en el detalle (el supervisor ya lo conoció al escribirlo; su alcance —`pending_review`— ni siquiera
+  contiene órdenes rechazadas). El technician **nunca** ve el motivo de otra orden ni ningún otro registro de
+  auditoría. El campo se **omite** del JSON para todo rol distinto del técnico dueño.
 - **FR-006** (no-fuga de PII): THE respuesta y los logs SHALL **no** contener `object_ref` crudo, uuids internos
   innecesarios ni PII cruda; solo `id`/metadatos (conteo, `content_type`) + el motivo saneado.
 - **FR-007** (read-only): THE endpoint SHALL ser de **lectura pura** (GET), sin mutar estado ni versión, sin
@@ -122,9 +155,9 @@ alcance → `404`. Igual para dispatcher con su alcance.
 
 ### Key Entities *(include if data involved)*
 
-- **Order** (002a): se **lee** (estado + campos + visibilidad). **Nuevo campo denormalizado
-  `last_rejection_reason`** (operativo, saneado, nullable) que 006 escribe en el reject; #010 lo lee. No se muta
-  desde #010 (read-only).
+- **Order** (002a): se **lee** (estado + campos + visibilidad). **Nuevo campo `last_rejection_reason`**
+  (operativo, saneado, **nullable**): **006** lo escribe en el reject, **005** lo pone a NULL en el resubmit
+  (atado al ciclo vigente); #010 lo lee. #010 no muta la orden (solo 005/006 tocan el campo).
 - **OrderExecutionNotes / OrderEvidence** (005): **fuente** de notas + metadatos del ciclo vigente; se **leen**;
   nunca `object_ref` crudo.
 - **Motivo del último rechazo** (operativo): el texto saneado del rechazo del ciclo vigente (de 006), servido
@@ -148,7 +181,8 @@ alcance → `404`. Igual para dispatcher con su alcance.
 
 - **Fichero**: extiende `contracts/orders.openapi.yaml` (OpenAPI 3.1), reutilizando `bearerAuth`/`ErrorResponse`.
 - **Endpoint** (propuesta; forma exacta en `/plan`): `getOrderDetail` — `GET /orders/{orderId}` — roles
-  technician/supervisor/dispatcher (según visibilidad) — respuestas `200 / 401 / 403 / 404 / 500 / 503`.
+  technician/supervisor/dispatcher (según visibilidad) — respuestas `200 / 401 / 404 / 500 / 503` (**sin 403**:
+  la visibilidad filtra a 404, no-enumeración).
 - **Esquema** `OrderDetailResponse` (order + notes? + evidence metadata + last_rejection_reason?).
 
 ## Trazabilidad (RF → endpoint → tarea → test) *(obligatorio — Constitution VI)*
@@ -158,11 +192,11 @@ alcance → `404`. Igual para dispatcher con su alcance.
 | FR-001 | `getOrderDetail` | `should return order detail for a visible order per role` |
 | FR-002 | `getOrderDetail` | `should include current-cycle notes + evidence metadata (no object_ref)` |
 | FR-003 | `getOrderDetail` | `should include last rejection reason as operational data (audit untouched)` |
-| FR-004 | `getOrderDetail` | `should 404 generic for out-of-scope/nonexistent/malformed; 401 unauth` |
-| FR-005 | `getOrderDetail` | `technician sees reason only for own order, not others; no audit browse` |
+| FR-004 | `getOrderDetail` | `should 404 generic (no 403) for out-of-scope/nonexistent/malformed/closed; 401 unauth` |
+| FR-005 | `getOrderDetail` | `only owning technician sees reason; supervisor/dispatcher never; no other order/audit` |
 | FR-006 | `getOrderDetail` | `should never leak object_ref/PII in body or logs` |
 | FR-007 | `getOrderDetail` | `should be read-only (no state/version mutation)` |
-| FR-008 | `getOrderDetail` | contract test × 200/401/403/404/500/503 |
+| FR-008 | `getOrderDetail` | contract test × 200/401/404/500/503 (sin 403) |
 
 > Se mantiene en `docs/traceability.md`. Los `T0xx` los asigna `/speckit-tasks`.
 
@@ -172,10 +206,15 @@ alcance → `404`. Igual para dispatcher con su alcance.
   004/005/006. No se redefine la política de alcance.
 - **Ciclo vigente** = el `auditId` del último `submitOrderExecution` (misma decisión que 007 H-001), para no
   mezclar ciclos del bucle de 006.
-- **Motivo como dato operativo, XI intacta (decidido en clarify)**: **columna denormalizada
-  `last_rejection_reason` en `Order`**, escrita por **006** en el reject (write-through, saneado); #010 la lee.
-  **No se accede a `OrderAudit`** → XI **intacta** (no hace falta enmienda; BL-070 se cierra por diseño, no por
-  cambio de constitution). Consecuencia asumida: 006 añade esa escritura (aditiva, sin cambiar su contrato ni su
-  comportamiento observable) + **migración reversible** (columna nueva, Constitution M10).
-- **Dispatcher no ve el motivo** (decidido en clarify): el campo se omite para dispatcher aunque vea el detalle.
-- **Read-only**: cero mutaciones; el binario de evidencia (descarga) es #007-subida, fuera de alcance.
+- **Motivo como dato operativo, XI intacta**: **columna `last_rejection_reason` en `Order`** (saneada, nullable);
+  **006 la escribe** en el reject, **005 la limpia (NULL)** en el resubmit (atada al ciclo vigente); #010 la
+  **lee**. **No se accede a `OrderAudit` en runtime** → XI **intacta** (BL-070 se cierra **por diseño**, sin
+  enmienda). Consecuencia asumida (honesta): #010 **toca 005 y 006** de forma **aditiva** (solo el nuevo campo,
+  sin cambiar su contrato/comportamiento observable salvo esa escritura/limpieza).
+- **Migración reversible** (M10): añade la columna + **backfill único** de las órdenes hoy en `in_progress` con
+  su último motivo (operación de migración, NO lectura de auditoría en runtime). Históricas reenviadas/cerradas →
+  NULL (aceptado).
+- **Solo el técnico dueño ve el motivo** (clarify ronda 2): supervisor y dispatcher **no** lo reciben en el detalle.
+- **`closed` fuera de alcance**: el detalle de órdenes cerradas no se expone en #010 (necesidad futura, no del brief).
+- **Read-only del detalle**: #010 no muta la orden (solo 005/006 tocan el campo denormalizado); el binario de
+  evidencia (descarga) es #007-subida, fuera de alcance.
