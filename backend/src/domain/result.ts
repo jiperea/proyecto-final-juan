@@ -31,6 +31,9 @@ export type ErrorCode =
   // --- 004: reasignación de orden ---
   | 'FORBIDDEN_ROLE' // 403 rol autenticado ≠ dispatcher (FR-003)
   | 'INVALID_ASSIGNEE' // 422 técnico destino inválido (4 causas, cuerpo genérico idéntico, FR-005)
+  // --- 005: registro de ejecución (validación de evidencia, payload primero) ---
+  | 'EVIDENCE_REQUIRED' // 422 ejecución sin ≥1 evidencia (bloqueante, Brief "al menos una foto")
+  | 'INVALID_EVIDENCE' // 422 evidencia inválida (tipo/tamaño/object_ref/duplicado/>máximo)
   | 'INTERNAL'; // 500 genérico (error de BD/inesperado); nunca filtra detalle de Postgres (FR-009)
 
 export interface DomainError {
