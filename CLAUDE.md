@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
-Plan activo: `specs/004-orden-reasignacion/plan.md` (+ research.md, data-model.md, quickstart.md).
-Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1, operación `reassignOrder`). Para tecnologías,
-estructura y comandos, leer ese plan.
+Plan activo: `specs/005-registro-ejecucion/plan.md` (+ research.md, data-model.md, quickstart.md).
+Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1, operaciones `startOrderWork` y `submitOrderExecution`).
+Para tecnologías, estructura y comandos, leer ese plan.
 <!-- SPECKIT END -->
 
 # FieldOps — Guía operativa para Claude

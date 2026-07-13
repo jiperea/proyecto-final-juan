@@ -103,6 +103,109 @@ paths:
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
+  # ---- Feature 005 — registro de ejecución por el técnico ----
+  /orders/{orderId}/start:
+    post:
+      operationId: startOrderWork
+      tags: [orders]
+      summary: Iniciar el trabajo de una orden propia (sólo technician)
+      description: >
+        Un technician inicia su orden en estado `assigned` (assigned→in_progress), con version+1 y auditoría
+        append-only atómica. Sin cuerpo. Precedencia única 401→403→404(pertenencia)→422(estado). Actor derivado
+        del token server-side. Pertenencia (assigned_to == actor) antes que estado: orden ajena en cualquier
+        estado → 404 genérico. Reutiliza applyTransition (002b), reason NULL.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Trabajo iniciado. Orden actualizada (status in_progress, version+1).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        '401':
+          description: No autenticado. Uniforme (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Autenticado pero el rol no es technician (FORBIDDEN_ROLE, default-deny). Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            Orden inexistente, ajena (assigned_to != actor) u orderId malformado. Cuerpo genérico indistinguible
+            (no-enumeración), incluso si la orden ajena está en estado no operable.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '422':
+          description: >
+            Orden PROPIA pero en estado de origen no legal para iniciar (ya in_progress/pending_review/closed):
+            INVALID_TRANSITION. Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: Error interno genérico (todo error de BD). Cuerpo genérico; nunca filtra detalle de Postgres.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
+  /orders/{orderId}/execution:
+    post:
+      operationId: submitOrderExecution
+      tags: [orders]
+      summary: Registrar la ejecución con evidencia y notas (sólo technician)
+      description: >
+        Un technician registra la ejecución de su orden en estado `in_progress` (in_progress→pending_review),
+        adjuntando ≥1 evidencia válida (por referencia) y notas. En UNA sola transacción: transición, version+1,
+        auditoría (reason = marcador opaco, sin las notas), evidencia(s) append-only y notas en tabla aparte
+        (OrderExecutionNotes, payload PII). Todo o nada. Precedencia única 401→403→404(pertenencia)→422(estado)→
+        422(payload); dentro del payload, evidencia antes que notas. Actor server-side. Sin If-Match/409 (=#008).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExecutionRequest' }
+      responses:
+        '200':
+          description: Ejecución registrada. Orden actualizada (status pending_review, version+1).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        '401':
+          description: No autenticado. Uniforme (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Rol no technician (FORBIDDEN_ROLE). Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            Orden inexistente, ajena u orderId malformado. Cuerpo genérico indistinguible (no-enumeración),
+            incluso si la orden ajena está en estado no operable.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '422':
+          description: >
+            Orden propia en estado no legal (INVALID_TRANSITION); o evidencia inválida: EVIDENCE_REQUIRED
+            (0 elementos) / INVALID_EVIDENCE (content_type fuera de allowlist, size_bytes fuera de rango,
+            object_ref con formato inválido, duplicados, o array > máximo); o notas inválidas (VALIDATION_ERROR:
+            ausentes/vacías/whitespace/>máx). La evidencia se valida antes que las notas. Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: Error interno genérico (todo error de BD). Cuerpo genérico; nunca filtra detalle de Postgres.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -160,6 +263,55 @@ components:
             Motivo operativo del reparto. `minLength`/`maxLength` se cuentan en code points Unicode (JSON Schema);
             el Zod derivado debe contar code points (no UTF-16). Debe contener ≥1 carácter imprimible (no sólo
             whitespace/control). Nunca aparece en logs ni en cuerpos de error.
+
+    EvidenceRef:
+      type: object
+      additionalProperties: false
+      required: [object_ref, content_type, size_bytes]
+      description: >
+        Referencia/metadato de una evidencia (feature 005). El binario NO viaja aquí (transporte = #007). Se
+        valida por formato, sin comprobar existencia del objeto.
+      properties:
+        object_ref:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: >
+            String opaco (clave de objeto). 1..512 code points; sin caracteres de control ni whitespace de
+            borde. No se comprueba existencia. Igualdad exacta para detectar duplicados. Potencial PII: nunca en
+            cuerpos de error; en logs sólo id/conteo, no el ref crudo.
+        content_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/heic]
+          description: Allowlist de imágenes. Fuera de lista → INVALID_EVIDENCE.
+        size_bytes:
+          type: integer
+          minimum: 1
+          maximum: 26214400
+          description: Tamaño declarado (metadato). 1..26214400 (25 MiB). Fuera de rango → INVALID_EVIDENCE.
+
+    ExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [notes, evidence]
+      description: >
+        Cuerpo del registro de ejecución. `notes` obligatorias (payload PII: nunca en logs/errores; persistidas
+        en OrderExecutionNotes, no en la auditoría). `evidence` con 1..10 elementos, sin object_ref duplicados.
+        El actor NO se envía (se deriva del token server-side). Sin campo de versión (concurrencia server-side).
+      properties:
+        notes:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: >
+            Notas operativas. 1..2000 code points (Zod cuenta code points, no UTF-16); ≥1 carácter imprimible
+            (no sólo whitespace/control). Nunca aparecen en logs ni en cuerpos de error.
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: '#/components/schemas/EvidenceRef' }
+          description: ≥1 y ≤10 evidencias; sin object_ref duplicados (igualdad exacta). Bloqueante (Brief "≥1 foto").
 
     ErrorResponse:
       type: object
