@@ -142,9 +142,13 @@ alcance → `404`. Igual para dispatcher con su alcance.
 - **FR-001** (detalle por visibilidad): WHEN un usuario autenticado pide el detalle de una orden **visible para
   su rol** (mismo criterio de alcance que 002a: technician = sus órdenes activas; supervisor = `pending_review`;
   dispatcher = `assigned`/`in_progress`) THE sistema SHALL devolver `200` con el detalle: `id`, `title`,
-  `description`, `status`, `assigned_to`, `version`, `created_at`, `updated_at` (ISO-8601 UTC). **`evidence`
-  SIEMPRE está presente** (`{count:0, content_types:[]}` si no hay ciclo); **`notes` y `last_rejection_reason`
-  son opcionales y se OMITEN** del JSON cuando no aplican (convención uniforme, no `null`).
+  `description`, `status`, `assigned_to`, `version`, `created_at`, `updated_at` (ISO-8601 UTC). Los tres campos
+  de trabajo — `notes`, `evidence` y `last_rejection_reason` — son **opcionales y se OMITEN** del JSON cuando no
+  aplican al rol/estado (convención uniforme, no `null`): para el **dispatcher** se omiten `notes`/`evidence`
+  (mínimo privilegio, FR-002); para todos se omite `last_rejection_reason` salvo el técnico dueño con rechazo sin
+  atender (FR-005). Cuando el técnico/supervisor sí ven evidencia de un ciclo sin ficheros, `evidence` es
+  `{count:0, content_types:[]}` (presente-pero-vacío ≠ omitido: presente = "hay ciclo, 0 ficheros"; omitido =
+  "este rol no ve evidencia").
 - **FR-002** (notas + metadatos de evidencia del ciclo vigente — mínimo privilegio): THE detalle SHALL incluir
   las **notas de ejecución** y los **metadatos de evidencia** `{ count, content_types }` (donde `content_types`
   es la **lista** de `content_type` por evidencia del ciclo, duplicados posibles) del **ciclo vigente** (el
@@ -157,11 +161,15 @@ alcance → `404`. Igual para dispatcher con su alcance.
   leído de **`OrderAudit.reason` de la última transición de rechazo de esa orden**, habilitado por la **excepción
   de mínimo privilegio de Constitution XI (≥ v1.9.0)** (solo el `motivo`, solo la última transición de rechazo,
   solo de una orden asignada al propio actor; no abre el resto del registro).
+  - **Qué es una "transición de rechazo":** una fila de `OrderAudit` de la revisión de 006 con
+    `fromStatus=pending_review` y `toStatus=in_progress` (el reject de 006; su `reason` es el motivo). Se toma la
+    **más reciente** por `at` (empate improbable → mayor `id`/uuid v7 monótono).
   - **Regla de "rechazo sin atender" (atado al ciclo, resuelve la mezcla de ciclos):** el motivo se incluye **si y
-    solo si** la última transición de rechazo es **posterior** al último `submitOrderExecution` de la orden (i.e.
-    la orden está en `in_progress` tras un rechazo y **aún no** se ha reenviado). Tras el reenvío (→
-    `pending_review`) el motivo se **omite**. Así las notas/evidencia (del último submit) y el motivo pertenecen
-    **siempre al mismo ciclo**; nunca se mezcla el motivo del ciclo N-1 con notas del ciclo N.
+    solo si** esa transición de rechazo es **estrictamente posterior** (`at`) al último `submitOrderExecution` de
+    la orden (i.e. la orden está en `in_progress` tras un rechazo y **aún no** se ha reenviado). Tras el reenvío
+    (→ `pending_review`) el motivo se **omite**. Ambas lecturas (última reject, último submit) se hacen en una
+    **consulta/snapshot consistente** para no ver estados híbridos ante un submit concurrente. Así las
+    notas/evidencia (del último submit) y el motivo pertenecen **siempre al mismo ciclo**.
   - **Saneo al leer (defensa en profundidad, resuelve la PII histórica):** el motivo se pasa por el **detector/
     redactor de PII estructurada compartido** (`domain/ai/pii-redactor`, de 007) **antes** de servirlo — así, aun
     si un motivo histórico se guardó sin sanear, no se filtra PII estructurada al técnico. Esto **define** el
@@ -179,13 +187,19 @@ alcance → `404`. Igual para dispatcher con su alcance.
   (el supervisor ya lo conoció al escribirlo; su alcance —`pending_review`— no contiene rechazos sin atender). El
   technician **nunca** ve el motivo de otra orden ni ningún otro registro de auditoría. **Reasignación:** si una
   orden con rechazo sin atender se reasigna a otro técnico, el **nuevo dueño** ve el motivo — es correcto: ahora
-  es **su** responsabilidad corregirla, y el motivo (saneado, FR-003) describe el trabajo a rehacer, no datos
-  personales del técnico anterior. El campo se **omite** para todo rol/actor que no sea el dueño actual.
-- **FR-006** (no-fuga de PII): THE respuesta y los logs SHALL **no** contener `object_ref` crudo, uuids internos
-  innecesarios ni **PII estructurada**; solo `id`/metadatos (conteo, `content_type`) + el motivo **saneado**.
-  **Definición verificable de "PII cruda"** = lo que detecta el **detector estructural compartido**
-  (`domain/ai/pii-redactor` de 007: email/teléfono/DNI-NIF/NIE/matrícula/IBAN/tarjeta); el motivo servido pasa
-  por él y la respuesta no contiene ninguno de esos patrones (aserción de test, no juicio subjetivo).
+  es **su** responsabilidad corregirla. El motivo pasa por el saneo estructural (FR-006); la PII de texto libre
+  que el supervisor pudiera haber escrito es el residual BL-073 (no específico de la reasignación). El campo se
+  **omite** para todo rol/actor que no sea el dueño actual.
+- **FR-006** (no-fuga de PII): THE respuesta SHALL **no** contener `object_ref` crudo ni **PII estructurada**
+  (los `id`/`assigned_to` uuid son campos del contrato, no PII); el motivo servido pasa por el **detector
+  estructural compartido** (`domain/ai/pii-redactor` de 007: email/teléfono/DNI-NIF/NIE/matrícula/IBAN/tarjeta) y
+  la respuesta no contiene ninguno de esos patrones. **En logs**: el `OrderAudit.reason` crudo **no** se registra
+  — `reason` ya está en `REDACT_PATHS` del logger (de 004/006), así que cualquier log lo censura. **Definición
+  verificable de "PII cruda"** = lo que detecta ese redactor estructural (aserción de test, no juicio subjetivo).
+  **Residual (BL-073):** la PII de **texto libre** (nombres/direcciones) que un supervisor pudiera escribir en el
+  motivo **no** la capta el detector estructural — mismo residual best-effort que 007; mitigado porque el motivo
+  lo autoría el **supervisor** (rol de confianza, instruido a describir el trabajo a rehacer, no datos de
+  cliente). Endurecimiento (NER / disciplina de escritura en 006) = BL-073.
 - **FR-007** (read-only): THE endpoint SHALL ser de **lectura pura** (GET), sin mutar estado ni versión, sin
   efectos secundarios, y **sin** servir el binario de evidencia (eso es #007-subida).
 - **FR-008** (contrato): THE respuesta `200` SHALL ajustarse a un `OrderDetailResponse` versionado en
@@ -216,10 +230,14 @@ alcance → `404`. Igual para dispatcher con su alcance.
 - **SC-003** (RBAC + no-enumeración): el 100% de las peticiones sin autenticar son `401` y el 100% de las
   peticiones fuera del alcance del rol son `404` genérico (**sin 403** en este endpoint); **0** fugas de
   existencia entre roles.
-- **SC-004** (no-fuga de PII): **0** apariciones de `object_ref` crudo ni PII cruda en la respuesta o los logs.
-- **SC-005** (excepción XI de mínimo privilegio respetada): el technician **solo** puede leer el motivo de la
-  última transición de rechazo de **su propia** orden; **no** puede leer el de otra orden, ni otras transiciones,
-  ni accesos denegados, ni el resto del registro de auditoría (verificado por test: 403/404 en esos casos).
+- **SC-004** (no-fuga de PII, verificable): **0** apariciones de `object_ref` crudo ni de **PII estructural**
+  (patrones del `pii-redactor` de 007) en la **respuesta** (motivo saneado al leer); y **0** apariciones del
+  `OrderAudit.reason` crudo en **logs** (cubierto por `REDACT_PATHS` → `reason`). Residual conocido: PII de texto
+  libre no estructural (BL-073).
+- **SC-005** (excepción XI de mínimo privilegio respetada): el endpoint **solo** expone el motivo de la última
+  transición de rechazo de la **propia** orden del técnico dueño — **no ofrece ninguna vía** para pedir otra
+  transición, otra orden ni el resto del registro de auditoría. Verificado: pedir el detalle de una orden ajena →
+  `404` (no expone su motivo); el detalle nunca incluye más de ese único campo de auditoría.
 
 ## Contrato (OpenAPI) *(obligatorio — Constitution II)*
 
