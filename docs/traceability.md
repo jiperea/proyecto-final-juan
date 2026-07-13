@@ -241,3 +241,28 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > (read-side puro). Deuda trazada: **#009** (registro forense durable de accesos denegados, BL-002/067, absorbe
 > el emisor ad-hoc de FR-009); **BL-073** (PII texto-libre en motivo); **BL-074** (aislamiento org-única);
 > **BL-080** (contexto cruzado entre supervisores; alta por rama de fundación).
+
+## FE-1 — Front shell + acceso + listado (read-only) (`009-front-shell-listado`) — G1/G2 PASS / US1+US2+US3 implementados
+
+> Constitution VI. FE-1 consume contratos congelados (`auth`, `orders`: `listOrders`/`getOrderDetail`); no
+> introduce endpoints. Tests deterministas de front (Vitest+RTL+axe+MSW; Playwright para teclado/reflow/bfcache).
+> 47/47 en verde; tsc strict + lint limpios. Tareas en `specs/009-front-shell-listado/tasks.md`.
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001/002/003 | login, identidad+rol, access solo-memoria | T028/T032/T018 | `unit/us1-auth` (login→shell, 401 genérico) |
+| FR-004/022/029 | 401→refresh dedup+reintento único; CSRF double-submit; re-montaje por cambio de rol | T015/T016/T031 | `unit/api-client` (dedup/retry), `unit/us1-auth` |
+| FR-005 | logout best-effort + purga de estado + descarte in-flight | T030/T017 | `unit/us1-auth` (purga), `unit/api-client` (session-changed) |
+| FR-023 | bootstrap: refresh silencioso + `me` (reintento) | T029 | `unit/us1-auth` (ruta protegida→login) |
+| FR-006/007/008/009/009b/010 | listado por rol, badge exhaustivo, vacío-por-rol, error+reintento (503), «Actualizar», sin paginación | T035/T036/T037/T038 | `unit/orders` (US2), `a11y/orders` |
+| FR-011/011b/012/013/013b | detalle read-only por presencia, `notes` escapado, motivo de rechazo, 404 uniforme, 500/503 | T041/T042 | `unit/orders` (US3), `a11y/orders` |
+| FR-014/015 | RBAC espejo (403→sin-permiso), mapeo error + fallback + offline | T023/T037/T042 | `unit/orders` (403), `unit/api-client` (fallback/offline) |
+| FR-016/017 | tipos derivados del contrato (codegen); tokens, sin estilos sueltos (3 vectores lint) | T005/T013/T003/T004 | `codegen:check`, `npm run lint` (stylelint+eslint) |
+| FR-018/019/024/025/026/031/032 | teclado, layout campo↔oficina, foco de ruta, master-detail (cruce dinámico), aria-busy, live-region, skip-link | T021/T024/T012/T043 | `unit/foundational-a11y`, `unit/master-detail-resize`, `a11y/*` |
+| FR-020/021/027/028/030 | español, rutas enlazables/deep-link, offline, reduced-motion, bfcache | T020/T014/T022 | `unit/foundational-a11y`, `unit/foundational` (bfcache) |
+| SC-003/004/005/007 | 0 violaciones axe; teclado; contraste por token AA; reflow | T044/T045/T050 | `a11y/orders`, `a11y/screens`, `a11y/contrast-tokens`, `e2e/*` (Playwright) |
+| SC-008 | gates deterministas (lint 3 vectores, codegen diff, badge exhaustivo) | T046/T005/T010 | `npm run lint`, `npm run typecheck`, `codegen:check` |
+
+> Deuda trazada: **F-005** (Zod de `schemas.ts` hand-derived, no generado; endurecer con openapi-zod-client);
+> **axe color-contrast** no corre en jsdom (cubierto de forma determinista por el test por token T050); los
+> **workflows CI de front** son la fase DevOps **DO-6** (inerte hasta FE-1, ahora desbloqueada).

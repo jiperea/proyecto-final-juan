@@ -137,12 +137,14 @@ Componentes propios (sin librería pesada). Cada uno documenta su API de props y
 | `TextField` / `TextArea` | `<label>` asociado, error vía `aria-describedby`, `aria-invalid` | Login, ejecución, rechazo |
 | `Select` | teclado nativo, label | Reasignación (destino) |
 | `StatusBadge` | color **+ texto** (§2.3), no solo color | Lista, detalle |
-| `OrderCard` (móvil) / `OrderRow` (tabla desktop) | tarjeta enfocable, título como enlace | Listado |
+| `OrderCard` (<1024px, incl. tablet `md`) / `OrderRow` (≥1024px, tabla) | tarjeta enfocable, título como enlace; el umbral de cambio es `--bp-lg` (1024px), coherente con master-detail | Listado |
 | `MasterDetail` | landmarks (`<nav>`/`<main>`), foco al navegar | Oficina |
 | `FileInput` (evidencia) | label, feedback de subida, alt/validación | Ejecución (técnico) — FE-2 |
 | `Toast` / `InlineError` | `role="status"`/`role="alert"` según urgencia | Todas |
 | `EmptyState` / `Spinner` | texto, no solo icono; `aria-busy` | Estados de carga/vacío |
 | `Modal` (confirmación rechazo con motivo) | foco atrapado, `Esc` cierra, restaura foco | Revisión — FE-4 |
+| `SkipLink` («Saltar al contenido») | visualmente oculto salvo con foco de teclado; usa `--color-focus-ring`/`--space-*`; salta a `<main>` (WCAG 2.4.1) | Shell (todas) |
+| `BackToList` («Volver a la lista») | control de retorno visible al colapsar master-detail <1024px; foco al activar; ≥44px; texto español; tokens de `ui/` (no estilos sueltos) | MasterDetail colapsado (FE-1) |
 
 **Estados obligatorios de toda vista de datos:** *cargando · vacío · error · sin-permiso*. Un endpoint que
 puede devolver 404/409/503 tiene su estado de UI definido; nada se queda colgado.
@@ -185,9 +187,14 @@ Gate de a11y (verificable, no subjetivo — lo exige `auditor-spec-theater` y lo
 | `VALIDATION_ERROR` / 422 | «Revisa los campos marcados.» (detalle por campo desde `details`) |
 | `RATE_LIMITED` / 429 | «Demasiadas solicitudes. Espera unos segundos.» |
 | `SERVICE_UNAVAILABLE` / 503 | «Servicio no disponible temporalmente. Reinténtalo.» |
+| `INTERNAL` / 500 · **fallback** (code ausente de esta tabla o respuesta sin `code`) | «Ha ocurrido un error. Reinténtalo.» |
+| *(sin respuesta HTTP: offline / timeout de fetch)* | «Sin conexión. Reinténtalo.» |
 
 > El contrato uniforma 404 sin 403 en lectura (getOrderDetail, #010): la UI usa el mismo mensaje de
 > «no disponible» para no filtrar existencia entre roles.
+>
+> **Fallback obligatorio (gate G1 FE-1):** el mensaje genérico «Ha ocurrido un error. Reinténtalo.» cubre
+> cualquier `code` no mapeado; la UI **nunca** improvisa texto fuera de esta tabla ni deja la vista colgada.
 
 ---
 

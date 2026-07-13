@@ -1,0 +1,26 @@
+{
+  "gate": "G2",
+  "feature": "009-front-shell-listado",
+  "fase": "after_analyze",
+  "fecha": "2026-07-14",
+  "panel": ["revisor-consistencia", "revisor-front-a11y-ux (regresión)"],
+  "veredicto_global": "PASS",
+  "veredicto_ronda1": "REQUIERE_CAMBIOS",
+  "bloqueantes_ronda1": 1,
+  "ronda2": {"bloqueantes": 0, "nuevos": ["K-001 bfcache test foundational + traza (T049)", "K-002 códigos auth README (login 422/429, refresh/logout +503)", "F-007 test cruce dinámico breakpoint (T052)", "F-008 componente BackToList en design-system", "F-009 breakpoint OrderCard/OrderRow = bp-lg"], "estado": "todos remediados"},
+  "cierre": "0 bloqueantes en ronda 2; altas remediadas (bfcache TDD, cruce dinámico, códigos auth). G3 re-verifica sobre código.",
+  "remediacion_aplicada": true,
+  "huecos": [
+    {"id": "K-001", "sev": "ALTA", "verif": "CONFIRMADO", "elem": "operationId listOrders (no getOrderList) en 5 artefactos", "accion": "rename getOrderList→listOrders en spec/plan/tasks/data-model/contracts-README (sed). getOrderDetail era correcto.", "estado": "resuelto"},
+    {"id": "K-002", "sev": "ALTA", "verif": "CONFIRMADO", "elem": "FR-009/US2-AS5 atribuían 500 a listOrders (contrato: 200/401/403/503, sin 500)", "accion": "FR-009 → solo 503; AS5 sin 500; nuevo AS6 para 403→FR-014.", "estado": "resuelto"},
+    {"id": "F-001", "sev": "BLOQUEANTE", "elem": "Fase Foundational sin bloque Tests(Red) → FR-024/028/031/032/025/026 sin TDD", "accion": "nuevo T049 (tests a11y transversal Red).", "estado": "resuelto"},
+    {"id": "K-003/F-002", "sev": "ALTA", "elem": "FR-014 RBAC espejo sin test; technician single-column ≥1024 sin test", "accion": "nuevo T051.", "estado": "resuelto"},
+    {"id": "F-003/K-007", "sev": "ALTA", "elem": "FR-031 live-region no cubierto en detalle", "accion": "T039/T042 + etiqueta FR-031.", "estado": "resuelto"},
+    {"id": "K-004", "sev": "MEDIA", "elem": "SC-001 control de retorno sin barrido de test", "accion": "T044 barrido de retorno.", "estado": "resuelto"},
+    {"id": "K-005/F-006/F-004", "sev": "MEDIA", "elem": "SC-005 contraste sin test por token; 44px sin test determinista", "accion": "nuevo T050 (test de contraste por token + axe target-size).", "estado": "resuelto"},
+    {"id": "K-006", "sev": "MEDIA", "elem": "Tabla de trazabilidad con placeholders T0xx", "accion": "reconciliada con IDs reales de tasks.md.", "estado": "resuelto"},
+    {"id": "K-008", "sev": "MEDIA", "elem": "Plan sin equivalente front del '100% contratos/transiciones' (VII)", "accion": "plan Constitution Check: matriz operationId×código + transiciones sesión/layout 100%.", "estado": "resuelto"},
+    {"id": "F-005", "sev": "MEDIA", "elem": "Zod ¿generado o a mano? riesgo de deriva", "accion": "research/T013: Zod GENERADO del contrato, incluido en diff de CI.", "estado": "resuelto"}
+  ],
+  "resumen": "G2 ronda 1 REQUIERE_CAMBIOS: 1 bloqueante (fundación sin TDD a11y) + 2 ALTAs CONFIRMADAS contra contrato (operationId real listOrders; listOrders sin 500) + varias de cobertura de test. Todas remediadas (rename, FR-009, T049-T051, tabla de trazabilidad con IDs reales, cobertura de plan, Zod generado). Pendiente: re-correr para confirmar 0 bloqueantes."
+}

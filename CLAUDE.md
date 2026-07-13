@@ -1,6 +1,6 @@
 <!-- SPECKIT START -->
-Plan activo: `specs/008-order-detalle-read/plan.md` (+ research.md, data-model.md, quickstart.md).
-Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1 v1.5.0, operación `getOrderDetail` GET /orders/{orderId}: detalle read-side por rol; motivo del último rechazo sin atender leído de OrderAudit.reason —excepción XI v1.9.0, saneado fail-closed— solo al técnico dueño; 404 uniforme sin 403; auditoría de accesos denegados FR-009). Read-only puro, sin migración.
+Plan activo: `specs/009-front-shell-listado/plan.md` (+ research.md, data-model.md, quickstart.md, contracts/README.md).
+Feature FE-1 (roadmap): primera UI. SPA **React 18 + Vite** (TS strict) en `frontend/` que **consume** contratos congelados (`auth.openapi.yaml`, `orders.openapi.yaml`) y el **design system** `docs/design-system.md`. Read-side puro (login/sesión + listado por rol + detalle read-only; sin mutación de órdenes). Stack: React Router · TanStack Query · openapi-typescript+Zod (codegen del contrato) · CSS Modules+tokens · Vitest+RTL+axe-core+Playwright+MSW. Gates de calidad = tooling determinista de front (no promptfoo; no hay IA). G1 verde (0 bloqueantes).
 Para tecnologías, estructura y comandos, leer ese plan.
 <!-- SPECKIT END -->
 
