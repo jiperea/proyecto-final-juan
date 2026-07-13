@@ -45,6 +45,17 @@
 - **K-001** (firma del puerto): T006 alineado a `AccessLogPort.record({actor,orderId,outcome,deniedReason?})`;
   timestamp lo estampa el logger. Coherente con FR-013/data-model/código. RESUELTO.
 
+## Dispuestos en G3 (ronda 2) — propagación completa + seguridad
+- **Contract-first 500 / BD→503**: 500 (INTERNAL) y 503-por-BD-no-disponible **declarados en el contrato** y
+  propagados a **FR-010, FR-012, plan (Summary/Contract-First gate), tasks (T002/T004/T010/T021), trazabilidad**.
+  El repo de fuente mapea errores de conexión Prisma → SERVICE_UNAVAILABLE (conv. 001/006); handler guard
+  isDomainError. Tests: `ai-summary-source-failure`. RESUELTO — no re-levantar "500 no declarado / BD→500".
+- **Seguridad — orderId malformado en el evento**: el `orderId` no-UUID (texto arbitrario del actor, posible PII
+  inyectada en el path) se registra como **`<malformed>`**, nunca crudo → el evento sigue PII-free (FR-013/
+  SC-007). Test en `ai-summary-access-event`. RESUELTO.
+- **Propagación del outcome de negocio al evento**: `fallback_insufficient` y `blocked_pii` verificados en
+  integración (no solo dominio), `ai-summary-access-event`. RESUELTO.
+
 ## Controles de runtime cerrados (no reportar como huecos)
 - **FR-009c** — invocación del subproceso `claude` por `execFile`/`spawn` (argv + `stdin`), NUNCA `exec`/shell →
   sin inyección de comandos del SO (S-001). Cerrado en runtime + test.

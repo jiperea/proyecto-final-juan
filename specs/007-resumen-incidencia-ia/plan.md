@@ -60,7 +60,8 @@ uso de dominio + arnés de evals promptfoo.
 *GATE: pasa antes de Phase 0 y se re-comprueba tras Phase 1.*
 
 ### Gate · Contract-First (II)
-- [x] Se **extiende** `contracts/orders.openapi.yaml` con `summarizeOrderIncident` (200/401/403/404/429/503) +
+- [x] Se **extiende** `contracts/orders.openapi.yaml` con `summarizeOrderIncident` (200/401/403/404/429/500/503;
+  el 500 = error inesperado, el 503 = timeout/fallo del proveedor **o** BD no disponible al leer la fuente conv. 001/006) +
   schema `IncidentSummaryResponse`, **antes** del código (Phase 1; Spectral OK).
 - [x] Zod derivado; `snake_case` externo / `camelCase` interno; el `200` cubre resumen y fallback (por `sufficient`).
 
@@ -178,7 +179,9 @@ backend/
 │   │   │                                  #   stderr suprimido → no PII; exit≠0/timeout → SERVICE_UNAVAILABLE)
 │   │   └── repositories/incident-source-repository.ts  # NUEVO: lee orden(pending_review)+notas+evidencia
 │   │                                      #   (metadatos) del CICLO VIGENTE (auditId del submit → pending_review;
-│   │                                      #   NO max(attempt) por-tabla, H-001); NUNCA object_ref
+│   │                                      #   NO max(attempt) por-tabla, H-001); NUNCA object_ref.
+│   │                                      #   Error de conexión Prisma → throw domainError(SERVICE_UNAVAILABLE)
+│   │                                      #   → handler (isDomainError) → 503; error inesperado → 500 (conv. 001/006)
 │   ├── handlers/orders/ai-summary.ts      # NUEVO handler DELGADO. Los GUARDS viven AQUÍ (no en app.ts) para
 │   │                                      #   emitir evento denied en cada rechazo (K5):
 │   │                                      #   requireRole supervisor(403)→rate-limit(429)→visibilidad(404)→

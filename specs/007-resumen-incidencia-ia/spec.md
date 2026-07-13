@@ -342,7 +342,11 @@ en los logs; superar el límite de peticiones → `429`.
   caracteres; (d) con PII estructurada detectada (FR-004). "Conforme" = **JSON `{summary, sufficient}` bien
   formado**, `summary` no vacío tras trim y ≤1200, sin PII detectada, dentro del timeout. **Distinción clave:** el
   fallo de proceso/timeout es `503`; una salida *bien terminada pero no conforme* (incl. JSON malformado) es
-  `200` fallback — nunca se mezclan.
+  `200` fallback — nunca se mezclan. **Indisponibilidad de la fuente y error inesperado:** WHEN la **BD no está
+  disponible** al leer las notas/evidencia (error de conexión de Prisma) THE sistema SHALL responder `503`
+  `SERVICE_UNAVAILABLE` (misma convención transversal 001/006, cuerpo genérico); WHEN ocurre un **error
+  inesperado** no clasificado THE sistema SHALL responder `500` `INTERNAL` genérico (nunca filtra detalle de
+  Postgres/proveedor). Ambos códigos están **declarados en el contrato** (contract-first, II).
 - **FR-011** (contrato de salida): THE respuesta `200` SHALL ser exactamente **`IncidentSummaryResponse
   { summary: string | null, sufficient: boolean }`** (`summary` = texto cuando `sufficient=true`; `null` cuando
   `sufficient=false`); los errores usan `{code, message, details, agent_action}`. El cliente distingue
@@ -351,6 +355,9 @@ en los logs; superar el límite de peticiones → `429`.
   SHALL aplicar el orden único **`401` (no autenticado) → `403` (rol ≠ supervisor) → `429` (rate-limit por
   usuario) → `404` (orden no visible en `pending_review`) → proveedor (`503` timeout/fallo | `200`
   resumen/fallback)**. El `429` (por usuario) precede al `404` para no filtrar la existencia del recurso.
+  **Errores transversales (fuera de la rama feliz, FR-010):** una **indisponibilidad de BD** al resolver la
+  visibilidad/fuente da `503` (no `404`), y un **error inesperado** da `500`; ambos ocurren en la fase de
+  lectura/proveedor (tras superar rol y rate-limit) y emiten el evento de acceso `outcome=error`.
 - **FR-013** (trazabilidad de acceso — sin PII): WHEN una petición de resumen llega con **actor autenticado**
   (cualquier resultado de la precedencia FR-012) THE sistema SHALL emitir un **evento de acceso** `{actor,
   orderId, timestamp, outcome, deniedReason?}` **sin PII** (ni prompt ni resumen ni `object_ref`), con `outcome ∈
@@ -473,6 +480,7 @@ en los logs; superar el límite de peticiones → `429`.
 | FR-009b | `summarizeOrderIncident` | T012 | `should construct provider with temperature=0 + determinism directive (CLI has no sampler flag → BL-072)` |
 | FR-009c | `summarizeOrderIncident` | T012, T020 | `should invoke subprocess via execFile/argv/stdin (no shell); shell metachars in notes run no OS command` |
 | FR-010 | `summarizeOrderIncident` | T012, T016, T017, T021 | `should 503 on timeout/process-failure, 200 fallback on empty/non-conforming/malformed-JSON` |
+| FR-010 (fuente/transversal) | `summarizeOrderIncident` | T021 | `should 503 on DB-unavailable + 500 on unexpected (ai-summary-source-failure)` |
 | FR-011 | `summarizeOrderIncident` | T008, T010 | `should return {summary:string|null, sufficient} per contract` |
 | FR-012 | `summarizeOrderIncident` | T013, T018 | `should apply precedence 401→403→429→404→provider` |
 | FR-013 | `summarizeOrderIncident` | T013, T022 | `should emit PII-free access event per request (incl. denied/error)` |

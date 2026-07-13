@@ -10,10 +10,11 @@ import { makePendingReviewOrder } from '../helpers/transition';
 
 const events: AccessEvent[] = [];
 const provider = { generate: () => Promise.resolve(ok({ summary: 'Resumen fiel del incidente.', sufficient: true })) };
-// max=2 para forzar el 429 con pocas peticiones en la parte de rate-limit.
+// Rate-limit alto en la app compartida (no colisiona con las múltiples peticiones de los tests); el caso
+// 429 usa su PROPIA app con max=2.
 const { app, prisma } = makeTestAppWithSummary(
   { provider, accessLog: { record: (e) => events.push(e) } },
-  { aiRateMax: 2, aiRateWindowMs: 600_000 },
+  { aiRateMax: 50, aiRateWindowMs: 600_000 },
 );
 afterAll(async () => {
   await prisma.$disconnect();
@@ -45,6 +46,16 @@ describe('summarizeOrderIncident — evento de acceso (US3)', () => {
     expect(events.at(-1)).toMatchObject({ outcome: 'denied', deniedReason: 'not_visible_404' });
   });
 
+  it('orderId malformado (texto arbitrario del actor) NO se registra crudo en el evento → `<malformed>` (0 PII)', async () => {
+    events.length = 0;
+    // Un actor podría inyectar PII en el path (email/DNI). El evento PII-free NO debe llevarlo crudo.
+    await request(app).post('/v1/orders/juan.perez%40acme.com/ai-summary').set('Authorization', `Bearer ${supTok}`);
+    const ev = events.at(-1);
+    expect(ev?.outcome).toBe('denied');
+    expect(ev?.orderId).toBe('<malformed>');
+    expect(JSON.stringify(ev)).not.toContain('acme.com');
+  });
+
   it('success emite outcome=success con 0 PII (solo ids/enums)', async () => {
     events.length = 0;
     const o = await makePendingReviewOrder(prisma, {
@@ -59,18 +70,47 @@ describe('summarizeOrderIncident — evento de acceso (US3)', () => {
     expect(Object.keys(ev ?? {}).sort()).toEqual(['actor', 'orderId', 'outcome']);
   });
 
-  it('K5 combinado 429-vs-404: supervisor rate-limited sobre orden NO visible → 429 (precede al 404) con denied/rate_limited_429', async () => {
-    // Consumir la ventana (max=2) sobre una orden cualquiera visible.
-    const o = await makePendingReviewOrder(prisma, {
+  it('outcome de negocio propagado al evento: fallback_insufficient (contenido bajo umbral) y blocked_pii (PII en salida)', async () => {
+    // fallback_insufficient: orden por debajo del umbral FR-015 (notas cortas) → provider no se llama.
+    events.length = 0;
+    const poor = await makePendingReviewOrder(prisma, { assignedTo: SEED_USERS.technician.id, withEvidence: true, notes: 'corta' });
+    await post(poor.id, supTok);
+    expect(events.at(-1)?.outcome).toBe('fallback_insufficient');
+
+    // blocked_pii: provider (mock de este bloque) que devuelve PII estructurada en la salida.
+    events.length = 0;
+    const piiApp = makeTestAppWithSummary(
+      {
+        provider: { generate: () => Promise.resolve(ok({ summary: 'Contacto DNI 12345678Z.', sufficient: true })) },
+        accessLog: { record: (e) => events.push(e) },
+      },
+    );
+    const piiTok = (await request(piiApp.app).post('/v1/auth/login').send({ identifier: SEED_USERS.supervisor.email, password: SEED_PASSWORD })).body.access_token as string;
+    const rich = await makePendingReviewOrder(piiApp.prisma, {
       assignedTo: SEED_USERS.technician.id,
       withEvidence: true,
-      notes: 'Incidencia con detalle suficiente para consumir la ventana de rate-limit del usuario.',
+      notes: 'Incidencia con detalle suficiente para invocar al proveedor y producir salida con PII.',
     });
-    await post(o.id, supTok);
-    await post(o.id, supTok);
-    events.length = 0;
-    const limited = await post(NONEXISTENT, supTok); // no visible Y rate-limited → 429 gana
+    await request(piiApp.app).post(`/v1/orders/${rich.id}/ai-summary`).set('Authorization', `Bearer ${piiTok}`);
+    await piiApp.prisma.$disconnect();
+    expect(events.at(-1)?.outcome).toBe('blocked_pii');
+  });
+
+  it('K5 combinado 429-vs-404: supervisor rate-limited sobre orden NO visible → 429 (precede al 404) con denied/rate_limited_429', async () => {
+    // App DEDICADA con max=2 (aislada del presupuesto de rate-limit de los demás tests).
+    const rlEvents: AccessEvent[] = [];
+    const rl = makeTestAppWithSummary(
+      { provider, accessLog: { record: (e) => rlEvents.push(e) } },
+      { aiRateMax: 2, aiRateWindowMs: 600_000 },
+    );
+    const tok = (await request(rl.app).post('/v1/auth/login').send({ identifier: SEED_USERS.supervisor.email, password: SEED_PASSWORD })).body.access_token as string;
+    const call = () => request(rl.app).post(`/v1/orders/${NONEXISTENT}/ai-summary`).set('Authorization', `Bearer ${tok}`);
+    await call(); // #1
+    await call(); // #2 (consume la ventana)
+    rlEvents.length = 0;
+    const limited = await call(); // #3: no visible Y rate-limited → 429 gana (precede al 404)
+    await rl.prisma.$disconnect();
     expect(limited.status).toBe(429);
-    expect(events.at(-1)).toMatchObject({ outcome: 'denied', deniedReason: 'rate_limited_429' });
+    expect(rlEvents.at(-1)).toMatchObject({ outcome: 'denied', deniedReason: 'rate_limited_429' });
   });
 });

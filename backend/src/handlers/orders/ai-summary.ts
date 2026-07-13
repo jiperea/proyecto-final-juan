@@ -87,21 +87,24 @@ export function summarizeIncidentHandler(deps: SummarizeIncidentHandlerDeps): Re
       return; // sin actor → sin evento (lo cubre auth de 001)
     }
     const orderId = req.params.orderId ?? '';
+    // orderId SANEADO para el evento de acceso: si no es un UUID válido es texto arbitrario del actor
+    // (posible PII inyectada en el path) → NUNCA se escribe crudo en el evento PII-free (FR-013/SC-007).
+    const safeOrderId = UUID_RE.test(orderId) ? orderId : '<malformed>';
 
     const denial = evaluateGuards(deps, auth);
     if (denial) {
-      respondDenied(deps.accessLog, res, auth, orderId, denial);
+      respondDenied(deps.accessLog, res, auth, safeOrderId, denial);
       return;
     }
     if (!UUID_RE.test(orderId)) {
-      respondDenied(deps.accessLog, res, auth, orderId, { reason: 'not_visible_404', error: orderNotFound() });
+      respondDenied(deps.accessLog, res, auth, safeOrderId, { reason: 'not_visible_404', error: orderNotFound() });
       return;
     }
 
     try {
       const source = await deps.source.findSummarizable(orderId);
       if (source === null) {
-        respondDenied(deps.accessLog, res, auth, orderId, { reason: 'not_visible_404', error: orderNotFound() });
+        respondDenied(deps.accessLog, res, auth, safeOrderId, { reason: 'not_visible_404', error: orderNotFound() });
         return;
       }
       const result = await summarizeOrderIncident(
@@ -109,16 +112,16 @@ export function summarizeIncidentHandler(deps: SummarizeIncidentHandlerDeps): Re
         { source },
       );
       if (!result.ok) {
-        deps.accessLog.record({ actor: auth.userId, orderId, outcome: 'error' }); // 503 (M1)
+        deps.accessLog.record({ actor: auth.userId, orderId: safeOrderId, outcome: 'error' }); // 503 (M1)
         sendError(res, result.error);
         return;
       }
       const r = result.value;
-      deps.accessLog.record({ actor: auth.userId, orderId, outcome: r.outcome });
+      deps.accessLog.record({ actor: auth.userId, orderId: safeOrderId, outcome: r.outcome });
       const body: IncidentSummaryResponseDto = { summary: r.summary, sufficient: r.sufficient };
       res.status(200).json(body);
     } catch (e) {
-      respondError(deps.accessLog, res, auth, orderId, e);
+      respondError(deps.accessLog, res, auth, safeOrderId, e);
     }
   };
 }
