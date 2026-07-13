@@ -82,29 +82,51 @@ extract_json() {
 
 echo "== Gate $PHASE sobre $FEATURE_NAME =="
 
+# Ejecuta un agente (build prompt + claude -p) y escribe su salida CRUDA al fichero indicado. Reutilizable
+# en el lanzamiento paralelo y en el reintento secuencial.
+run_agent() {
+  local agent="$1" out="$2" role prompt
+  role="$(cat "$AGENTS_DIR/$agent.md")"
+  prompt=$'Adopta EXACTAMENTE el rol siguiente y devuelve SOLO el JSON que especifica.\n\n'"$role"$'\n\n===== ARTEFACTOS A REVISAR =====\n'"$ARTIFACTS""$DISPOSITIONED"
+  claude -p "$prompt" --output-format json > "$out" 2>/dev/null || true
+}
+
 # Fase 1 — LANZAR EN PARALELO: los agentes son independientes (misma entrada, JSON propio, sin estado
 # compartido) → cada `claude -p` corre en background escribiendo su salida cruda a un fichero temporal.
 pids=()
 for agent in "${AGENTS[@]}"; do
-  role="$(cat "$AGENTS_DIR/$agent.md")"
-  prompt=$'Adopta EXACTAMENTE el rol siguiente y devuelve SOLO el JSON que especifica.\n\n'"$role"$'\n\n===== ARTEFACTOS A REVISAR =====\n'"$ARTIFACTS""$DISPOSITIONED"
   echo "  - lanzando $agent (paralelo) ..."
-  ( claude -p "$prompt" --output-format json 2>/dev/null || echo '' ) > "$TMP_DIR/$agent.raw" &
+  run_agent "$agent" "$TMP_DIR/$agent.raw" &
   pids+=("$!")
 done
-wait "${pids[@]}" 2>/dev/null || true  # espera a TODOS (los subshells salen 0 por el `|| echo ''`)
+wait "${pids[@]}" 2>/dev/null || true
 
-# Fase 2 — CONSOLIDAR (secuencial, barato): parsea/valida cada salida y acumula los huecos.
+# Fase 2 — CONSOLIDAR: parsea/valida cada salida. Si un agente NO devuelve JSON válido, se REINTENTA una
+# vez en secuencial (posible contención del CLI bajo concurrencia); si sigue inválido, el gate es
+# INCONCLUSO (exit 3) — NUNCA se cuenta como "0 huecos" en silencio (integridad del panel).
 ALL_HUECOS="[]"
+FAILED_AGENTS=()
 for agent in "${AGENTS[@]}"; do
   json="$(extract_json "$(cat "$TMP_DIR/$agent.raw" 2>/dev/null || echo '')")"
   if ! printf '%s' "$json" | jq -e '.huecos' >/dev/null 2>&1; then
-    echo "    aviso: $agent no devolvió JSON válido; se cuenta como 0 huecos" >&2
-    json='{"huecos":[],"veredicto":"APROBADA_CON_COMENTARIOS","resumen":"sin salida válida"}'
+    echo "    aviso: $agent sin JSON válido; REINTENTO secuencial ..." >&2
+    run_agent "$agent" "$TMP_DIR/$agent.retry"
+    json="$(extract_json "$(cat "$TMP_DIR/$agent.retry" 2>/dev/null || echo '')")"
+  fi
+  if ! printf '%s' "$json" | jq -e '.huecos' >/dev/null 2>&1; then
+    echo "    ERROR: $agent no devolvió JSON válido tras reintento" >&2
+    FAILED_AGENTS+=("$agent")
+    continue
   fi
   printf '%s' "$json" > "$TMP_DIR/$agent.json"
   ALL_HUECOS="$(jq -s '.[0] + (.[1].huecos // [] | map(. + {agente: "'"$agent"'"}))' <(printf '%s' "$ALL_HUECOS") "$TMP_DIR/$agent.json")"
 done
+
+if [[ "${#FAILED_AGENTS[@]}" -gt 0 ]]; then
+  echo "== Gate $PHASE: INCONCLUSO — agentes sin salida válida: ${FAILED_AGENTS[*]} (NO se cuenta como 0 huecos) ==" >&2
+  echo "   Re-ejecuta el gate; si persiste, baja la concurrencia (lanza en serie)." >&2
+  exit 3
+fi
 
 BLOQUEANTES="$(printf '%s' "$ALL_HUECOS" | jq '[.[] | select(.severidad=="BLOQUEANTE")] | length')"
 ALTAS="$(printf '%s' "$ALL_HUECOS" | jq '[.[] | select(.severidad=="ALTA")] | length')"
