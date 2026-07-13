@@ -48,6 +48,13 @@ aprobar/rechazar, sin abrir el resto del registro (sigue restringido a superviso
 feature #010 (detalle read-side) vía lectura acotada en vez de denormalizar (menos invasiva; BL-070).
 Origen: BLOQUEANTE del gate G1 de 006 diferido. Enmienda aislada en rama dedicada (ADR-0004). Plantillas
 dependientes revisadas (sin cambios: ninguna enumera la RBAC de lectura de auditoría de XI).
+v1.9.1 (PATCH): entrada en fase Front — reconciliación (no cambia principios). (1) Las features 001–#010 se
+construyeron **API-first**; la fase Front (FE-1..4) entra ahora como slices que **consumen los contratos ya
+congelados** (`contracts/*.openapi.yaml`), no como retrabajo: el contrato es la costura. Coherente con la
+"definición de hecho" (front+back+tests en verde a la vez) ya presente. (2) Se **ancla `docs/design-system.md`**
+como artefacto vivo del principio de Design System propio (Convenciones §Sistema de diseño), creado al llegar la
+primera UI (FE-1); los specs de UI lo consumen, no lo redefinen. Sin cambio de principios ni de stack. Enmienda
+aislada en rama dedicada (ADR-0004).
 
 Principios (15):
   I.    Spec-Driven, spec-first
@@ -312,6 +319,10 @@ una decisión **de origen** (roadmap + `/speckit-specify`).
 - **Contract-first, EARS, trazabilidad y SC medibles** son gates de las plantillas de `spec`/`plan`.
 - **Definición de "hecho":** frontend + backend + tests en verde **a la vez**, en máquina limpia, **con
   el gate adversarial en 0 bloqueantes y la eval de objetivos/IA en umbral**.
+  > **Reconciliación API-first (v1.9.1):** las features 001–#010 se construyeron **API-first** (contrato →
+  > dominio → tests). La fase Front (FE-1..4) **no es retrabajo**: entra como slices que **consumen los
+  > contratos ya congelados** en `contracts/*.openapi.yaml` — el contrato es la **costura** entre front y
+  > back. La "definición de hecho" se satisface cuando cada slice de front cierra sobre su back ya contratado.
 
 ## Convenciones (buenas prácticas)
 
@@ -335,7 +346,10 @@ una decisión **de origen** (roadmap + `/speckit-specify`).
 - **Sistema de diseño (transversal):** la UI consume **tokens y componentes** de un design system propio
   (`frontend/src/ui/`, CSS variables), **sin estilos sueltos** (nada de hex/px/font arbitrarios) y **sin
   librería de componentes pesada**; los specs de UI lo **consumen**, no lo redefinen. Artefacto:
-  `docs/design-system.md` + `frontend/src/ui/`, se crea al llegar la primera UI.
+  **`docs/design-system.md`** (especificación de tokens/paleta/tipografía/componentes/responsive/a11y,
+  **creado al entrar la primera UI**, FE-1) + su implementación en `frontend/src/ui/` (CSS variables +
+  componentes base, materializada en FE-1). Cualquier token/componente nuevo entra por consumo de un spec de
+  UI validado por el panel, no por estilos sueltos.
 - **Threat modeling:** las features **sensibles de seguridad** incluyen un **STRIDE** que alimenta
   requisitos y tests (p. ej. 001).
 - **Migraciones reversibles / rollback (M10):** cada migración de BD tiene su **reverso**; el despliegue
@@ -413,4 +427,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.9.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-13
+**Version**: 1.9.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-13
