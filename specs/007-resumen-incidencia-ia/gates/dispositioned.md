@@ -56,6 +56,14 @@
 - **Propagación del outcome de negocio al evento**: `fallback_insufficient` y `blocked_pii` verificados en
   integración (no solo dominio), `ai-summary-access-event`. RESUELTO.
 
+## Dispuestos en G3 (ronda 3) — cobertura de PII estructurada acotada
+- **Clases de PII estructurada (BL-079)**: la garantía determinista se **acota a un conjunto ENUMERADO**
+  `{email, teléfono, DNI/NIF/NIE, matrícula, IBAN, tarjeta}` (redactStructured + hasStructuredPii). **Otras
+  clases estructuradas** (pasaporte, nº póliza/cliente, cuenta no-IBAN, y cualquier identificador futuro) son un
+  **residual documentado BL-079**, best-effort por prompt-instruction + eval — igual enfoque que BL-073 (texto
+  libre). **NO re-levantar "clase de PII estructurada X no cubierta"**: la garantía se declara sobre el conjunto
+  enumerado, no sobre "toda PII estructurada" (enumeración infinita imposible de garantizar por regex).
+
 ## Controles de runtime cerrados (no reportar como huecos)
 - **FR-009c** — invocación del subproceso `claude` por `execFile`/`spawn` (argv + `stdin`), NUNCA `exec`/shell →
   sin inyección de comandos del SO (S-001). Cerrado en runtime + test.

@@ -272,7 +272,11 @@ en los logs; superar el límite de peticiones → `429`.
   construye la petición al proveedor THE sistema SHALL: (a) **allowlist estructural** — enviar únicamente el texto
   de notas + metadatos de evidencia (`conteo`, `content_type`), **nunca** `object_ref`, uuids
   (`assigned_to`/actor/ids) ni identificadores; (b) **redacción determinista por patrones** de la PII
-  **estructurada** del texto de notas (emails, teléfonos, matrículas, DNI/NIF) → `[REDACTED]`; **y** (c) para
+  **estructurada** del texto de notas — **conjunto ENUMERADO** con garantía determinista: `{email, teléfono,
+  DNI/NIF/NIE, matrícula, IBAN, tarjeta de crédito}` → `[REDACTED]`. **Clases estructuradas fuera del conjunto**
+  (pasaporte, nº de póliza/cliente, nº de cuenta no-IBAN…) **no** tienen patrón y son un **residual documentado
+  (`BL-079`)**, cubierto best-effort por (c) + eval — no forman parte de la garantía determinista (la garantía se
+  acota al conjunto enumerado, no a "toda PII estructurada"); **y** (c) para
   **nombres/direcciones** (texto libre, sin patrón regex fiable) una **instrucción explícita al proveedor** de no
   reproducir datos personales, **complementada** por el chequeo de salida de FR-004. El residual de texto libre
   (nombres/direcciones) es **best-effort (prompt + eval)**, no una garantía regex; documentado como tal. La
@@ -437,10 +441,12 @@ en los logs; superar el límite de peticiones → `429`.
 - **SC-002** (fallback): el 100% de los golden cases de **evidencia insuficiente** producen el fallback "evidencia
   insuficiente" y **0** resúmenes fabricados.
 - **SC-003** (no-fuga de PII, entrada y salida): **0** apariciones de la PII del golden case en el prompt enviado,
-  la salida devuelta y los logs/`stderr` (aserción de eval + grep negativo). PII **estructurada**
-  (email/teléfono/DNI-NIF/matrícula/`object_ref`) → garantía **determinista** (redacción por patrones, FR-003b).
-  **Nombres/direcciones** → verificados con **golden cases de literales conocidos** (prompt-instruction + chequeo
-  de salida, FR-003c/FR-004); residual de texto libre no cubierto por regex documentado como best-effort.
+  la salida devuelta y los logs/`stderr` (aserción de eval + grep negativo). PII **estructurada del conjunto
+  enumerado** `{email, teléfono, DNI/NIF/NIE, matrícula, IBAN, tarjeta}` → garantía **determinista** (redacción
+  por patrones, FR-003b); `object_ref` no entra por la allowlist de entrada (FR-003a). **Otras clases
+  estructuradas** (pasaporte, póliza, nº cliente) = residual **BL-079** (best-effort). **Nombres/direcciones** →
+  verificados con **golden cases de literales conocidos** (prompt-instruction + chequeo de salida, FR-003c/FR-004);
+  residual de texto libre no cubierto por regex documentado como best-effort (BL-073).
 - **SC-004** (RBAC + no-enumeración): el 100% de las peticiones de roles ≠ supervisor son `403`/`401`, y el 100%
   de las peticiones sobre órdenes fuera de `pending_review` son `404`; en **ninguno** se llama al proveedor.
 - **SC-005** (rate-limit): superar el límite produce `429` con `Retry-After` en el 100% de los casos, sin llamar

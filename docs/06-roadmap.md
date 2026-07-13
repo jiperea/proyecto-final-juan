@@ -80,6 +80,9 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > anti prompt-injection (FR-016 mitiga; problema abierto en LLMs). **BL-077** juez del eval de familia distinta
 > (errores correlacionados). **BL-078** rate-limit con store compartido (Redis) para multi-réplica (hoy asume
 > instancia única). Todos con condición de revisión **antes de datos reales/escala**; ninguno bloquea el MVP.
+> **BL-079** — cobertura de **clases de PII estructurada** más allá del conjunto enumerado {email, teléfono,
+> DNI/NIF/NIE, matrícula, IBAN, tarjeta}: pasaporte, nº póliza/cliente, cuenta no-IBAN, etc. — residual
+> best-effort (prompt+eval), a endurecer (patrones adicionales o NER) antes de datos reales sensibles.
 
 > **Regla de atomización (XV)**: todo cluster que se **saca** de una feature para no sobredimensionarla se
 > registra **aquí como feature propia** (#007–#009, no sólo en backlog) y se **lanza cuando toque** — nunca se

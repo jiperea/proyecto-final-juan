@@ -12,6 +12,13 @@ describe('pii-redactor: redactStructured', () => {
     expect(redactStructured('matrícula 1234 BCD')).toContain(REDACTED);
   });
 
+  it('cubre IBAN y tarjeta de crédito (clases estructuradas de identificador de cliente)', () => {
+    expect(redactStructured('IBAN ES9121000418450200051332')).toContain(REDACTED);
+    expect(redactStructured('pago con tarjeta 4111 1111 1111 1111')).toContain(REDACTED);
+    expect(hasStructuredPii('salida con IBAN ES9121000418450200051332')).toBe(true);
+    expect(hasStructuredPii('tarjeta 4111111111111111 en el resumen')).toBe(true);
+  });
+
   it('S-001: teléfono con paréntesis/agrupaciones no estándar también se redacta (sin hueco de formato)', () => {
     expect(redactStructured('llama al (600) 12 34 56 por favor')).toContain(REDACTED);
     expect(redactStructured('tel 600.12.34.56')).toContain(REDACTED);

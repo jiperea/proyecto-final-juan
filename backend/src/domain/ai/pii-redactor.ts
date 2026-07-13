@@ -21,6 +21,10 @@ const PATTERNS: readonly RegExp[] = [
   /\b[XYZ][- ]?\d{7}[- ]?[A-HJ-NP-TV-Z]\b/gi,
   // Matrícula española actual: 4 dígitos + 3 consonantes (con límites de palabra).
   /\b\d{4}[- ]?[BCDFGHJKLMNPRSTVWXYZ]{3}\b/gi,
+  // IBAN (2 letras país + 2 dígitos control + 11..30 alfanum; tolera espacios de agrupación).
+  /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}\b/gi,
+  // Tarjeta de crédito: 13..19 dígitos, opcionalmente agrupados en 4 (espacio/guion).
+  /(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)/g,
 ];
 
 // Reemplaza por [REDACTED] toda PII estructurada detectada. Idempotente sobre texto ya redactado.
