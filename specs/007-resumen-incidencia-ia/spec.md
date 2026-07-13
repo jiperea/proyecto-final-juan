@@ -310,8 +310,9 @@ en los logs; superar el límite de peticiones → `429`.
   inferior: ver Modelo de amenaza → BL-002/#009.)*
 - **FR-009** (proveedor por CLI, sin API de pago): THE sistema SHALL usar el proveedor IA por **CLI**
   (`AI_PROVIDER=claude-cli`) en dev y **mockear** el proveedor en los tests (deterministas, sin red).
-- **FR-009c** (invocación segura del proceso — anti inyección de comandos del SO, S-001): dado que las notas las
-  autoría el **technician** (entrada no confiable) y acaban en el prompt que se pasa al binario `claude`, THE
+- **FR-009c** (invocación segura del proceso — anti inyección de comandos del SO, S-001; **ancla plataforma:
+  Constitution IX ≥ v1.8.0**): dado que las notas las autoría el **technician** (entrada no confiable) y acaban en
+  el prompt que se pasa al binario `claude`, THE
   sistema SHALL invocar el proceso hijo con **`execFile`/`spawn` pasando argumentos como array (argv) y/o el
   prompt por `stdin`**, **NUNCA** con `exec`, `sh -c`, ni interpolación de strings en un shell. El contenido de
   las notas (metacaracteres `$(...)`, backticks, `;`, `|`, `&`, comillas) **jamás** se concatena en una línea de
