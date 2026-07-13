@@ -18,6 +18,18 @@ así que el técnico necesita ver **por qué** para corregir y reenviar.
 > (es 002a); histórico completo de auditoría (restringido, Constitution XI). Read-side puro sobre lo ya
 > persistido por 002a/005/006.
 
+## Clarifications
+
+### Session 2026-07-13
+
+- Q: ¿Cómo se sirve el motivo del último rechazo sin abrir el registro de auditoría (XI intacta)? → A:
+  **columna denormalizada `last_rejection_reason` en `Order`**, escrita por **006 en el reject** (write-through,
+  misma transacción, texto saneado); #010 la **lee** como dato operativo. **XI queda intacta** (no se lee
+  `OrderAudit`). Consecuencia: 006 añade la escritura de ese campo + **migración reversible** (columna nueva).
+- Q: ¿Qué roles ven el motivo en el detalle? → A: **technician (solo SU propia orden)** + **supervisor**
+  (cualquier orden visible). El **dispatcher NO** ve el motivo (no participa en la revisión), aunque vea el resto
+  del detalle.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - El técnico ve el detalle de su orden y por qué se la rechazaron (Priority: P1)
@@ -87,18 +99,19 @@ alcance → `404`. Igual para dispatcher con su alcance.
   ejecución** y los **metadatos de evidencia** (conteo + `content_type`) del **ciclo vigente** (el `auditId` del
   último `submitOrderExecution`); **nunca** el `object_ref` crudo ni el binario.
 - **FR-003** (motivo del rechazo como DATO OPERATIVO): WHEN la orden fue rechazada en su ciclo vigente THE
-  detalle SHALL incluir el **motivo del último rechazo** para quien tenga visibilidad de la orden. Este dato se
-  sirve como **retroalimentación operativa del ciclo**, **no** como lectura del registro de auditoría forense:
-  Constitution **XI queda intacta** (la lectura de la auditoría sigue restringida a supervisor/auditor). El
-  motivo ya está **saneado / sin PII cruda** (XI). *(El mecanismo exacto —proyección/campo operativo vs. lectura
-  justificada— lo decide `/plan`; la restricción dura es no abrir el registro de auditoría.)*
+  detalle SHALL incluir el **motivo del último rechazo**, servido desde una **columna denormalizada
+  `last_rejection_reason` en `Order`** que **006 escribe en el reject** (write-through, misma transacción, texto
+  saneado). Es **retroalimentación operativa del ciclo**, **no** lectura del registro de auditoría: Constitution
+  **XI queda intacta** (no se accede a `OrderAudit`). El motivo ya está **saneado / sin PII cruda** (XI). *(Añade
+  la escritura del campo en 006 + migración reversible; lo detalla `/plan`.)*
 - **FR-004** (RBAC + no-enumeración): WHEN el usuario no está autenticado THE sistema SHALL responder `401`;
   WHEN pide una orden **no visible** para su rol (inexistente, ajena, `orderId` malformado, o fuera de su alcance
   de estado) THE sistema SHALL responder `404` genérico e indistinguible, **sin** revelar existencia (coherente
   con 002a/006). El rol sin alcance de lectura del detalle recibe `403`/`404` según la política reutilizada.
-- **FR-005** (mínimo privilegio del motivo): el **technician** SHALL ver el motivo **solo de SU propia orden**
-  (la asignada a él), **nunca** el de otra orden ni ningún otro registro de auditoría. Supervisor/auditor
-  conservan su acceso (son quienes lo escriben/revisan).
+- **FR-005** (quién ve el motivo — mínimo privilegio): el **technician** SHALL ver el motivo **solo de SU propia
+  orden** (la asignada a él), **nunca** el de otra orden ni ningún otro registro de auditoría; el **supervisor**
+  lo ve en cualquier orden visible (lo escribe/revisa); el **dispatcher NO** recibe el motivo en el detalle
+  (aunque vea el resto), pues no participa en la revisión. El campo se **omite** cuando el rol no debe verlo.
 - **FR-006** (no-fuga de PII): THE respuesta y los logs SHALL **no** contener `object_ref` crudo, uuids internos
   innecesarios ni PII cruda; solo `id`/metadatos (conteo, `content_type`) + el motivo saneado.
 - **FR-007** (read-only): THE endpoint SHALL ser de **lectura pura** (GET), sin mutar estado ni versión, sin
@@ -109,7 +122,9 @@ alcance → `404`. Igual para dispatcher con su alcance.
 
 ### Key Entities *(include if data involved)*
 
-- **Order** (002a): se **lee** (estado + campos + visibilidad). No se muta.
+- **Order** (002a): se **lee** (estado + campos + visibilidad). **Nuevo campo denormalizado
+  `last_rejection_reason`** (operativo, saneado, nullable) que 006 escribe en el reject; #010 lo lee. No se muta
+  desde #010 (read-only).
 - **OrderExecutionNotes / OrderEvidence** (005): **fuente** de notas + metadatos del ciclo vigente; se **leen**;
   nunca `object_ref` crudo.
 - **Motivo del último rechazo** (operativo): el texto saneado del rechazo del ciclo vigente (de 006), servido
@@ -157,10 +172,10 @@ alcance → `404`. Igual para dispatcher con su alcance.
   004/005/006. No se redefine la política de alcance.
 - **Ciclo vigente** = el `auditId` del último `submitOrderExecution` (misma decisión que 007 H-001), para no
   mezclar ciclos del bucle de 006.
-- **Motivo como dato operativo, XI intacta**: se prefiere servir el motivo por un camino operativo (proyección o
-  campo denormalizado del último rechazo del ciclo, saneado) en vez de exponer `OrderAudit`. Si `/plan`/gate
-  demuestra que no hay diseño limpio sin tocar XI, se propondría una **enmienda acotada** de XI con la
-  justificación del bucle de 006 (BL-070) — **no** se asume de entrada.
-- **Sin migración nueva salvo la mínima** que el mecanismo del motivo operativo requiera (lo decide `/plan`; si
-  fuese una columna denormalizada, migración reversible por Constitution M10).
+- **Motivo como dato operativo, XI intacta (decidido en clarify)**: **columna denormalizada
+  `last_rejection_reason` en `Order`**, escrita por **006** en el reject (write-through, saneado); #010 la lee.
+  **No se accede a `OrderAudit`** → XI **intacta** (no hace falta enmienda; BL-070 se cierra por diseño, no por
+  cambio de constitution). Consecuencia asumida: 006 añade esa escritura (aditiva, sin cambiar su contrato ni su
+  comportamiento observable) + **migración reversible** (columna nueva, Constitution M10).
+- **Dispatcher no ve el motivo** (decidido en clarify): el campo se omite para dispatcher aunque vea el detalle.
 - **Read-only**: cero mutaciones; el binario de evidencia (descarga) es #007-subida, fuera de alcance.
