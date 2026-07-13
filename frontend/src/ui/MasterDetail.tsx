@@ -8,7 +8,8 @@ export function useWideViewport(): boolean {
   );
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
-    const on = () => setWide(mq.matches);
+    setWide(mq.matches);
+    const on = (e: MediaQueryListEvent) => setWide(e.matches);
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
   }, []);
@@ -36,6 +37,11 @@ interface MasterDetailProps {
 // lo gestiona el consumidor moviendo foco al detail cuando cambia la selección.
 export function MasterDetail({ wide, hasSelection, list, detail, onBack }: MasterDetailProps) {
   const detailRef = useRef<HTMLDivElement>(null);
+
+  // FR-025: al aparecer una selección, mueve el foco al panel de detalle (lector de pantalla/teclado).
+  useEffect(() => {
+    if (hasSelection && detailRef.current) detailRef.current.focus();
+  }, [hasSelection]);
 
   if (wide) {
     return (

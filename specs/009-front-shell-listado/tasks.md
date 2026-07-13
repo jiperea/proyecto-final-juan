@@ -48,9 +48,9 @@
 - [X] T024 App shell en `frontend/src/features/shell/AppShell.tsx`: layout responsive campo↔oficina, landmarks `<header>/<nav>/<main>`, skip-link, `prefers-reduced-motion` (FR-019/028/032)
 
 ### Tests (Red) — Foundational ⚠️ escribir primero y verlos fallar
-- [ ] T049 [P] Tests de a11y/infra transversal en `frontend/tests/unit/foundational-a11y.test.tsx`: foco al `h1` en cada cambio de ruta (FR-024); skip-link salta a `<main>` (FR-032); `prefers-reduced-motion` desactiva transiciones (FR-028); `aria-busy` en carga y live-region genérica (FR-026/031); foco al panel al seleccionar en `MasterDetail` (FR-025); **bfcache: `pageshow persisted` → blanqueo síncrono + revalidación → login (FR-030)** — cubre el hueco de TDD de la fundación (G2 F-001/K-001)
-- [ ] T052 [P] Test Red de cruce **dinámico** de breakpoint del `MasterDetail` en `frontend/tests/unit/master-detail-resize.test.tsx`: con detalle abierto, resize <1024px → colapsa a detalle **con control de retorno visible** (sin trampa); resize ≥1024px → re-expande **conservando la orden seleccionada** (FR-025, G2 F-007)
-- [ ] T050 [P] Test de contraste **por token** en `frontend/tests/a11y/contrast-tokens.test.ts`: recorre los pares texto/fondo y badges de `docs/design-system.md §2` y verifica ratio ≥4.5:1 / ≥3:1 (SC-005), incl. `--color-focus-ring` sobre cada superficie (G2 K-005/F-006); + regla axe `target-size` para ≥44px (FR-019, G2 F-004)
+- [X] T049 [P] Tests de a11y/infra transversal en `frontend/tests/unit/foundational-a11y.test.tsx`: foco al `h1` en cada cambio de ruta (FR-024); skip-link salta a `<main>` (FR-032); `prefers-reduced-motion` desactiva transiciones (FR-028); `aria-busy` en carga y live-region genérica (FR-026/031); foco al panel al seleccionar en `MasterDetail` (FR-025); **bfcache: `pageshow persisted` → blanqueo síncrono + revalidación → login (FR-030)** — cubre el hueco de TDD de la fundación (G2 F-001/K-001)
+- [X] T052 [P] Test Red de cruce **dinámico** de breakpoint del `MasterDetail` en `frontend/tests/unit/master-detail-resize.test.tsx`: con detalle abierto, resize <1024px → colapsa a detalle **con control de retorno visible** (sin trampa); resize ≥1024px → re-expande **conservando la orden seleccionada** (FR-025, G2 F-007)
+- [X] T050 [P] Test de contraste **por token** en `frontend/tests/a11y/contrast-tokens.test.ts`: recorre los pares texto/fondo y badges de `docs/design-system.md §2` y verifica ratio ≥4.5:1 / ≥3:1 (SC-005), incl. `--color-focus-ring` sobre cada superficie (G2 K-005/F-006); + regla axe `target-size` para ≥44px (FR-019, G2 F-004)
 
 **Checkpoint**: fundación lista — las user stories pueden empezar.
 
@@ -83,15 +83,15 @@
 **Independent Test**: cada rol ve exactamente sus órdenes (100%/0 fugas), vacío con mensaje de ámbito, error con reintento.
 
 ### Tests (Red) ⚠️
-- [ ] T033 [P] [US2] Tests listado: render 100% del ámbito y 0 de otros roles, vacío (mensaje de rol), error+reintento, refetch-on-mount + «Actualizar», live-region en cambio de estado (MSW) en `frontend/tests/unit/orders-list.test.tsx`
-- [ ] T034 [P] [US2] Test a11y pantalla de listado (axe, 0 serias) en `frontend/tests/a11y/orders-list.a11y.test.tsx`
-- [ ] T051 [P] [US2] Tests RBAC espejo y layout en `frontend/tests/unit/orders-list-rbac.test.tsx`: 403 de `listOrders` → estado «sin-permiso» distinguible del error 503 (FR-014, G2 K-003); un `technician` con viewport ≥1024px recibe **una columna** (NO master-detail), dispatcher/supervisor sí master-detail (FR-019, G2 F-002)
+- [X] T033 [P] [US2] Tests listado: render 100% del ámbito y 0 de otros roles, vacío (mensaje de rol), error+reintento, refetch-on-mount + «Actualizar», live-region en cambio de estado (MSW) en `frontend/tests/unit/orders-list.test.tsx`
+- [X] T034 [P] [US2] Test a11y pantalla de listado (axe, 0 serias) en `frontend/tests/a11y/orders-list.a11y.test.tsx`
+- [X] T051 [P] [US2] Tests RBAC espejo y layout en `frontend/tests/unit/orders-list-rbac.test.tsx`: 403 de `listOrders` → estado «sin-permiso» distinguible del error 503 (FR-014, G2 K-003); un `technician` con viewport ≥1024px recibe **una columna** (NO master-detail), dispatcher/supervisor sí master-detail (FR-019, G2 F-002)
 
 ### Implementación
-- [ ] T035 [P] [US2] Hook `useOrderList` en `frontend/src/features/orders/useOrderList.ts` (`['orders',role]`, refetch on mount, control «Actualizar») (FR-006/009b)
-- [ ] T036 [P] [US2] `OrderCard` (<1024px) / `OrderRow` (≥1024px, umbral `--bp-lg`) en `frontend/src/features/orders/OrderItem.tsx` (campos del contrato + `StatusBadge`) (FR-006/007, G2 F-009)
-- [ ] T037 [US2] `OrdersListPage` en `frontend/src/features/orders/OrdersListPage.tsx` con 4 estados (cargando `aria-busy`, vacío, error+reintento con live-region, sin-permiso) (FR-008/009/026/031)
-- [ ] T038 [US2] Render de lista completa sin control de paginación (FR-010) en `OrdersListPage.tsx`
+- [X] T035 [P] [US2] Hook `useOrderList` en `frontend/src/features/orders/useOrderList.ts` (`['orders',role]`, refetch on mount, control «Actualizar») (FR-006/009b)
+- [X] T036 [P] [US2] `OrderCard` (<1024px) / `OrderRow` (≥1024px, umbral `--bp-lg`) en `frontend/src/features/orders/OrderItem.tsx` (campos del contrato + `StatusBadge`) (FR-006/007, G2 F-009)
+- [X] T037 [US2] `OrdersListPage` en `frontend/src/features/orders/OrdersListPage.tsx` con 4 estados (cargando `aria-busy`, vacío, error+reintento con live-region, sin-permiso) (FR-008/009/026/031)
+- [X] T038 [US2] Render de lista completa sin control de paginación (FR-010) en `OrdersListPage.tsx`
 
 **Checkpoint**: US1 + US2 funcionales e independientes.
 
@@ -103,13 +103,13 @@
 **Independent Test**: abrir orden del ámbito y ver campos del rol; dueño con rechazo sin atender ve el motivo; dispatcher sin notas/evidencia; id fuera de ámbito → mensaje uniforme.
 
 ### Tests (Red) ⚠️
-- [ ] T039 [P] [US3] Tests detalle: campos por presencia, `notes` escapado (sin HTML crudo), motivo de rechazo al dueño, no-disponible uniforme (404), error 500/503, «Actualizar», **live-region `role=alert` cuando «Actualizar» falla sin cambio de ruta** (FR-031, G2 F-003) (MSW) en `frontend/tests/unit/order-detail.test.tsx`
-- [ ] T040 [P] [US3] Test a11y pantalla de detalle (axe) en `frontend/tests/a11y/order-detail.a11y.test.tsx`
+- [X] T039 [P] [US3] Tests detalle: campos por presencia, `notes` escapado (sin HTML crudo), motivo de rechazo al dueño, no-disponible uniforme (404), error 500/503, «Actualizar», **live-region `role=alert` cuando «Actualizar» falla sin cambio de ruta** (FR-031, G2 F-003) (MSW) en `frontend/tests/unit/order-detail.test.tsx`
+- [X] T040 [P] [US3] Test a11y pantalla de detalle (axe) en `frontend/tests/a11y/order-detail.a11y.test.tsx`
 
 ### Implementación
-- [ ] T041 [P] [US3] Hook `useOrderDetail` en `frontend/src/features/orders/useOrderDetail.ts` (`['order',id]`, refetch on mount, «Actualizar») (FR-011)
-- [ ] T042 [US3] `OrderDetailPage` en `frontend/src/features/orders/OrderDetailPage.tsx` (solo-lectura, campos por presencia, `notes` escapado, bloque de motivo de rechazo, mensaje uniforme, error 500/503, live-region en cambio de estado sin ruta) (FR-011/011b/012/013/013b/031)
-- [ ] T043 [US3] Integración master-detail en `frontend/src/features/orders/` + `ui/MasterDetail` (placeholder sin id, foco al panel al seleccionar, sin prefetch, colapso/re-expansión al cruzar 1024px conservando selección) (FR-025)
+- [X] T041 [P] [US3] Hook `useOrderDetail` en `frontend/src/features/orders/useOrderDetail.ts` (`['order',id]`, refetch on mount, «Actualizar») (FR-011)
+- [X] T042 [US3] `OrderDetailPage` en `frontend/src/features/orders/OrderDetailPage.tsx` (solo-lectura, campos por presencia, `notes` escapado, bloque de motivo de rechazo, mensaje uniforme, error 500/503, live-region en cambio de estado sin ruta) (FR-011/011b/012/013/013b/031)
+- [X] T043 [US3] Integración master-detail en `frontend/src/features/orders/` + `ui/MasterDetail` (placeholder sin id, foco al panel al seleccionar, sin prefetch, colapso/re-expansión al cruzar 1024px conservando selección) (FR-025)
 
 **Checkpoint**: las tres user stories independientes y funcionales.
 
