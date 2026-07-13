@@ -13,26 +13,36 @@ function ratio(a: string, b: string): number {
   return (l1! + 0.05) / (l2! + 0.05);
 }
 
-const BG = '#ffffff';
-const SURFACE = '#f8fafc';
+// Lee los valores REALES de tokens.css (fuente de verdad, F-005): si un token cambia, el test lo usa.
+const TOKENS = readFileSync('src/ui/tokens.css', 'utf8');
+function token(name: string): string {
+  const m = TOKENS.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})`));
+  if (!m) throw new Error(`token --${name} no encontrado en tokens.css`);
+  return m[1]!;
+}
 
-// Pares texto/fondo (≥4.5:1) — mapea docs/design-system.md §2.1-2.2.
+const BG = token('color-bg');
+const SURFACE = token('color-surface');
+
+const WHITE = token('color-text-on-accent');
+
+// Pares texto/fondo (≥4.5:1) — leídos de tokens.css (§2.1-2.2).
 const textPairs: Array<[string, string, string]> = [
-  ['text/bg', '#1e293b', BG],
-  ['text-muted/bg', '#475569', BG],
-  ['white/primary', '#ffffff', '#1d4ed8'],
-  ['white/danger', '#ffffff', '#b91c1c'],
-  ['white/success', '#ffffff', '#15803d'],
-  ['warning-fg/bg', '#92400e', BG],
+  ['text/bg', token('color-text'), BG],
+  ['text-muted/bg', token('color-text-muted'), BG],
+  ['white/primary', WHITE, token('color-primary')],
+  ['white/danger', WHITE, token('color-danger')],
+  ['white/success', WHITE, token('color-success')],
+  ['warning-fg/bg', token('color-warning-fg'), BG],
 ];
 
 // Badges de estado (≥4.5:1) — §2.3.
 const badgePairs: Array<[string, string, string]> = [
-  ['assigned', '#1e40af', '#dbeafe'],
-  ['in_progress', '#854d0e', '#fef9c3'],
-  ['pending_review', '#6b21a8', '#f3e8ff'],
-  ['closed', '#166534', '#dcfce7'],
-  ['draft', '#334155', '#f1f5f9'],
+  ['assigned', token('status-assigned-fg'), token('status-assigned-bg')],
+  ['in_progress', token('status-in_progress-fg'), token('status-in_progress-bg')],
+  ['pending_review', token('status-pending_review-fg'), token('status-pending_review-bg')],
+  ['closed', token('status-closed-fg'), token('status-closed-bg')],
+  ['draft', token('status-draft-fg'), token('status-draft-bg')],
 ];
 
 describe('SC-005 · contraste por token (WCAG 2.1 AA)', () => {
@@ -41,12 +51,12 @@ describe('SC-005 · contraste por token (WCAG 2.1 AA)', () => {
   });
 
   it('focus-ring ≥ 3:1 sobre bg y surface (componentes/estados)', () => {
-    expect(ratio('#1d4ed8', BG)).toBeGreaterThanOrEqual(3);
-    expect(ratio('#1d4ed8', SURFACE)).toBeGreaterThanOrEqual(3);
+    const ring = token('color-focus-ring');
+    expect(ratio(ring, BG)).toBeGreaterThanOrEqual(3);
+    expect(ratio(ring, SURFACE)).toBeGreaterThanOrEqual(3);
   });
 
   it('FR-019: token de objetivo táctil = 44px (axe target-size se verifica en e2e T044)', () => {
-    const css = readFileSync('src/ui/tokens.css', 'utf8');
-    expect(css).toMatch(/--touch-target:\s*44px/);
+    expect(TOKENS).toMatch(/--touch-target:\s*44px/);
   });
 });

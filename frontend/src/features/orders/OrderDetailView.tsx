@@ -28,7 +28,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
 
   const { order, notes, evidence, last_rejection_reason } = query.data;
   return (
-    <article className="order-detail">
+    <article className="order-detail" aria-busy={query.isFetching}>
       <h2 tabIndex={-1}>{order.title}</h2>
       <StatusBadge status={order.status} />
       <p className="order-detail__desc">{order.description}</p>

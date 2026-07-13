@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from './session';
 import { ApiError } from '../../api/client';
 import { INVALID_CREDENTIALS_MESSAGE } from '../../i18n/errors';
@@ -8,7 +8,7 @@ import { Button, TextField } from '../../ui';
 
 // FR-001/002: login accesible. 401 → mensaje genérico «Credenciales no válidas» (no revela el campo).
 export function LoginPage() {
-  const { login } = useSession();
+  const { login, status } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/orders';
@@ -17,6 +17,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+
+  // S-001: un usuario ya autenticado no debe ver /login (guard tras los hooks, rules-of-hooks).
+  if (status === 'authenticated') return <Navigate to="/orders" replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

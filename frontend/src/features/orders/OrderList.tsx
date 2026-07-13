@@ -48,7 +48,7 @@ export function OrderList({ role, selectedId }: { role: Role; selectedId: string
 
   const orders = query.data.orders;
   return (
-    <div>
+    <div aria-busy={query.isFetching}>
       <div className="orders-toolbar">
         <Button variant="secondary" onClick={() => void query.refetch()}>
           Actualizar

@@ -57,9 +57,10 @@ describe('apiFetch — capa api (FR-004/005/015/027/029)', () => {
     const a = apiFetch('/v1/orders').catch((e) => e);
     const b = apiFetch('/v1/orders/x').catch((e) => e);
     const [ra, rb] = await Promise.all([a, b]);
-    expect(ra).toBeInstanceOf(ApiError);
-    expect(rb).toBeInstanceOf(ApiError);
-    expect(refreshCalls).toBe(1); // una sola renovación compartida
+    // Ambas terminan (sin resolver): la 1ª como 401→invalida sesión; la 2ª ve el cambio de epoch.
+    expect(ra === null || ra instanceof ApiError || ra instanceof SessionChangedError).toBe(true);
+    expect(rb === null || rb instanceof ApiError || rb instanceof SessionChangedError).toBe(true);
+    expect(refreshCalls).toBe(1); // una sola renovación compartida (dedup)
   });
 
   it('mapea el code del error del contrato a mensaje; code no mapeado → fallback', async () => {

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { refreshOnce } from '../../api/refresh';
-import { setCurrentRole, subscribeSession } from '../../api/session-store';
+import { invalidateSession, setCurrentRole, subscribeSession } from '../../api/session-store';
 import type { SessionUser } from '../../api/types';
 import * as authApi from './auth-api';
 
@@ -85,6 +85,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     status,
     user,
     login: async (identifier, password) => {
+      // S-001: purga toda sesión/caché previa (epoch + queryClient.clear vía 'invalidated') antes de
+      // adoptar la nueva identidad, para no filtrar datos entre cuentas en el mismo navegador.
+      invalidateSession();
       const u = await authApi.login(identifier, password);
       adopt(u);
     },

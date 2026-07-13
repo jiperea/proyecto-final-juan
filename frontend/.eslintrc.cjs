@@ -31,9 +31,13 @@ module.exports = {
           'error',
           {
             selector:
-              "Literal[value=/^#(?:[0-9a-fA-F]{3,4}){1,2}$/], Literal[value=/^\\d+(?:px|rem|em)$/]",
+              "Literal[value=/^#(?:[0-9a-fA-F]{3,4}){1,2}$/], Literal[value=/^\\d+(?:px|rem|em)$/], Literal[value=/(serif|sans-serif|monospace)/]",
             message:
-              'FR-017c: color/tamaño literal fuera de src/ui/. Usa un token del design system.',
+              'FR-017c: color/tamaño/fuente literal fuera de src/ui/. Usa un token del design system.',
+          },
+          {
+            selector: "Property[key.name=/^(fontFamily|font)$/] > Literal",
+            message: 'FR-017c: tipografía literal fuera de src/ui/. Usa el token --font-*.',
           },
         ],
       },

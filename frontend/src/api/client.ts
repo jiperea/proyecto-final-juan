@@ -1,6 +1,6 @@
 import { csrfHeaders } from './csrf';
 import { refreshOnce } from './refresh';
-import { currentEpoch, getAccessToken } from './session-store';
+import { currentEpoch, getAccessToken, invalidateSession } from './session-store';
 import { FALLBACK_MESSAGE, OFFLINE_MESSAGE, messageForCode } from '../i18n/errors';
 import type { ErrorResponse } from './types';
 
@@ -72,7 +72,12 @@ export async function apiFetch<T>(path: string, opts: Options = {}): Promise<T> 
   if (res.status === 401 && opts.auth !== false) {
     const refreshed = await refreshOnce();
     if (currentEpoch() !== startEpoch) throw new SessionChangedError();
-    if (!refreshed) throw new ApiError(401, 'UNAUTHENTICATED', messageForCode('UNAUTHENTICATED'));
+    if (!refreshed) {
+      // FR-004: renovación fallida → invalida la sesión (SessionProvider pasa a anónimo → /login,
+      // conservando la ruta) en vez de dejar la vista con un error reintentable.
+      invalidateSession();
+      throw new ApiError(401, 'UNAUTHENTICATED', messageForCode('UNAUTHENTICATED'));
+    }
     // reintento único con el nuevo access
     try {
       res = await raw(path, opts);
@@ -81,7 +86,8 @@ export async function apiFetch<T>(path: string, opts: Options = {}): Promise<T> 
     }
     if (currentEpoch() !== startEpoch) throw new SessionChangedError();
     if (res.status === 401) {
-      // no reintentar en bucle
+      // segundo 401 tras refresh exitoso: no reintentar en bucle → invalidar → login.
+      invalidateSession();
       throw new ApiError(401, 'UNAUTHENTICATED', messageForCode('UNAUTHENTICATED'));
     }
   }

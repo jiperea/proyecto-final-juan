@@ -159,6 +159,27 @@ describe('US3 · detalle read-only', () => {
     ).toBeInTheDocument();
   });
 
+  it('FR-011b: notes/motivo con payload XSS se renderizan como texto literal (no se ejecutan)', async () => {
+    bootAs('technician');
+    const xss = '<img src=x onerror="alert(1)"><script>alert(2)</script>';
+    server.use(
+      http.get('/v1/orders/o1', () =>
+        HttpResponse.json({
+          order: order('o1', 'Orden XSS', 'in_progress'),
+          notes: `nota ${xss}`,
+          last_rejection_reason: `motivo ${xss}`,
+        }),
+      ),
+    );
+    const { container } = renderApp(<AppRoutes />, '/orders/o1');
+    await screen.findByRole('heading', { name: 'Orden XSS' });
+    // El texto aparece literal (escapado)…
+    expect(screen.getByText(/nota <img src=x/)).toBeInTheDocument();
+    // …y NO se inyectó ningún <script>/<img> desde el contenido del usuario.
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.querySelector('img[src="x"]')).toBeNull();
+  });
+
   it('FR-013b: 500 → error con reintento (no «vacío»)', async () => {
     bootAs('technician');
     server.use(
