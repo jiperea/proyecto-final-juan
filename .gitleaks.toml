@@ -1,0 +1,17 @@
+# Gitleaks — configuración del repo (Constitución IX: ningún secreto en el código).
+#
+# Extiende el ruleset por defecto (NO lo reemplaza) y añade excepciones documentadas.
+# `useDefault = true` es imprescindible: sin él, este fichero sustituiría todas las
+# reglas por defecto y se perdería la detección real de secretos.
+[extend]
+useDefault = true
+
+# Falsos positivos: la regla `generic-api-key` pica `password: 'incorrecta-<n>'` en
+# fixtures de tests de login del camino de error (401). No son secretos: son
+# contraseñas ficticias de prueba. El allowlist es ACOTADO al literal exacto —
+# cualquier otro secreto, en tests o en cualquier sitio, se sigue detectando.
+[allowlist]
+description = "Passwords ficticias de fixtures de login (incorrecta-<n>); camino de error 401. No son secretos."
+regexes = [
+  '''incorrecta-\d+''',
+]
