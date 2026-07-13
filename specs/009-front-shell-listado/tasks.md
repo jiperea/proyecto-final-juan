@@ -15,13 +15,13 @@
 
 ## Phase 1: Setup (infraestructura compartida)
 
-- [ ] T001 Scaffold `frontend/` (Vite + React 18 + TS strict): `frontend/package.json`, `frontend/tsconfig.json` (strict), `frontend/vite.config.ts` (proxy `/v1` → backend en dev)
-- [ ] T002 [P] Añadir dependencias en `frontend/package.json`: runtime (react-router-dom, @tanstack/react-query, zod); dev (openapi-typescript, msw, vitest, @testing-library/react, @testing-library/user-event, vitest-axe, @playwright/test, stylelint, eslint + plugins jsx-a11y/react)
-- [ ] T003 [P] Configurar ESLint en `frontend/.eslintrc.cjs`: regla anti `style={{…}}` literal (FR-017b), regla anti literales color/tamaño en `.ts`/`.tsx` fuera de `src/ui/` (FR-017c), `jsx-a11y`
-- [ ] T004 [P] Configurar stylelint en `frontend/.stylelintrc.json`: `declaration-property-value-disallowed-list` para hex/px/font fuera de token (FR-017a)
-- [ ] T005 [P] Script `codegen` en `frontend/package.json`: openapi-typescript desde `contracts/*.openapi.yaml` → `frontend/src/api/generated/`; paso de CI que regenera y `git diff --exit-code` (FR-016 / SC-008b)
-- [ ] T006 [P] Scaffold MSW en `frontend/mocks/handlers.ts` (handlers derivados del contrato: login/me/refresh/logout, listOrders, getOrderDetail; 200/401/403/404/500/503)
-- [ ] T007 [P] Configurar test harness: `frontend/vitest.config.ts` (jsdom, setup RTL + MSW + vitest-axe), `frontend/playwright.config.ts`
+- [X] T001 Scaffold `frontend/` (Vite + React 18 + TS strict): `frontend/package.json`, `frontend/tsconfig.json` (strict), `frontend/vite.config.ts` (proxy `/v1` → backend en dev)
+- [X] T002 [P] Añadir dependencias en `frontend/package.json`: runtime (react-router-dom, @tanstack/react-query, zod); dev (openapi-typescript, msw, vitest, @testing-library/react, @testing-library/user-event, vitest-axe, @playwright/test, stylelint, eslint + plugins jsx-a11y/react)
+- [X] T003 [P] Configurar ESLint en `frontend/.eslintrc.cjs`: regla anti `style={{…}}` literal (FR-017b), regla anti literales color/tamaño en `.ts`/`.tsx` fuera de `src/ui/` (FR-017c), `jsx-a11y`
+- [X] T004 [P] Configurar stylelint en `frontend/.stylelintrc.json`: `declaration-property-value-disallowed-list` para hex/px/font fuera de token (FR-017a)
+- [X] T005 [P] Script `codegen` en `frontend/package.json`: openapi-typescript desde `contracts/*.openapi.yaml` → `frontend/src/api/generated/`; paso de CI que regenera y `git diff --exit-code` (FR-016 / SC-008b)
+- [X] T006 [P] Scaffold MSW en `frontend/mocks/handlers.ts` (handlers derivados del contrato: login/me/refresh/logout, listOrders, getOrderDetail; 200/401/403/404/500/503)
+- [X] T007 [P] Configurar test harness: `frontend/vitest.config.ts` (jsdom, setup RTL + MSW + vitest-axe), `frontend/playwright.config.ts`
 
 ---
 

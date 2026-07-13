@@ -1,0 +1,51 @@
+{
+  "name": "fieldops-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "FieldOps FE-1 — shell + acceso + listado (read-only). Consume contratos congelados.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:a11y": "vitest run --dir tests/a11y",
+    "test:e2e": "playwright test",
+    "lint": "eslint . && stylelint \"src/**/*.css\"",
+    "typecheck": "tsc -b --noEmit && npm run codegen:check",
+    "codegen": "openapi-typescript ../contracts/auth.openapi.yaml -o src/api/generated/auth.ts && openapi-typescript ../contracts/orders.openapi.yaml -o src/api/generated/orders.ts",
+    "codegen:check": "npm run codegen && git diff --exit-code -- src/api/generated"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.59.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.7.0",
+    "@typescript-eslint/parser": "^8.7.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-jsx-a11y": "^6.10.0",
+    "eslint-plugin-react": "^7.36.1",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "jsdom": "^25.0.0",
+    "msw": "^2.4.9",
+    "openapi-typescript": "^7.4.0",
+    "stylelint": "^16.9.0",
+    "stylelint-config-standard": "^36.0.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.7",
+    "vitest": "^2.1.1",
+    "vitest-axe": "^0.1.0"
+  }
+}
