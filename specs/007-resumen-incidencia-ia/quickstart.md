@@ -28,7 +28,7 @@ npm run eval               # promptfoo (G3): faithfulness/alucinación/no-fuga/f
 |---|---|---|---|
 | 1 | S `POST /v1/orders/{id}/ai-summary` sobre `pending_review` con notas+evidencia (provider mock devuelve resumen fiel) | 200 `{summary, sufficient:true}` | SC-001, FR-001 |
 | 2 | mock devuelve `sufficient=false` (notas pobres) | 200 `{summary:null, sufficient:false}` (fallback) | SC-002, FR-002 |
-| 3 | orden con notas vacías tras saneo Y 0 evidencia | 200 fallback **sin llamar al proveedor** (corto-circuito) | FR-002 |
+| 3 | orden con notas **crudas** vacías/whitespace (pre-redacción) Y 0 evidencia | 200 fallback **sin llamar al proveedor** (corto-circuito, K4) | FR-002 |
 | 4 | notas con email/teléfono/DNI/matrícula centinela | el prompt enviado al mock lleva `[REDACTED]` (no el valor) | SC-003, FR-003 |
 | 5 | mock devuelve una salida con PII estructurada | 200 fallback (`blocked_pii`), NO se devuelve el texto con PII | SC-003, FR-004 |
 | 6 | mock devuelve >1200 caracteres | 200 fallback (no conforme), no truncado | FR-014 |
