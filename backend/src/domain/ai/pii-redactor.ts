@@ -12,9 +12,9 @@ export const REDACTED = '[REDACTED]';
 const PATTERNS: readonly RegExp[] = [
   // Email
   /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
-  // Teléfono: E.164 (+34...) o formato ES agrupado (9 dígitos, opcional separadores), evitando
-  // capturar números operativos cortos. Requiere ≥9 dígitos.
-  /(?<!\d)(?:\+\d{1,3}[ -]?)?(?:\d[ -]?){8}\d(?!\d)/g,
+  // Teléfono: E.164 (+34...) o formato ES agrupado (≥9 dígitos). Tolera separadores comunes —espacio,
+  // guion, punto y paréntesis— para no dejar huecos de formato (S-001: p. ej. `(600) 12 34 56`).
+  /(?<!\d)(?:\+\d{1,3}[\s.-]?)?(?:\(?\d\)?[\s.-]?){8}\d(?!\d)/g,
   // DNI/NIF español: 8 dígitos + letra (con límites de palabra).
   /\b\d{8}[- ]?[A-HJ-NP-TV-Z]\b/gi,
   // NIE español: X/Y/Z + 7 dígitos + letra.

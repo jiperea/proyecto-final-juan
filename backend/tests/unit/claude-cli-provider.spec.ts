@@ -1,7 +1,41 @@
 // T012 (US1) — lógica pura del adaptador claude-cli: parseo de salida (H-003) y ensamblado del prompt
 // (FR-016 nonce anti-inyección). NO invoca el CLI real (eso corre en la sesión dev / eval G3).
 import { describe, expect, it } from 'vitest';
-import { ClaudeCliProvider, buildPrompt, parseProviderJson } from '../../src/infra/ai/claude-cli-provider';
+import {
+  ClaudeCliProvider,
+  buildPrompt,
+  minimalEnv,
+  parseProviderJson,
+} from '../../src/infra/ai/claude-cli-provider';
+
+describe('minimalEnv (S-002) — el subproceso NO hereda secretos del backend', () => {
+  it('excluye JWT_SECRET/DATABASE_URL/LOCKOUT_HMAC_SECRET; conserva PATH/HOME y credenciales del CLI', () => {
+    const env = minimalEnv({
+      PATH: '/usr/bin',
+      HOME: '/home/app',
+      JWT_SECRET: 'super-secreto',
+      DATABASE_URL: 'postgres://x',
+      LOCKOUT_HMAC_SECRET: 'otro',
+      CLAUDE_CODE_TOKEN: 'tok',
+      ANTHROPIC_API_KEY: 'k',
+    });
+    expect(env.PATH).toBe('/usr/bin');
+    expect(env.HOME).toBe('/home/app');
+    expect(env.CLAUDE_CODE_TOKEN).toBe('tok');
+    expect(env.ANTHROPIC_API_KEY).toBe('k');
+    expect(env.JWT_SECRET).toBeUndefined();
+    expect(env.DATABASE_URL).toBeUndefined();
+    expect(env.LOCKOUT_HMAC_SECRET).toBeUndefined();
+  });
+});
+
+describe('FR-009c (I-001) — metacaracteres de shell en las notas son DATO literal', () => {
+  it('buildPrompt incrusta $(...)/backticks/;/| como texto (no se ejecutan; invocación por execFile/stdin)', () => {
+    const evil = 'avería; $(rm -rf /) `id` | whoami';
+    const prompt = buildPrompt({ notesRedacted: evil, evidence: { count: 1, contentTypes: ['image/png'] } }, 0);
+    expect(prompt).toContain(evil); // aparecen literalmente dentro del bloque de datos, no como comando
+  });
+});
 
 describe('ClaudeCliProvider.generate — no fuga de detalle (FR-010)', () => {
   it('binario inexistente (fallo de proceso) → err SERVICE_UNAVAILABLE con mensaje GENÉRICO (sin detalle)', async () => {

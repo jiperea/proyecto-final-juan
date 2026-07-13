@@ -33,9 +33,15 @@ export interface SummaryResult {
 const FALLBACK: SummaryResult = { summary: null, sufficient: false, outcome: 'fallback_insufficient' };
 const BLOCKED: SummaryResult = { summary: null, sufficient: false, outcome: 'blocked_pii' };
 
+// Longitud en CODE POINTS (I-003: convención del boundary; no unidades UTF-16). Evita divergencias con
+// caracteres astrales (emoji) tanto en el umbral FR-015 como en la cota FR-014.
+function codePointLength(text: string): number {
+  return [...text].length;
+}
+
 // Longitud de contenido "sustantivo" = caracteres no-whitespace (FR-015, sobre notas CRUDAS pre-redacción).
 function nonWhitespaceLength(text: string): number {
-  return text.replace(/\s/gu, '').length;
+  return codePointLength(text.replace(/\s/gu, ''));
 }
 
 export async function summarizeOrderIncident(
@@ -77,7 +83,7 @@ export async function summarizeOrderIncident(
     return ok(BLOCKED); // seguridad: gana aunque además exceda 1200 o esté vacío
   }
   const trimmed = summary.trim();
-  if (trimmed.length === 0 || summary.length > MAX_SUMMARY_CHARS) {
+  if (trimmed.length === 0 || codePointLength(summary) > MAX_SUMMARY_CHARS) {
     return ok(FALLBACK); // vacío tras trim (FR-010) o >1200 (FR-014) — colapsan en fallback_insufficient
   }
   return ok({ summary, sufficient: true, outcome: 'success' });

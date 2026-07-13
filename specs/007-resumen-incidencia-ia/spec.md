@@ -414,7 +414,8 @@ en los logs; superar el límite de peticiones → `429`.
 - **PromptInput (petición al proveedor)** (efímera): prompt **minimizado** (allowlist + redacción por patrones);
   **no se persiste**, no se loguea (ni por `stderr`/APM). *Nombre canónico `PromptInput` (unificado con
   data-model.md); "petición al proveedor" es el sinónimo en prosa.*
-- **Evento de acceso** (FR-013): `{actor, orderId, timestamp, outcome}` **sin PII** — sí se registra (rastro
+- **Evento de acceso** (FR-013): `{actor, orderId, timestamp, outcome, deniedReason?}` **sin PII** (`deniedReason
+  ∈ {role_403, not_visible_404, rate_limited_429}` sólo si `outcome=denied`; `timestamp` lo estampa el logger) — sí se registra (rastro
   forense), a diferencia del prompt/resumen.
 
 ## Success Criteria *(mandatory)*
@@ -438,7 +439,8 @@ en los logs; superar el límite de peticiones → `429`.
 - **SC-006** (robustez del proveedor): el 100% de los **timeout (>10 s)/fallo de proceso** producen `503`, y el
   100% de las **salidas vacías/no-conformes** producen `200` fallback; 0 cuelgues, 0 fugas de detalle.
 - **SC-007** (trazabilidad de acceso): el 100% de las solicitudes de resumen emiten un evento de acceso
-  `{actor, orderId, timestamp, outcome}` **sin PII** (0 apariciones de prompt/resumen/`object_ref` en el evento).
+  `{actor, orderId, timestamp, outcome, deniedReason?}` **sin PII** (0 apariciones de prompt/resumen/`object_ref`
+  en el evento; `deniedReason` presente sólo cuando `outcome=denied`, granularidad forense S-001).
 
 ## Contrato (OpenAPI) *(obligatorio si hay endpoints — Constitution II)*
 

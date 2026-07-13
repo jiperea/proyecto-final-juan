@@ -12,6 +12,13 @@ describe('pii-redactor: redactStructured', () => {
     expect(redactStructured('matrícula 1234 BCD')).toContain(REDACTED);
   });
 
+  it('S-001: teléfono con paréntesis/agrupaciones no estándar también se redacta (sin hueco de formato)', () => {
+    expect(redactStructured('llama al (600) 12 34 56 por favor')).toContain(REDACTED);
+    expect(redactStructured('tel 600.12.34.56')).toContain(REDACTED);
+    // Y el chequeo de salida (FR-004a) lo detiene igual (mismo patrón).
+    expect(hasStructuredPii('salida con (600) 12 34 56')).toBe(true);
+  });
+
   it('no toca texto operativo sin PII (idempotente sobre texto limpio)', () => {
     const clean = 'El compresor no arranca; se sustituyó el relé y quedó operativo.';
     expect(redactStructured(clean)).toBe(clean);

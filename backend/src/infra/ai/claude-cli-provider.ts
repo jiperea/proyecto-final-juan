@@ -40,7 +40,9 @@ export class ClaudeCliProvider implements AiSummaryProviderPort {
       const child = execFile(
         bin,
         args,
-        { timeout: this.cfg.timeoutMs, maxBuffer: 1024 * 1024 },
+        // env MÍNIMO (S-002): el hijo NO hereda los secretos del backend (JWT_SECRET/DATABASE_URL/...).
+        // Sólo lo que el CLI necesita para arrancar y autenticar (PATH/HOME + credenciales del propio claude).
+        { timeout: this.cfg.timeoutMs, maxBuffer: 1024 * 1024, env: minimalEnv() },
         (error, out) => {
           if (error) {
             reject(error);
@@ -108,4 +110,17 @@ function safeParse(text: string): unknown {
   } catch {
     return null;
   }
+}
+
+// Entorno MÍNIMO para el subproceso `claude` (S-002): allowlist — nunca los secretos del backend.
+// PATH/HOME para arrancar + credenciales/config propias del CLI (CLAUDE_*/ANTHROPIC_*).
+export function minimalEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const allow = ['PATH', 'HOME', 'USER', 'LANG', 'TMPDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME'];
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of Object.keys(source)) {
+    if (allow.includes(key) || key.startsWith('CLAUDE_') || key.startsWith('ANTHROPIC_')) {
+      env[key] = source[key];
+    }
+  }
+  return env;
 }
