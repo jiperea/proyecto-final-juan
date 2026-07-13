@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FieldOps — Orders API
-  version: 1.4.0
+  version: 1.5.0
   description: >
     Feature 002a (read-side): listado de órdenes filtrado por rol sobre el auth/RBAC de 001.
     Feature 004 (write-side): reasignación de una orden por el dispatcher (POST .../reassignments),
@@ -13,6 +13,10 @@ info:
     (pending_review→closed, guard ≥1 evidencia → 409) o reject (pending_review→in_progress con motivo).
     Feature 007 (IA, read-only): summarizeOrderIncident (POST .../ai-summary): resumen IA de la incidencia para
     el supervisor (fallback no-inventa, minimización de PII, rate-limit 10/60s, timeout 10s).
+    Feature 008/#010 (read-side): getOrderDetail (GET .../{orderId}): detalle de una orden visible según el rol
+    (notas+metadatos de evidencia del ciclo vigente para technician/supervisor; motivo del último rechazo SIN
+    atender leído de OrderAudit.reason —excepción XI v1.9.0, saneado al leer, fail-closed— solo al técnico dueño).
+    404 uniforme (sin 403; la visibilidad filtra a 404, no-enumeración). Auditoría append-only de accesos denegados.
     Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
     Reutiliza bearerAuth y ErrorResponse de contracts/auth.openapi.yaml (001).
 servers:
@@ -50,6 +54,62 @@ paths:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '503':
           description: BD no disponible (fail-closed; nunca cuelga ni fail-open). Convención transversal (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
+  /orders/{orderId}:
+    get:
+      operationId: getOrderDetail
+      tags: [orders]
+      summary: Detalle de una orden visible según el rol (read-side puro)
+      description: >
+        Lectura pura del detalle de una orden visible para el rol (mismo alcance que listOrders/orderScopeFor):
+        technician = sus órdenes activas (assigned/in_progress/pending_review); supervisor = pending_review;
+        dispatcher = assigned/in_progress. `draft`/`closed` fuera de alcance de todo rol → 404.
+        Los tres campos de trabajo (`notes`, `evidence`, `last_rejection_reason`) son OPCIONALES y se OMITEN
+        (nunca `null`): el dispatcher no recibe `notes`/`evidence` (mínimo privilegio); `last_rejection_reason`
+        solo lo ve el technician dueño ACTUAL cuando hay rechazo SIN atender (última transición de rechazo
+        posterior al último submit), leído de OrderAudit.reason (excepción XI v1.9.0), saneado al leer con el
+        pii-redactor (fail-closed: si el redactor falla, se omite el campo, nunca crudo).
+        No-enumeración: 404 genérico e indistinguible para orden inexistente/ajena/fuera-de-estado/`orderId`
+        malformado (NO 400) y para rol no reconocido (alcance vacío → 404). NO se usa 403 (un 403 sobre un
+        orderId concreto revelaría existencia). Precedencia: 401 (no autenticado) precede a toda resolución de
+        visibilidad. Todo acceso denegado (401/404) se registra en la auditoría append-only (XI) con recurso opaco
+        saneado, sin PII. Read-only: no muta estado/version/notas/auditoría de negocio; no sirve el binario de
+        evidencia (eso es #007-subida).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: >
+            Identificador de la orden (UUID esperado). Un `orderId` malformado NO produce 400: se resuelve al
+            MISMO 404 genérico que una orden no visible (no-enumeración). Se tipa como string (no `format: uuid`)
+            para evitar un 400 de validación de esquema que rompería la no-enumeración.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Detalle de la orden visible para el rol.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderDetailResponse' }
+        '401':
+          description: No autenticado (sin access válido / sesión revocada / cuenta disabled). Uniforme. Auditado (XI).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            Orden no visible para el rol (inexistente / ajena / fuera de su alcance de estado / `draft` / `closed`
+            / `orderId` malformado / rol no reconocido). Genérico e indistinguible (no-enumeración). Auditado (XI).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: Error inesperado del servidor (no transitorio). Convención transversal (001/006).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: BD no disponible al leer (fail-closed; nunca cuelga ni fail-open). Convención transversal (001).
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
@@ -388,6 +448,57 @@ components:
         orders:
           type: array
           items: { $ref: '#/components/schemas/Order' }
+
+    EvidenceMeta:
+      type: object
+      additionalProperties: false
+      required: [count, content_types]
+      description: >
+        Metadatos (NO binario) de la evidencia del ciclo vigente (feature 008/#010). `count` = nº de evidencias
+        del ciclo; `content_types` = lista de `content_type` por evidencia (duplicados posibles), ORDENADA por
+        `at` ascendente de cada OrderEvidence (desempate por `id`). Invariante: `count == content_types.length`.
+        Sin ciclo de ejecución aún (p. ej. `assigned` sin submit) → `{count:0, content_types:[]}`; un ciclo ya
+        enviado siempre tiene ≥1 evidencia (005 exige 1..10). NUNCA incluye `object_ref` ni el binario.
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: Número de evidencias del ciclo vigente (0 solo si aún no hay submit).
+        content_types:
+          type: array
+          items:
+            type: string
+            enum: [image/jpeg, image/png, image/webp, image/heic]
+          description: Un content_type por evidencia (duplicados posibles), ordenado por `at` asc. length == count.
+
+    OrderDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [order]
+      description: >
+        Detalle de una orden (feature 008/#010). `order` siempre presente. `notes`, `evidence` y
+        `last_rejection_reason` son OPCIONALES y se OMITEN (nunca `null`) cuando no aplican al rol/estado:
+        el dispatcher no recibe `notes`/`evidence` (mínimo privilegio); `last_rejection_reason` solo lo ve el
+        technician dueño ACTUAL con rechazo SIN atender (saneado al leer, fail-closed). Sin PII cruda ni object_ref.
+      properties:
+        order: { $ref: '#/components/schemas/Order' }
+        notes:
+          type: string
+          description: >
+            Notas de ejecución del ciclo vigente (payload IX). Solo technician dueño/supervisor; omitido para el
+            dispatcher y cuando no hay ciclo. Nunca en logs/errores. NO pasa por el pii-redactor (payload autoría).
+        evidence:
+          allOf:
+            - { $ref: '#/components/schemas/EvidenceMeta' }
+          description: >
+            Metadatos de evidencia del ciclo vigente. Solo technician dueño/supervisor; OMITIDO para el dispatcher.
+            Presente-pero-vacío `{count:0, content_types:[]}` cuando no hay ciclo aún.
+        last_rejection_reason:
+          type: string
+          description: >
+            Motivo del último rechazo SIN atender, leído de OrderAudit.reason (excepción XI v1.9.0) y SANEADO al
+            leer (pii-redactor). Solo el technician dueño ACTUAL; omitido para el resto y cuando no hay rechazo sin
+            atender. Fail-closed: si el redactor falla, la clave se OMITE (nunca el motivo crudo).
 
     ReassignmentRequest:
       type: object
