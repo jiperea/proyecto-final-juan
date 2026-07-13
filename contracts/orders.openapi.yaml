@@ -408,13 +408,15 @@ components:
         reason:
           type: string
           minLength: 1
-          maxLength: 1000
+          maxLength: 4000
           description: >
-            Motivo de la decisión. Obligatorio si `decision=reject`; opcional si `approve`. 1..1000 code points
-            (el Zod derivado cuenta code points, no UTF-16); ≥1 carácter imprimible **tras saneo**
-            (`sanitizeReason`: trim + colapso de whitespace interno + strip de control chars Cc `U+0000`–`U+001F`
-            `U+007F` salvo `\n` + NFC). Vacío tras saneo o fuera de rango → 422 INVALID_REASON. Nunca en
-            logs/errores.
+            Motivo de la decisión. Obligatorio si `decision=reject`; opcional si `approve`. El `maxLength: 4000`
+            es una **cota cruda de seguridad de payload** (evita cuerpos absurdos → 422 VALIDATION_ERROR). La
+            **longitud efectiva 1..1000 code points se mide en el DOMINIO TRAS `sanitizeReason`** (trim + colapso
+            de whitespace interno + strip de control chars Cc `U+0000`–`U+001F` `U+007F` salvo `\n` + NFC);
+            vacío tras saneo o >1000 tras saneo → 422 **INVALID_REASON** (no VALIDATION_ERROR). Un motivo con
+            mucho whitespace puede superar 1000 en crudo y ser válido tras saneo — por eso la cota del schema NO
+            es 1000. Nunca en logs/errores.
 
     ErrorResponse:
       type: object

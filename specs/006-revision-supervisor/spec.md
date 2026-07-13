@@ -84,15 +84,26 @@ ambos casos. Reutiliza el auth/RBAC de **001** y el patrón atómico + `OrderAud
   igual que 005.
 - Q: **(M5)** ¿Segregación de funciones? → A: se asume **unicidad de rol operativo por usuario** en el MVP; SoD
   formal = backlog (fuera de 006).
-- Q: **(M6)** ¿La aprobación re-valida evidencia? → A: **sí, guard defensivo fail-closed** — antes de aprobar
-  verifica `COUNT(OrderEvidence) ≥ 1`; si la invariante de 005 no se cumple, no aprueba →
-  **`409 CONFLICT EVIDENCE_MISSING`** (ronda 2 de remediación G1; ver **FR-013**).
+- Q: **(M6)** ¿La aprobación re-valida evidencia? → A: **sí, guard defensivo fail-closed** — la aprobación
+  **exige ≥1 evidencia de forma atómica con la transición**; si la invariante de 005 no se cumple, no aprueba →
+  **`409 CONFLICT EVIDENCE_MISSING`**, evaluado **tras** el `404` de no-visibilidad (ronda 2 de remediación G1;
+  refinado en G2 — el guard NO es un `COUNT` previo sino un filtro dentro del UPDATE; ver **FR-013**).
 - Q: **(M7)** ¿Visibilidad del nº de rechazos? → A: observable contando `OrderAudit {from:pending_review,
   to:in_progress}` de la orden (sin columna nueva); tope duro = backlog.
 - Q: **(M8)** ¿Interacción con la reasignación (004)? → A: **ninguna** — `reassignOrder` sólo opera sobre
   `assigned`/`in_progress`, nunca sobre `pending_review`; no hay carrera posible.
 - Q: **(L1)** ¿Cómo se mide SC-006? → A: p95 < 300 ms **por separado** para `approve` (sin motivo) y `reject`
   (motivo hasta 1000 chars); ambos caminos cumplen el umbral de forma independiente.
+
+### Session 2026-07-13 — remediación gate G2
+
+- Q: **(K-001)** ¿La redacción de FR-013 prescribe un `COUNT` previo (que reintroduciría fuga de no-enumeración)?
+  → A: **No** — FR-013/M6 reformulados a **comportamiento**: la aprobación exige ≥1 evidencia **atómica con la
+  transición**; `409 EVIDENCE_MISSING` **tras** el `404` de no-visibilidad (orden no visible → 404, nunca 409).
+  El mecanismo (filtro de relación dentro del UPDATE condicional) vive en `plan.md`/`data-model.md`, no en el FR.
+  El resto de la remediación G2 (precedencia del handler reason-antes-de-uuid, atomicidad del filtro Prisma,
+  rama por-defecto del clasificador, aserción de atomicidad de 005 en el test de ciclo, y BL-071) se encoda en
+  `plan.md`/`tasks.md`/roadmap (fuera del ámbito de spec).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -247,14 +258,15 @@ supervisor sobre una orden inexistente o en estado distinto de `pending_review` 
 - **FR-012** (actor server-side): WHEN se registra el `actor` de la decisión en `OrderAudit` THE sistema SHALL
   derivarlo **exclusivamente** del JWT verificado server-side, **nunca** de un campo del body/params/query,
   aunque el cliente lo envíe (no-repudio de la auditoría; patrón 005 FR-007).
-- **FR-013** (guard defensivo de evidencia): WHEN un supervisor aprueba una orden en `pending_review` THE sistema
-  SHALL verificar **antes** de transicionar que la orden tiene **≥1 evidencia** asociada (`COUNT(OrderEvidence)
-  ≥ 1`); si la invariante de 005 no se cumple, SHALL **no** aprobar y responder **`409 CONFLICT`
-  `EVIDENCE_MISSING`** (fail-closed), en lugar de cerrar la orden silenciosamente. El `409` se evalúa **después**
-  del `404` (la orden es visible y está en `pending_review`, pero su estado de datos entra en conflicto con la
-  precondición de aprobación). Es un **suelo de integridad** (existe ≥1 evidencia), **no** un chequeo de
-  frescura/novedad: si un reenvío tras rechazo aporta o no evidencia nueva es validación de **005**
-  (`submitOrderExecution`), fuera de 006; el versionado por intento (`attempt`) es de 005/#008 (ver A3).
+- **FR-013** (guard defensivo de evidencia): WHEN un supervisor aprueba una orden en `pending_review` que **no
+  conserva ≥1 evidencia** THE sistema SHALL **no** aprobarla y responder **`409 CONFLICT EVIDENCE_MISSING`**
+  (fail-closed), en lugar de cerrarla silenciosamente. La comprobación de existencia de evidencia es **atómica
+  con la transición** (no un chequeo separado previo), y el `409` se evalúa **después** del `404` de
+  no-visibilidad: una orden **no visible** (inexistente o en estado ≠ `pending_review`) devuelve `404`, **nunca**
+  `409`. Es un **suelo de integridad** (existe ≥1 evidencia), **no** un chequeo de frescura/novedad: si un
+  reenvío tras rechazo aporta o no evidencia nueva es validación de **005** (`submitOrderExecution`), fuera de
+  006; el versionado por intento (`attempt`) es de 005/#008 (ver A3). *(Detalle de mecanismo — filtro de relación
+  dentro del UPDATE condicional — en `plan.md`/`data-model.md`; el requisito es el comportamiento, no el SQL.)*
 
 ### Key Entities *(include if feature involves data)*
 

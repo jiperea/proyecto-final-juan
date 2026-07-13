@@ -1,0 +1,56 @@
+{
+  "gate": "G2",
+  "feature": "006-revision-supervisor",
+  "fecha": "2026-07-13",
+  "artefactos": ["spec.md", "plan.md", "tasks.md", "data-model.md", "research.md", "contracts/orders.openapi.yaml"],
+  "panel": ["revisor-consistencia", "revisor-cinico (regresión G1)"],
+  "veredicto_global_pase1": "BLOQUEADA",
+  "conteo_pase1": { "BLOQUEANTE": 1, "ALTA": 2, "MEDIA": 2 },
+  "huecos": [
+    {
+      "id": "K1",
+      "severidad": "BLOQUEANTE",
+      "fuentes": ["K-001", "H-001"],
+      "categoria": "conflicto/no-enumeración",
+      "ubicacion": "data-model.md §Transacción approve, research.md D3/D6, tasks.md T011 (vs T007, FR-007/009/013)",
+      "descripcion": "El algoritmo de approve pone el guard de evidencia (COUNT) ANTES del UPDATE de visibilidad. COUNT=0 tanto para orden no visible (inexistente/otro estado) como para pending_review sin evidencia → una orden no visible devolvería 409 en vez de 404, violando no-enumeración. Contradice T007 (clasifica 404-antes-que-409 desde el snapshot post-0-filas).",
+      "resolucion": "Plegar la condición de evidencia DENTRO del UPDATE condicional (filtro de relación `evidence:{some:{}}`); 0 filas → re-lectura (status+evidenceCount) → classifyReviewGuard: status≠pending_review/inexistente → 404; pending_review + evidenceCount=0 → 409. 404 antes que 409. Reconcilia T007 y T011."
+    },
+    {
+      "id": "K2",
+      "severidad": "ALTA",
+      "fuentes": ["K-002"],
+      "categoria": "conflicto",
+      "ubicacion": "tasks.md T008 (Zod reason 1..1000 crudo) + contrato ReviewRequest vs FR-003 (1..1000 tras saneo)",
+      "descripcion": "El límite 1..1000 se aplica en Zod sobre el valor crudo, pero FR-003 lo mide tras sanitizeReason. Un motivo con whitespace interno (>1000 crudo, ≤1000 tras saneo) sería 422 VALIDATION_ERROR indebido.",
+      "resolucion": "Zod/contrato: cota cruda GENEROSA (maxLength 4000, red de seguridad de payload → VALIDATION_ERROR); el 1..1000 efectivo se valida en el dominio TRAS sanitizeReason → INVALID_REASON."
+    },
+    {
+      "id": "K3",
+      "severidad": "ALTA",
+      "fuentes": ["H-002"],
+      "categoria": "trazabilidad",
+      "ubicacion": "spec US2-AC3 (ciclo rechazo→reenvío 005→re-revisión) sin tarea/test",
+      "descripcion": "Escenario de aceptación P1 del ciclo cruzado 006↔005 sin test de integración que verifique coherencia de status/version tras el 2º paso por pending_review.",
+      "resolucion": "Añadir tarea de test de integración del ciclo (reject → in_progress → submitOrderExecution(005) → pending_review → reviewOrder approve)."
+    },
+    {
+      "id": "K4",
+      "severidad": "MEDIA",
+      "fuentes": ["H-003"],
+      "categoria": "asuncion-oculta",
+      "ubicacion": "003 FR-006 ('único punto: applyTransition') vs write-side propio de 005/006",
+      "descripcion": "El arch test verifica límite de CARPETA (write-side/*), no la literalidad de 003 FR-006 (función applyTransition). 005 ya sentó el precedente sin amendar 003.",
+      "resolucion": "Documentar en plan que la invariante real es 'carpeta única write-side' (precedente 005); reconciliar la redacción de 003 FR-006 = backlog no bloqueante (BL-071)."
+    },
+    {
+      "id": "K5",
+      "severidad": "MEDIA",
+      "fuentes": ["H-004"],
+      "categoria": "edge-case",
+      "ubicacion": "tasks MVP (US1-solo) — decision:reject sin implementar",
+      "descripcion": "Zod acepta decision:reject desde T008, pero el dominio de US1 sólo implementa approve; un despliegue parcial US1-solo tendría comportamiento indefinido para reject.",
+      "resolucion": "Aclarar que US1+US2 (mismo endpoint, ambos P1) se despliegan juntos; el checkpoint US1 es demo de desarrollo, no frontera de despliegue. El switch de `decision` en review-order.ts es exhaustivo (TS `never`)."
+    }
+  ]
+}

@@ -10,7 +10,7 @@ y auditoría forense de accesos (#009) quedan fuera. 001/002a/002b/004/005 **ina
 
 Un endpoint HTTP para el **supervisor**: `reviewOrder` (`POST /v1/orders/{orderId}/review`) con body
 `{ decision: approve|reject, reason? }`. **approve** → `pending_review→closed` (con guard defensivo
-`COUNT(OrderEvidence) ≥ 1` → `409 EVIDENCE_MISSING`); **reject** → `pending_review→in_progress` con **motivo
+existencia de ≥1 evidencia exigida **dentro del UPDATE condicional** vía filtro de relación `evidence:{some:{}}`, o `409 EVIDENCE_MISSING`); **reject** → `pending_review→in_progress` con **motivo
 obligatorio**. Todo en **una transacción atómica** con auditoría append-only (`OrderAudit.reason` = motivo
 pre-saneado, nunca las notas). RBAC **sólo-supervisor** + estado de origen `pending_review`, con **precedencia
 determinista única** (`401→403→422(VALIDATION_ERROR)→422(INVALID_REASON)→404(no visible)→409(evidencia)`). La
@@ -25,7 +25,7 @@ la **FSM** de 002b/003, y el auth/RBAC de 001; la **clasificación 404 post-0-fi
 `$transaction` interactiva), Zod `^3.23.8`, `pino ^9.3.2`, `jsonwebtoken ^9.0.2` (auth de 001), `uuid ^10.0.0`.
 **Storage**: PostgreSQL 16 vía Docker Compose (BD de test `fieldops_test`, `db-test`, puerto 5433, tmpfs).
 **Sin migración Prisma**: no hay tablas ni columnas nuevas. Reutiliza `orders`, `order_audit` (append-only) y
-lee `order_evidence` (COUNT) — todas ya existen (002b/005).
+comprueba la existencia de evidencia (filtro de relación en el UPDATE) — todas ya existen (002b/005).
 **Testing**: Vitest `^2.0.5` (unit dominio sin BD) · Supertest `^7.0.0` (integración + contract). Sin IA →
 sin promptfoo.
 **Target Platform**: Servicio HTTP Linux (contenedor). **Project Type**: web service hexagonal (solo `backend/`).
@@ -34,8 +34,13 @@ BD caliente, warm-up descartado, nearest-rank) — SC-006.
 **Constraints**: `status`/`version` **sólo** mutan desde `domain/order/write-side/` (arch test); `OrderAudit`
 append-only (trigger); **motivo (`reason`) pre-saneado, nunca en logs/errores**; atomicidad todo-o-nada
 (transición + auditoría); no-enumeración por cuerpo (estado `pending_review` = visibilidad → 404 genérico);
-actor server-side (FR-012); guard de evidencia fail-closed (FR-013 → 409); error de BD no transitorio → 500,
-BD no disponible → 503. **Sin** If-Match/409-optimista, lectura de detalle, ni cifrado at-rest de `reason`
+actor server-side (FR-012); guard de evidencia fail-closed **dentro del UPDATE** (FR-013 → 409, tras 404) — el
+`updateMany` con `evidence:{some:{}}` DEBE compilar a **una sola sentencia atómica** `UPDATE … WHERE … AND
+EXISTS(…)` (verificar SQL en test; **fallback** `$executeRaw` si Prisma no lo compilara atómico); `$transaction`
+en aislamiento por defecto (READ COMMITTED) con re-lectura dentro de la misma tx; clasificador con rama
+**por-defecto fail-safe 404** (nunca 500/fuga);
+longitud del motivo **1..1000 medida tras `sanitizeReason` en dominio** (Zod sólo cota cruda ≤4000); error de BD
+no transitorio → 500, BD no disponible → 503. **Sin** If-Match/409-optimista, lectura de detalle, ni cifrado at-rest de `reason`
 (diferidos a #008/#010/BL-051).
 **Scale/Scope**: 1 endpoint, 13 FR, 6 SC, 0 entidades nuevas, 0 migraciones.
 
@@ -52,11 +57,15 @@ BD no disponible → 503. **Sin** If-Match/409-optimista, lectura de detalle, ni
 ### Gate · RBAC y seguridad (IV, IX, XI)
 - [x] `requireRole('supervisor')` + estado de origen `pending_review` en el UPDATE condicional. Precedencia única
   `401→403→422(VALIDATION_ERROR: decision/body)→422(INVALID_REASON: motivo)→404(no visible)→409(evidencia)`.
-  El **payload se valida primero** (no revela nada del recurso); un **clasificador propio de 006**
-  (`classify-review-guard.ts`) re-clasifica **post-0-filas** (re-lee, sin SELECT previo → sin TOCTOU): visibilidad
-  `pending_review` (404) y, sólo en approve, guard de evidencia (409). NO toca `classifyZeroRows` de 002b. El
-  UPDATE keyea `status='pending_review'` (**sin** predicado de `version`) → `VERSION_CONFLICT`/409-optimista **no
-  surge** (reservado a #008); `version` se incrementa. Actor sólo del token (FR-012).
+  El **payload se valida primero** (no revela nada del recurso). **(G2/K1)** En **approve**, la existencia de
+  evidencia va **dentro** del UPDATE condicional como filtro de relación (`evidence:{ some:{} }`), **no** como
+  `COUNT` previo (un COUNT antepondría 409 a 404 → fuga de no-enumeración). Si 0 filas, el **clasificador propio**
+  (`classify-review-guard.ts`) re-clasifica **post-0-filas** desde el snapshot `{status, evidenceCount}` (re-lee,
+  sin SELECT previo → sin TOCTOU) con **404 antes que 409**: `status≠pending_review`/inexistente → 404;
+  `pending_review` + `evidenceCount=0` → 409 EVIDENCE_MISSING. En **reject** el UPDATE keyea sólo
+  `status='pending_review'`. NO toca `classifyZeroRows` de 002b. **Sin** predicado de `version` →
+  `VERSION_CONFLICT`/409-optimista **no surge** (reservado a #008); `version` se incrementa. Actor sólo del token
+  (FR-012).
 - [x] 401/403/404/409/422/500/503 distinguidos; no-enumeración 404 genérico (estado = visibilidad). Motivo no-fuga
   (FR-008): grep negativo en logs y cuerpos de error.
 - [x] **Constitution XI**: `OrderAudit.reason` = motivo **pre-saneado por 006** (`sanitizeReason`), es el motivo
@@ -75,6 +84,12 @@ BD no disponible → 503. **Sin** If-Match/409-optimista, lectura de detalle, ni
   destino; no importa Express/Prisma); `infra/repositories/order-write-side-repository.ts` con `$transaction`.
   Handler delgado. Puertos inyectados.
 - [x] **Test de arquitectura**: `status`/`version` sólo se escriben desde el módulo write-side (extendido).
+- [~] **(G2/K4) Invariante write-side = carpeta, no función**: 003 FR-006 redactó el invariante como "única
+  función `applyTransition`", pero 005 y 006 escriben estado desde su propio módulo en `domain/order/write-side/*`
+  (+ `order-write-side-repository.ts`) sin `applyTransition`. El invariante **real y verificado** (arch test) es
+  **"carpeta única write-side"**. Reconciliar la redacción de 003 FR-006 = **backlog BL-071** (no bloqueante;
+  precedente sentado por 005). Implicación para #008: la concurrencia optimista `If-Match`/409 deberá reforzarse
+  en **cada** ruta write-side (incl. `reviewOrder`), no sólo en `applyTransition`.
 
 ### Gate · Calidad y verificación (V, VI, VII, XIII, XIV)
 - [x] FRs en EARS; trazabilidad RF→endpoint→tarea→test (docs/traceability.md, Polish).
@@ -107,7 +122,7 @@ backend/
 │   │   │   ├── apply-transition.ts         # de 002b, INTACTO — NO invocado por reviewOrder de 006
 │   │   │   ├── classify-review-guard.ts     # NUEVO (006): clasifica POST-0-filas (re-lee, sin SELECT previo →
 │   │   │   │                                 #   sin TOCTOU): visibilidad pending_review → 404; en approve, guard
-│   │   │   │                                 #   COUNT(OrderEvidence) ≥ 1 → 409 EVIDENCE_MISSING. NO toca 002b.
+│   │   │   │                                 #   evidenceCount=0 (approve) → 409 EVIDENCE_MISSING; default→404 fail-safe. NO toca 002b.
 │   │   │   ├── review-order.ts              # NUEVO (006): dominio puro — valida decision, sanea/valida reason
 │   │   │   │                                 #   (sanitizeReason), decide estado destino (approve→closed |
 │   │   │   │                                 #   reject→in_progress), delega en el puerto. NO usa applyTransition.
@@ -124,7 +139,7 @@ backend/
 │   │   └── app.ts                            # monta POST .../review con authenticate+requireRole('supervisor')
 │   └── infra/repositories/
 │       └── order-write-side-repository.ts   # +reviewOrder: 1 $transaction (UPDATE condicional status=
-│                                             #   pending_review + [approve: guard COUNT evidencia] + OrderAudit)
+│                                             #   pending_review [approve: + evidence:{some:{}} en el WHERE] + OrderAudit)
 ├── prisma/                                   # SIN cambios (sin migración)
 └── tests/{contract,integration,unit}/
 contracts/orders.openapi.yaml                 # +reviewOrder, +ReviewRequest (v1.3.0)
@@ -133,7 +148,7 @@ contracts/orders.openapi.yaml                 # +reviewOrder, +ReviewRequest (v1
 **Structure Decision**: web service hexagonal (`backend/`), reutilizando el módulo write-side de 002b/004/005.
 La escritura de estado sigue confinada a `domain/order/write-side/` + `infra/repositories/order-write-side-repository.ts`
 (arch test). La validación de `decision`/`reason` y el saneo son **dominio puro** (testeable sin BD). La lógica de
-lectura de evidencia (COUNT) vive en el repositorio dentro de la misma transacción (integridad del guard FR-013).
+existencia de evidencia (filtro de relación en el UPDATE condicional) vive en el repositorio dentro de la misma transacción (integridad atómica del guard FR-013).
 
 ## Complexity Tracking
 
@@ -143,3 +158,4 @@ lectura de evidencia (COUNT) vive en el repositorio dentro de la misma transacci
 | Registro forense de **accesos denegados** (401/403/404) **diferido** a #009 | XV: cluster de gobernanza transversal (XI ampliado), no del núcleo de revisión. | Embeberlo repite el sobredimensionado; ya es feature propia #009 (BL-002/067). |
 | **Sin** `If-Match`/409-optimista | El UPDATE condicional atómico (`status='pending_review'` en WHERE) ya hace fail-safe el doble-clic/carrera entre supervisores (→404). | La semántica `409`/`If-Match` es endurecimiento (#008), no requisito del MVP funcional. Distinto del `409 EVIDENCE_MISSING` (guard de integridad) que sí se hace. |
 | **Lectura del motivo por el technician + read-side** diferida a #010 (BL-070) | XV: 006 es write-only; exponer lectura exige un backend read-side y **enmienda de Constitution XI** (technician lee su propio motivo), fuera del alcance de una feature de escritura. | Ampliar 006 con lectura reabriría G1 y forzaría una enmienda de principio desde una feature de negocio; se traza como feature propia antes de FE-1. |
+| **(G2/K4)** Reconciliar 003 FR-006 (invariante write-side = carpeta, no función) = **BL-071** | 005/006 escriben estado sin `applyTransition`; el arch test verifica carpeta. La redacción de 003 quedó desalineada con el diseño real (deuda documental). | Amendar 003 ahora (spec merged) es más costoso que trazar el desajuste; el invariante efectivo ya está cubierto por el arch test de 005/006. |

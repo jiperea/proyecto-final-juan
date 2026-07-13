@@ -1,8 +1,9 @@
 # Data Model — 006 Revisión por el supervisor
 
 **Sin cambios de esquema**: 0 tablas nuevas, 0 columnas nuevas, **0 migraciones**. 006 reutiliza tal cual las
-entidades de 002b/005 y sólo **muta** `orders` e **inserta** en `order_audit` (append-only). Lee `order_evidence`
-(COUNT) para el guard defensivo. No toca `order_execution_notes` ni `order_evidence` (conservación, FR-005).
+entidades de 002b/005 y sólo **muta** `orders` e **inserta** en `order_audit` (append-only). Comprueba la existencia de evidencia
+en `order_evidence` (filtro de relación dentro del UPDATE condicional, no un `COUNT` previo) para el guard
+defensivo de aprobación. No toca `order_execution_notes` ni `order_evidence` (conservación, FR-005).
 
 ## Entidades implicadas (existentes)
 
@@ -20,9 +21,11 @@ entidades de 002b/005 y sólo **muta** `orders` e **inserta** en `order_audit` (
   y en approve con motivo. **Nunca** en logs ni cuerpos de error. Cifrado at-rest = BL-051 (diferido).
 - Append-only garantizado por el trigger existente (002b). Enlaces `fromAssignee/toAssignee` = `NULL` (transición).
 
-### OrderEvidence (`order_evidence`) — sólo lectura (COUNT)
-- **Guard FR-013 (approve)**: `SELECT COUNT(*) FROM order_evidence WHERE order_id = :id` dentro de la
-  transacción; `< 1` → `409 EVIDENCE_MISSING`. No se lee `object_ref` (PII) — sólo el conteo.
+### OrderEvidence (`order_evidence`) — sólo lectura (existencia)
+- **Guard FR-013 (approve)**: la existencia de ≥1 evidencia se comprueba como **filtro de relación dentro del
+  UPDATE condicional** (`evidence:{ some:{} }`), no como `SELECT COUNT` previo; el `409 EVIDENCE_MISSING` lo
+  emite el clasificador **sólo** cuando el snapshot re-leído confirma `status=pending_review` con 0 evidencias
+  (así el 404 de no-visible precede al 409). No se lee `object_ref` (PII) — sólo existencia/conteo.
 - `attempt` (nullable): **no** lo usa 006 (versionado por intento = 005/#008).
 
 ### OrderExecutionNotes (`order_execution_notes`) — intacta
@@ -30,27 +33,47 @@ entidades de 002b/005 y sólo **muta** `orders` e **inserta** en `order_audit` (
 
 ## Transacción atómica (una `$transaction` interactiva)
 
-**approve** (`decision=approve`):
-1. Guard: `COUNT(order_evidence WHERE order_id) ≥ 1` → si 0, abortar → `409 EVIDENCE_MISSING`.
-2. `UPDATE orders SET status='closed', version=version+1, updated_at=now() WHERE id=:id AND status='pending_review'`
-   → 0 filas ⇒ clasificar (re-lectura): no visible → `404`.
-3. `INSERT order_audit {transition, from=pending_review, to=closed, actor=<token>, reason=sanitize(reason)|NULL}`.
+**approve** (`decision=approve`) — la condición de evidencia va **dentro** del UPDATE condicional (no como paso
+previo), para que la **visibilidad (404) preceda al guard (409)** vía re-lectura única (FR-009):
+1. `updateMany({ where:{ id, status:'pending_review', evidence:{ some:{} } }, data:{ status:'closed',
+   version:{increment:1} } })` — el filtro de relación `evidence:{some:{}}` exige ≥1 evidencia en el mismo UPDATE.
+2. **0 filas** ⇒ re-lectura del snapshot `{status, evidenceCount}` (dentro de la misma tx) y `classifyReviewGuard`:
+   - `status ≠ pending_review` o inexistente → **`404` GUARD_UNMET** (no visible).
+   - `status = pending_review` **y** `evidenceCount = 0` → **`409` EVIDENCE_MISSING**.
+   - **por-defecto** (cualquier otro snapshot, p. ej. `{pending_review, evidenceCount≥1}` por carrera) → **`404`
+     GUARD_UNMET fail-safe** (nunca 500, nunca filtra estado).
+   - (404 **antes** que 409: la clasificación mira el estado antes que la evidencia.)
+3. **1 fila** ⇒ `INSERT order_audit {transition, from=pending_review, to=closed, actor=<token>,
+   reason=sanitize(reason)|NULL}`.
 
-**reject** (`decision=reject`, `reason` obligatorio y válido):
-1. `UPDATE orders SET status='in_progress', version=version+1, updated_at=now() WHERE id=:id AND status='pending_review'`
-   → 0 filas ⇒ `404`.
+**reject** (`decision=reject`, `reason` obligatorio y válido) — sin guard de evidencia:
+1. `updateMany({ where:{ id, status:'pending_review' }, data:{ status:'in_progress', version:{increment:1} } })`
+   → 0 filas ⇒ `classifyReviewGuard` (sólo visibilidad) → `404`.
 2. `INSERT order_audit {transition, from=pending_review, to=in_progress, actor=<token>, reason=sanitize(reason)}`.
 
-Todo o nada. Fallo de BD no disponible → `503`; error no transitorio (constraint/FK actor) → `500` (FR-010).
+Todo o nada (una `$transaction`, aislamiento por defecto **READ COMMITTED**). Fallo de BD no disponible → `503`;
+error no transitorio (constraint/FK actor) → `500` (FR-010). Nunca una orden **no visible** devuelve 409 antes
+que 404 (el `evidence:{some:{}}` no distingue por sí solo visibilidad de evidencia; la distinción la hace el
+clasificador sobre el estado).
+
+> **(G2/H-002) Atomicidad del guard**: el `updateMany` con `evidence:{some:{}}` **debe** compilar a **una** sola
+> sentencia `UPDATE … WHERE … AND EXISTS(SELECT 1 FROM order_evidence …)` (sin `SELECT`/`COUNT` previo → sin
+> TOCTOU). Verificar el SQL generado en el test (query log de Prisma); **fallback** `$executeRaw` si no compilara
+> atómico. Ver research.md D8.
 
 ## Validación (dominio puro, `review-order.ts` + `sanitize-reason.ts`)
 
 | Campo | Regla | Fallo |
 |---|---|---|
 | `decision` | presente ∧ ∈ `{approve, reject}` | ausente/otro/body no-JSON → `422 VALIDATION_ERROR` |
-| `reason` (reject) | obligatorio; `1..1000` code points **tras saneo**; ≥1 imprimible | ausente/vacío-tras-saneo/rango → `422 INVALID_REASON` |
-| `reason` (approve) | opcional; si presente, mismas reglas que reject | idem → `422 INVALID_REASON` |
+| `reason` (schema/Zod) | string; **cota cruda ≤ 4000** code points (red de seguridad de payload) | > 4000 crudo → `422 VALIDATION_ERROR` |
+| `reason` (reject, dominio) | obligatorio; `1..1000` code points **tras `sanitizeReason`**; ≥1 imprimible | ausente/vacío-tras-saneo/>1000-tras-saneo → `422 INVALID_REASON` |
+| `reason` (approve, dominio) | opcional; si presente, mismas reglas de dominio que reject | idem → `422 INVALID_REASON` |
 | `sanitizeReason(s)` | trim → colapso whitespace interno → strip Cc (`U+0000`–`U+001F`,`U+007F` salvo `\n`) → NFC | — |
+
+> **G2/K2**: el límite 1..1000 se mide **tras saneo** en el dominio (`INVALID_REASON`), **no** en el schema Zod
+> (que sólo pone la cota cruda 4000 → `VALIDATION_ERROR`). Un motivo con mucho whitespace puede exceder 1000 en
+> crudo y ser válido tras saneo.
 
 **Precedencia**: `401 → 403 → 422 VALIDATION_ERROR → 422 INVALID_REASON → 404 (no visible) → 409 (evidencia)`.
 

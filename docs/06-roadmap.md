@@ -63,6 +63,13 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > automatizada se difiere a BL-069 (obligatorio antes del merge, sin vía de escape). El at-rest de
 > `OrderEvidence.object_ref` es **#007** (BL-068), no BL-069.
 
+> **Deuda documental de 006 (write-side invariant)**: **BL-071** — reconciliar la redacción de **003 FR-006**
+> ("único punto de escritura de estado = función `applyTransition`") con el diseño real: 005 y 006 escriben
+> `status`/`version` desde su **propio módulo** en `domain/order/write-side/*` (+ `order-write-side-repository.ts`)
+> sin `applyTransition`. El invariante efectivo (verificado por arch test en 005/006) es **"carpeta única
+> write-side"**. No bloqueante; afecta a #008 (la concurrencia `If-Match`/409 deberá reforzarse en cada ruta
+> write-side, no sólo en `applyTransition`). Detectado en el gate G2 de 006.
+
 > **Regla de atomización (XV)**: todo cluster que se **saca** de una feature para no sobredimensionarla se
 > registra **aquí como feature propia** (#007–#009, no sólo en backlog) y se **lanza cuando toque** — nunca se
 > deja como scope difuso/olvidado (lección de #003/#004). Trazan al brief: #007 = "foto de evidencia" (Func #2);
