@@ -1,6 +1,6 @@
 <!-- SPECKIT START -->
-Plan activo: `specs/006-revision-supervisor/plan.md` (+ research.md, data-model.md, quickstart.md).
-Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1, operación `reviewOrder`: approve/reject en pending_review).
+Plan activo: `specs/007-resumen-incidencia-ia/plan.md` (+ research.md, data-model.md, quickstart.md).
+Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1, operación `summarizeOrderIncident`: resumen IA de la incidencia, fallback no-inventa, minimización de PII, eval promptfoo).
 Para tecnologías, estructura y comandos, leer ese plan.
 <!-- SPECKIT END -->
 
