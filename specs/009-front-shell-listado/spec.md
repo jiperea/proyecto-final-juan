@@ -323,10 +323,13 @@ notas/evidencia; abrir un id fuera de ámbito muestra el mensaje uniforme «no d
   no-disponible— (el estado «vacío» no aplica al detalle, que es un único recurso).
 - **SC-007**: A 320px de ancho y con zoom 200%, ninguna vista de FE-1 produce **scroll horizontal del body**
   ni oculta funciones (reflow AA).
-- **SC-008**: El pipeline de FE-1 falla en CI ante **(a)** un estilo suelto (hex/px/font fuera de token — via
-  stylelint en CSS **y** regla ESLint sobre `style={{}}` inline en JSX, FR-017), **(b)** una divergencia entre
-  los tipos de la UI y el contrato OpenAPI (codegen + test de diff — FR-016), o **(c)** un `status` del enum
-  sin badge (exhaustividad tipada — FR-007). Los tres gates deterministas en verde.
+- **SC-008**: Los gates deterministas fallan ante **(a)** un estilo suelto (hex/px/font fuera de token — via
+  stylelint en CSS **y** regla ESLint sobre `style={{}}` inline y sobre literales en `.ts`/`.tsx`, FR-017),
+  **(b)** una divergencia entre los tipos/Zod de la UI y el contrato OpenAPI (`codegen:check` + aserción de
+  tipo `AssertAssignable` en tsc, FR-016), o **(c)** un `status` del enum sin badge (exhaustividad tipada —
+  FR-007). Verificados como scripts npm (`lint`/`typecheck`/`test`) en verde local. **Enforcement en CI**: el
+  workflow de front es **DevOps DO-6** (gobernanza spec-antes-que-YAML, requiere DO-1); hasta entonces el
+  `.github/workflows/ci.yml` es placeholder de fundación (gate G3 F-010, dispuesto a DO-6, no bloqueante del MVP).
 
 > **Verificación de SC (reconciliación XIV).** FE-1 **no tiene componente IA/NL**, luego sus SC se codifican
 > como **tests deterministas de front** (Vitest + Testing Library para interacción/estados; **axe-core** para

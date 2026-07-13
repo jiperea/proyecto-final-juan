@@ -121,7 +121,7 @@
 - [X] T045 [P] Barrido a11y axe en todas las pantallas y estados (login, listado, detalle, vacío/error/sin-permiso) — 0 violaciones serias/críticas (SC-003)
 - [X] T046 Cablear gates deterministas en `frontend/package.json` + CI: `lint` (stylelint+eslint, SC-008a), `typecheck` (tsc strict + badge exhaustivo SC-008c), `codegen` diff (SC-008b)
 - [X] T047 [P] Actualizar `docs/traceability.md` con FR→endpoint→tarea→test de FE-1
-- [ ] T048 Validación `quickstart.md`: front + back (docker compose) + tests en verde a la vez («definición de hecho»)
+- [~] T048 Validación `quickstart.md`: front + back (docker compose) + tests en verde a la vez («definición de hecho») [DIFERIDA a DevOps: requiere docker-compose+backend real]
 
 ---
 
