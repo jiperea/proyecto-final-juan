@@ -30,11 +30,14 @@ command -v jq >/dev/null || { echo "ERROR: 'jq' no está en PATH" >&2; exit 2; }
 
 AGENTS_DIR=".claude/agents"
 
-# Conjunto ACUMULATIVO de agentes por fase
+# Panel FOCALIZADO por fase (cada gate revisa el DELTA de su fase, no re-ataca todo).
+# G1 = calidad de spec (generalista); G2 = consistencia cruzada + seguridad del diseño;
+# G3 = implementación vs spec + seguridad del código + consistencia. Los residuales ya
+# dispuestos se siembran (dispositioned.md) para que el panel no los re-levante.
 case "$PHASE" in
   G1) AGENTS=(revisor-cinico auditor-spec-theater revisor-rbac-seguridad) ;;
-  G2) AGENTS=(revisor-cinico auditor-spec-theater revisor-rbac-seguridad revisor-consistencia) ;;
-  G3) AGENTS=(revisor-cinico auditor-spec-theater revisor-rbac-seguridad revisor-consistencia revisor-implementacion) ;;
+  G2) AGENTS=(revisor-consistencia revisor-rbac-seguridad) ;;
+  G3) AGENTS=(revisor-implementacion revisor-rbac-seguridad revisor-consistencia) ;;
   *) echo "ERROR: phase debe ser G1|G2|G3" >&2; exit 2 ;;
 esac
 
@@ -54,6 +57,14 @@ gather_artifacts() {
 }
 
 ARTIFACTS="$(gather_artifacts)"
+
+# Sembrado de residuales YA dispuestos (convergencia): si existe, se pasa al panel con
+# instrucción de NO re-levantarlos (ya tienen destino trazable / aceptación explícita).
+DISPOSITIONED=""
+if [[ -f "$FEATURE_DIR/gates/dispositioned.md" ]]; then
+  DISPOSITIONED=$'\n\n===== RESIDUALES YA DISPUESTOS — NO RE-LEVANTAR (solo reportar problemas NUEVOS o regresiones reales) =====\n'"$(cat "$FEATURE_DIR/gates/dispositioned.md")"
+fi
+
 mkdir -p "$REPORTS_DIR"
 FEATURE_NAME="$(basename "$FEATURE_DIR")"
 TMP_DIR="$(mktemp -d)"
@@ -73,7 +84,7 @@ echo "== Gate $PHASE sobre $FEATURE_NAME =="
 ALL_HUECOS="[]"
 for agent in "${AGENTS[@]}"; do
   role="$(cat "$AGENTS_DIR/$agent.md")"
-  prompt=$'Adopta EXACTAMENTE el rol siguiente y devuelve SOLO el JSON que especifica.\n\n'"$role"$'\n\n===== ARTEFACTOS A REVISAR =====\n'"$ARTIFACTS"
+  prompt=$'Adopta EXACTAMENTE el rol siguiente y devuelve SOLO el JSON que especifica.\n\n'"$role"$'\n\n===== ARTEFACTOS A REVISAR =====\n'"$ARTIFACTS""$DISPOSITIONED"
   echo "  - ejecutando $agent ..."
   raw="$(claude -p "$prompt" --output-format json 2>/dev/null || echo '')"
   json="$(extract_json "$raw")"
