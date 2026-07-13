@@ -52,8 +52,12 @@ malformado / rol no reconocido → `404` genérico (no se ensambla DTO). Precede
 - Guard de propiedad + lectura de reject/submit en el **mismo snapshot** (sin estados híbridos ni fuga a ex-dueño).
 - Respuesta sin `object_ref` ni PII estructural en el motivo; `reason` crudo nunca en logs.
 
-## Auditoría (XI, FR-009) — no es entidad nueva
+## Observabilidad de accesos denegados (FR-009) — sin entidad ni migración
 
-Reutiliza el registro append-only de accesos denegados (XI): en `401`/`404` inserta `{actor?, endpoint,
-recurso}` con `recurso` saneado (UUID o `<malformed>`). Best-effort no bloqueante. Lectura de ese registro:
-restringida a supervisor/auditor (fuera de #010).
+#010 **no** crea tabla nueva. En `401`/`404` **emite una entrada de log best-effort** `{actor?, endpoint, recurso,
+outcome∈{401_unauth,404_not_visible}}` con `recurso` saneado (UUID o `<malformed>`) por el **logger `pino`
+compartido** vía un **puerto propio** `DeniedAccessLoggerPort` (NO el `AccessLogPort` de 007, tipado para ai-summary
+y sin caso 401; 007 inamovible); a diferencia de ai-summary, **sí emite en 401**. **No** se persiste en
+`order_audit` (su `order_id` es FK **NOT NULL** a `orders`, incompatible con un 401/orden inexistente). El
+**registro forense durable append-only** (transversal a todos los endpoints, XI) es la feature **#009**
+(`auditoria-accesos-denegados`, BL-002/067), fuera del MVP; #010 no lo construye ni lo duplica.

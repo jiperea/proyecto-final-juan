@@ -24,8 +24,9 @@ consolidan las decisiones técnicas para `/tasks` e implementación.
   Su `reason` es **obligatorio y no vacío** (006: 1–1000 tras saneo, `422 INVALID_REASON` si falta) → nunca NULL.
 - **"Rechazo sin atender"**: la última reject es **estrictamente posterior** (`at`) al último `submitOrderExecution`
   (reason `execution_registered`). Tras el reenvío (→ `pending_review`) el motivo se omite.
-- **Desempate**: `at` y, en empate (submit vs reject), el `id`/uuid v7 monótono mayor (fuente única monótona; el
-  mecanismo de generación se fija en implementación para garantizar orden real de inserción).
+- **Desempate**: `at` y, en empate (submit vs reject), el `id`/uuid v7 monótono mayor. El `id` se genera
+  **server-side en la escritura** (004/005/006 ya lo hacen), de modo que es **monótono con el orden de commit** —
+  no en el cliente/aplicación fuera de la tx (evita inversión de orden que decidiría mal mostrar/omitir el motivo).
 - **Rationale**: ata motivo y notas/evidencia al **mismo ciclo**, evitando la mezcla de ciclos del bucle de 006.
 
 ## D3 · Ciclo vigente (notas + evidencia)
@@ -36,15 +37,19 @@ consolidan las decisiones técnicas para `/tasks` e implementación.
   (desempate por `id`) e invariante `count == content_types.length`. Sin ciclo aún → `{count:0, content_types:[]}`
   (un submit siempre trae ≥1 evidencia, 005 FR-004). Nunca `object_ref` ni binario.
 
-## D4 · Snapshot consistente (anti estados híbridos)
+## D4 · Snapshot atómico (anti estados híbridos)
 
 - **Decisión**: el **guard de propiedad/visibilidad** (`orders.assigned_to`/`status`), la **última reject** y el
-  **último submit** (+ sus notas/evidencia) se leen en **un único snapshot** (`$transaction`, READ COMMITTED por
-  defecto con lecturas dentro de la misma tx, o una consulta con subconsultas). 
-- **Rationale**: un `submit` o una `reasignación` concurrentes no deben producir motivo del ciclo N-1 junto a notas
-  del ciclo N, ni permitir al **ex-dueño** leer el motivo tras una reasignación concurrente (guard + lectura del
-  motivo en el mismo snapshot).
-- **Verificación**: test de concurrencia (GET vs submit/reasignación en vuelo) — ver quickstart y trazabilidad.
+  **último submit** (+ sus notas/evidencia) se leen como **una sola consulta atómica** (CTE/subconsultas en un
+  `SELECT`) **o**, si son varias lecturas, dentro de una `$transaction` en **`REPEATABLE READ`/`SERIALIZABLE`**.
+- **Prohibido**: múltiples `SELECT` en **READ COMMITTED** — el aislamiento por sentencia da a cada lectura su propio
+  snapshot, así que una `reasignación`/`submit` que comitee entre lecturas produce estado híbrido (motivo del ciclo
+  N-1 con notas del N) o deja al **ex-dueño** pasar el guard y leer el motivo. El READ COMMITTED por defecto **no**
+  satisface FR-003/FR-005.
+- **Rationale**: FR-003 exige que motivo y notas pertenezcan al mismo ciclo y que el guard de propiedad y la lectura
+  del motivo compartan instante lógico (anti fuga a ex-dueño).
+- **Verificación**: test de concurrencia **determinista** (advisory locks / dos clientes Prisma con pausa en tx para
+  forzar el interleaving; **no** timing real, que no es reproducible en CI) — ver quickstart T029 y trazabilidad.
 
 ## D5 · Saneo al leer (pii-redactor) + fail-closed
 
@@ -67,15 +72,27 @@ consolidan las decisiones técnicas para `/tasks` e implementación.
   de esquema no emita un 400 distinguible (oráculo de enumeración).
 - **Precedencia**: `401` (no autenticado) precede a toda resolución de visibilidad/existencia.
 
-## D7 · Auditoría de accesos denegados (FR-009, Constitution XI)
+## D7 · Observabilidad de accesos denegados (FR-009) — el registro durable es #009
 
-- **Decisión**: cada `401`/`404` de `getOrderDetail` escribe un registro **append-only** (actor si lo hay,
-  endpoint, `recurso`) con `recurso` **saneado**: si el `orderId` matchea patrón UUID se guarda; si no, marcador
-  fijo `"<malformed>"`/hash — **nunca** el path crudo (anti-inyección de PII en un log no purgable).
-- **Modo de fallo**: **best-effort no bloqueante** — el 401/404 se devuelve igual aunque falle la escritura de
-  auditoría; el fallo se loguea (con `recurso` saneado). No degrada a 500/503 por un fallo de auditoría no crítico.
-- **Read-only vs XI**: FR-007 aclara que "read-only" = sin mutación de **dominio**; el registro de accesos
-  denegados es infraestructura transversal de auditoría exigida por XI, no una mutación del recurso.
+- **Decisión**: cada `401`/`404` de `getOrderDetail` **emite una entrada de log best-effort** (actor si lo hay,
+  endpoint, `recurso`, `outcome`∈{401_unauth,404_not_visible}) por el **logger `pino` compartido** mediante un
+  **puerto propio** `DeniedAccessLoggerPort` (+ adaptador fino). **No** reutiliza el `AccessLogPort`/`AccessEvent`
+  de 007 (tipado para el resumen IA: `actor`/`orderId` obligatorios, enum cerrado **sin caso 401**; 007 inamovible).
+  A diferencia del handler de `ai-summary` (que omite el evento sin actor), #010 **sí emite en 401**. Con `recurso`
+  **saneado**: si el
+  `orderId` matchea patrón UUID se emite; si no, marcador fijo `"<malformed>"` — **nunca** el path crudo.
+- **Por qué NO append-only durable en #010**: `order_audit.order_id` es **FK NOT NULL a `orders`** → no puede
+  sostener un registro de un `401` (sin orden) ni de un `404` por orden inexistente/malformada. Construir una tabla
+  nueva sería una **migración** (contradice read-side puro) y **duplicaría** la feature de roadmap **#009**
+  (`auditoria-accesos-denegados`, BL-002/067), que es la responsable del registro **forense durable transversal**
+  (401/403/404 de **todos** los endpoints) y está **fuera del MVP funcional**. #010 sigue el **residual honesto ya
+  aceptado por 007 (M5)**: señal de observabilidad ahora, durabilidad en #009.
+- **Modo de fallo**: **best-effort no bloqueante** — el 401/404 se devuelve igual aunque falle la emisión del log.
+- **Reconciliación de roadmap**: #009 no queda duplicada; su alcance sigue siendo el registro durable + extenderlo
+  al resto de endpoints. (La actualización de `docs/06-roadmap.md` que aclare "#010 emite señal, #009 la hace
+  durable" es una nota de **fundación**, fuera de esta rama — junto con el alta de BL-080.)
+- **Alternativas descartadas**: (a) tabla nueva de accesos denegados en #010 (migración + duplica #009); (b)
+  reutilizar `order_audit` (imposible por la FK NOT NULL).
 
 ## D8 · Testing y verificación (sin IA → sin promptfoo)
 

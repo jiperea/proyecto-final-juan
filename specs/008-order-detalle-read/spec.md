@@ -18,7 +18,9 @@ así que el técnico necesita ver **por qué** para corregir y reenviar.
 > **excepción de mínimo privilegio de Constitution XI (≥ v1.9.0)** — **sin** columna denormalizada, **sin** tocar
 > 004/005/006, **sin** migración ni backfill (opción B; se descartó denormalizar por más invasiva y por riesgo de
 > PII en el backfill). **No** incluye: mutaciones; subida/descarga del binario de evidencia (#007-subida);
-> listado (002a); resto del registro de auditoría (restringido, XI); detalle de órdenes `closed` (futuro).
+> listado (002a); resto del registro de auditoría (restringido, XI); detalle de órdenes `closed` (futuro); ni el
+> **registro append-only durable de accesos denegados** (eso es la feature dedicada **#009**, BL-002/067; #010 solo
+> emite la señal best-effort de observabilidad, FR-009).
 
 ## Clarifications
 
@@ -132,6 +134,40 @@ así que el técnico necesita ver **por qué** para corregir y reenviar.
   **encadenadas** (autoría ≠ dueño inmediato anterior); **canal lateral de tiempos** fuera de alcance MVP
   (residual); colisión de ID **BL-075→BL-080** (BL-075 ya usado por 007; alta de BL-080 por rama de fundación).
 
+### Session 2026-07-13 — remediación gate G2 (ronda 8): re-acotar FR-009 y trazar SC-005
+
+- Q: **(BLOQUEANTE G2)** FR-009 exigía un registro **append-only durable** de accesos denegados, pero `order_audit`
+  no puede sostener un 401/orden inexistente (FK `order_id` NOT NULL) y el único logger del repo (007) es no
+  durable → habría requerido tabla/migración nueva, contradiciendo read-side puro; y **duplicaba** la feature #009
+  del roadmap. → A: **re-acotar FR-009** a **observabilidad best-effort** con el `access-logger` existente (recurso
+  saneado); el **registro forense durable** (transversal 401/403/404) es la **feature #009 (BL-002/067)**,
+  explícitamente fuera del MVP. Sin tabla ni migración en #010. Reconcilia con el roadmap (sin duplicar #009).
+- Q: **(ALTA G2, snapshot READ COMMITTED)** el plan permitía "múltiples SELECT bajo READ COMMITTED", que **no**
+  garantiza snapshot atómico (aislamiento por sentencia) → un ex-dueño podría leer el motivo tras reasignación
+  concurrente. → A: el plan fija el snapshot como **una sola consulta atómica (CTE/subconsultas)** o, si son varias
+  lecturas, **REPEATABLE READ/SERIALIZABLE** (nunca múltiples SELECT en READ COMMITTED).
+- Q: **(ALTA G2, test de concurrencia)** T029 no fijaba cómo forzar el interleaving. → A: T029 usa un mecanismo
+  **determinista** (advisory locks / dos clientes con pausa en tx), no timing real.
+- Q: **(ALTA G2, SC-005 sin traza)** SC-005 se cubría de rebote. → A: **test propio de SC-005** (intentar pedir
+  otra transición/orden/registro → no hay vía; la respuesta nunca lleva >1 campo de auditoría) + fila de trazabilidad.
+- Q: **(ALTA G2, TDD-Red de FR-009)** T006 implementaba antes del test. → A: test **(Red)** del saneo de `recurso`
+  **antes** de implementar el emisor (reordenado en tasks).
+- Q: **(MEDIA G2, contract test laxo / uuid v7)** → A: T010 valida el esquema en **modo estricto**
+  (`additionalProperties:false`); el `id`/uuid v7 del desempate se genera **server-side** (monótono con el commit).
+- Q: **(BL-080 sin alta)** → A: seguimiento explícito por **rama de fundación** (no esta rama); documentado en el gate.
+
+### Session 2026-07-13 — remediación gate G2 (ronda 9): mecanismo de FR-009 y coherencia del snapshot
+
+- Q: **(ALTA G2)** decir "reutiliza el `access-logger` de 007" era inconsistente: el `AccessLogPort` real de 007
+  está tipado para el resumen IA (`actor`/`orderId` obligatorios, enum cerrado **sin caso 401**) y 007 es
+  inamovible; además su handler **omite** el evento sin actor. → A: FR-009 usa un **puerto propio**
+  `DeniedAccessLoggerPort` sobre el **logger `pino` compartido** (no el `AccessLogPort` de 007), y **sí emite en
+  401** (`outcome=401_unauth`) — divergencia deliberada para cerrar el hueco de observabilidad del 401.
+- Q: **(MEDIA G2)** el evento no distinguía 401 de 404. → A: se añade `outcome ∈ {401_unauth, 404_not_visible}`.
+- Q: **(MEDIA G2)** ¿la fila `order` se lee en el mismo snapshot? → A: **sí** — la fila `order` completa
+  (status/assigned_to/version) entra en el snapshot atómico junto al guard/reject/submit, para que el
+  `order.assigned_to` del DTO sea coherente con el ciclo/motivo servidos bajo reasignación concurrente (T016).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - El técnico ve el detalle de su orden y por qué se la rechazaron (Priority: P1)
@@ -232,12 +268,14 @@ alcance → `404`. Igual para dispatcher con su alcance.
   - **Regla de "rechazo sin atender" (atado al ciclo, resuelve la mezcla de ciclos):** el motivo se incluye **si y
     solo si** esa transición de rechazo es **estrictamente posterior** (`at`) al último `submitOrderExecution` de
     la orden (i.e. la orden está en `in_progress` tras un rechazo y **aún no** se ha reenviado). Tras el reenvío
-    (→ `pending_review`) el motivo se **omite**. **Todas** las lecturas de la petición — **el guard de propiedad
-    (`Order.assigned_to`)**, la última reject y el último submit — se resuelven en una **única consulta/snapshot
+    (→ `pending_review`) el motivo se **omite**. **Todas** las lecturas de la petición — **la fila `Order` completa
+    que sirve el DTO** (`status`, `assigned_to`, `version`, campos), **el guard de propiedad (`Order.assigned_to`)**,
+    la última reject y el último submit (+ notas/evidencia) — se resuelven en una **única consulta/snapshot
     consistente** (criterio observable a nivel spec; el mecanismo exacto de aislamiento se fija en `/plan`), de
-    modo que ni un submit ni una **reasignación** concurrentes produzcan estados híbridos: así el ex-dueño no puede
-    obtener el motivo tras dejar de serlo, y notas/evidencia (del último submit) y motivo pertenecen **siempre al
-    mismo ciclo y al dueño actual**. **Empate submit vs reject** con el mismo `at`: el `id`/uuid v7 monótono mayor
+    modo que ni un submit ni una **reasignación**/`reviewOrder` concurrentes produzcan estados híbridos: así el
+    ex-dueño no puede obtener el motivo tras dejar de serlo, y el `order` del DTO (p. ej. `assigned_to`/`status`) es
+    **coherente** con las notas/evidencia (del último submit) y el motivo, que pertenecen **siempre al mismo ciclo
+    y al dueño actual**. **Empate submit vs reject** con el mismo `at`: el `id`/uuid v7 monótono mayor
     define el orden (un reject registrado tras un submit tiene id mayor → se considera **posterior** → motivo
     visible).
   - **Saneo al leer (defensa en profundidad, resuelve la PII histórica):** el motivo se pasa por el **detector/
@@ -308,24 +346,34 @@ alcance → `404`. Igual para dispatcher con su alcance.
     motivo lo autoría el **supervisor** (rol de confianza). Endurecimiento (NER / disciplina de escritura en 006) = BL-073.
 - **FR-007** (read-only): THE endpoint SHALL ser de **lectura pura** (GET), **sin mutación de dominio** (ni estado,
   ni versión, ni notas/evidencia/auditoría de negocio) y **sin** servir el binario de evidencia (eso es
-  #007-subida). **Excepción explícita (Constitution XI):** el **registro append-only de accesos denegados**
-  (`401`/`404`: actor, endpoint, `recurso` como **identificador opaco sin PII**) exigido por XI **sí** se escribe —
-  es **infraestructura transversal de auditoría/observabilidad**, no una mutación de dominio, y NO rompe la
-  semántica read-only del recurso (FR-009).
-- **FR-009** (auditoría de accesos — Constitution XI): WHEN una petición a `getOrderDetail` resulta en `401`
-  (no autenticado) o `404` (no visible/inexistente/malformado) THE sistema SHALL registrar el acceso denegado en
-  el registro **append-only** de XI (actor si lo hay, endpoint, `recurso`, **sin PII cruda**), de modo que el
-  sondeo/enumeración deje rastro forense. Un `200` no requiere registro de acceso denegado.
-  - **`recurso` saneado (anti-inyección de PII en el log):** el `orderId` llega como path param arbitrario; **no**
-    se persiste crudo. Si **matchea el patrón UUID** se guarda tal cual (identificador opaco); si **no** matchea
-    (malformado / texto libre que podría llevar PII inyectada), se persiste un **marcador fijo** `"<malformed>"`
-    (o su hash), **nunca** el valor recibido. Así el registro append-only —no purgable— jamás almacena PII/texto
-    arbitrario del path.
-  - **Modo de fallo (best-effort, no bloqueante):** el registro de acceso denegado es **infraestructura
-    transversal**; si su escritura falla, la respuesta `401`/`404` **se devuelve igual** (no degrada a `500`/`503`
-    por un fallo de auditoría no crítico), pero el fallo de escritura **se registra en logs** —usando el `recurso`
-    **ya saneado** (UUID o `<malformed>`), nunca el path crudo— sin perderse en silencio. El detalle transaccional
-    exacto se fija en `/plan`.
+  #007-subida). La **observabilidad** de accesos denegados (FR-009) es logging transversal best-effort, no una
+  mutación de dominio, y NO rompe la semántica read-only del recurso.
+- **FR-009** (observabilidad de accesos denegados — alcance acotado; el registro forense durable es #009): WHEN una
+  petición a `getOrderDetail` resulta en `401` (no autenticado) o `404` (no visible/inexistente/malformado) THE
+  sistema SHALL **emitir una entrada de log de acceso denegado** con `{ actor? , endpoint, recurso, outcome }` donde
+  `outcome` ∈ `{401_unauth, 404_not_visible}` (permite distinguir sondeo sin token de enumeración de recursos),
+  **sin PII cruda**, de modo que el sondeo/enumeración deje rastro observable. El `actor` está **ausente** en
+  `401_unauth` (no autenticado) y **presente** en `404_not_visible` (autenticado). Un `200` no requiere entrada.
+  - **Mecanismo (puerto propio sobre el logger compartido, NO el `AccessLogPort` de 007):** #010 emite por el
+    **logger `pino` compartido** mediante un puerto **propio** `DeniedAccessLoggerPort` (+ adaptador fino en
+    `infra/`). **No** reutiliza el `AccessLogPort`/`AccessEvent` de 007 (está tipado para el resumen IA: `actor` y
+    `orderId` **obligatorios**, `deniedReason` con enum cerrado **sin caso 401**) — 007 queda **inamovible**. A
+    diferencia del handler de `ai-summary` (que **omite** el evento cuando no hay actor), #010 **SÍ emite en 401**
+    (`actor` ausente, `outcome=401_unauth`): cerrar el hueco de observabilidad del 401 es una divergencia deliberada.
+  - **Alcance vs Constitution XI y feature #009:** #010 **NO** construye el registro **append-only durable** de
+    accesos denegados. Ese mecanismo forense (que satisface XI de forma **transversal para todos los endpoints**
+    401/403/404) es la **feature dedicada #009 (`auditoria-accesos-denegados`, BL-002/067)**, explícitamente **fuera
+    del MVP funcional** en el roadmap. #010 emite la señal best-effort ahora (durabilidad = residual honesto ya
+    aceptado por 007/M5); #009 la elevará a durable append-only sin que #010 duplique ese trabajo. **Sin tabla nueva
+    ni migración** en #010 (read-side puro): `order_audit` no puede sostener un 401/orden inexistente (FK `order_id`
+    NOT NULL a `orders`), por eso el registro durable es #009. **Cuando #009 aterrice**, absorbe/retira este emisor
+    ad-hoc `DeniedAccessLoggerPort` (no coexisten dos logs de acceso denegado para este endpoint) — seguimiento en #009.
+  - **`recurso` saneado (anti-inyección de PII):** el `orderId` llega como path param arbitrario; **no** se
+    registra crudo. Si **matchea el patrón UUID** se emite tal cual (identificador opaco); si **no** matchea
+    (malformado / texto que podría llevar PII inyectada), se emite un **marcador fijo** `"<malformed>"`, **nunca**
+    el valor recibido.
+  - **Modo de fallo (best-effort, no bloqueante):** si la emisión del log falla, la respuesta `401`/`404` **se
+    devuelve igual** (no degrada a `500`/`503`); el fallo no rompe la petición.
 - **FR-008** (contrato): THE respuesta `200` SHALL ajustarse a un `OrderDetailResponse` versionado en
   `contracts/*.openapi.yaml` (OpenAPI 3.1, ruta bajo `/v1`); los errores usan `{code, message, details,
   agent_action}` (**401/404/500/503**, sin 403; convención transversal 001/006).
@@ -393,10 +441,12 @@ alcance → `404`. Igual para dispatcher con su alcance.
 | FR-005 | `getOrderDetail` | `only owning technician sees reason; supervisor/dispatcher never; no other order/audit` · `reassigned owner sees prev-technician current-cycle notes/evidence + reason` · `ex-owner cannot read reason after concurrent reassignment (guard+read same snapshot)` |
 | FR-006 | `getOrderDetail` | `should never leak object_ref in body (any role)` · `should redact structural PII in reason; omit reason if redactor fails (fail-closed)` · `should not log raw OrderAudit.reason` |
 | FR-007 | `getOrderDetail` | `should be read-only (no domain state/version/notes/audit mutation)` |
-| FR-008 | `getOrderDetail` | contract test × 200/401/404/500/503 (sin 403); `evidence`/`notes` optional; dispatcher body omits them |
-| FR-009 | `getOrderDetail` | `should append an immutable denied-access record (opaque resource, no PII) on 401/404` |
+| FR-008 | `getOrderDetail` | contract test **estricto** (`additionalProperties:false`, ajv strict) × 200/401/404/500/503 (sin 403); `evidence`/`notes` optional; dispatcher body omits them; ningún campo de auditoría extra |
+| FR-009 | `getOrderDetail` | `should emit a best-effort denied-access log entry (opaque/sanitized resource, no PII) on 401/404; failure does not block response` (registro **durable** = #009) |
+| SC-005 | `getOrderDetail` | `should expose only the own-order last-rejection reason and offer no way to request another transition/order/audit record (no query param/route/extra audit field)` |
 
-> Se mantiene en `docs/traceability.md`. Los `T0xx` los asigna `/speckit-tasks`.
+> Se mantiene en `docs/traceability.md`. Los `T0xx` los asigna `/speckit-tasks`. Las SC-001..SC-004 se verifican en
+> integración/Polish (ver `quickstart.md`); SC-005 tiene test propio (fila anterior).
 
 ## Assumptions
 

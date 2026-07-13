@@ -16,7 +16,7 @@ info:
     Feature 008/#010 (read-side): getOrderDetail (GET .../{orderId}): detalle de una orden visible según el rol
     (notas+metadatos de evidencia del ciclo vigente para technician/supervisor; motivo del último rechazo SIN
     atender leído de OrderAudit.reason —excepción XI v1.9.0, saneado al leer, fail-closed— solo al técnico dueño).
-    404 uniforme (sin 403; la visibilidad filtra a 404, no-enumeración). Auditoría append-only de accesos denegados.
+    404 uniforme (sin 403; la visibilidad filtra a 404, no-enumeración). Observabilidad best-effort de accesos denegados (durable = #009).
     Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
     Reutiliza bearerAuth y ErrorResponse de contracts/auth.openapi.yaml (001).
 servers:
@@ -74,9 +74,10 @@ paths:
         No-enumeración: 404 genérico e indistinguible para orden inexistente/ajena/fuera-de-estado/`orderId`
         malformado (NO 400) y para rol no reconocido (alcance vacío → 404). NO se usa 403 (un 403 sobre un
         orderId concreto revelaría existencia). Precedencia: 401 (no autenticado) precede a toda resolución de
-        visibilidad. Todo acceso denegado (401/404) se registra en la auditoría append-only (XI) con recurso opaco
-        saneado, sin PII. Read-only: no muta estado/version/notas/auditoría de negocio; no sirve el binario de
-        evidencia (eso es #007-subida).
+        visibilidad. Todo acceso denegado (401/404) emite una señal de log best-effort con recurso opaco saneado,
+        sin PII (FR-009); el registro forense durable append-only de accesos denegados es la feature #009
+        (BL-002/067), fuera del MVP. Read-only: no muta estado/version/notas/auditoría de negocio; no sirve el
+        binario de evidencia (eso es #007-subida).
       security:
         - bearerAuth: []
       parameters:

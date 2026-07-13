@@ -17,13 +17,19 @@ atender** (última transición de rechazo `pending_review→in_progress` **poste
 **saneado al leer** con el `pii-redactor` de 007 (**fail-closed**: si el redactor falla, se omite el campo). El
 **dispatcher** solo ve los campos de la orden (sin notas/evidencia). **404 uniforme** (sin 403; la visibilidad
 filtra a 404, no-enumeración), con **precedencia 401→404** y `orderId` malformado → **404** (no 400). Todo acceso
-denegado (401/404) se registra en la **auditoría append-only** (XI, `recurso` opaco saneado, `FR-009`). Todas las
-lecturas (guard de propiedad + última reject + último submit) se resuelven en **un snapshot consistente**.
+denegado (401/404) **emite una entrada de log best-effort** `{actor?, endpoint, recurso opaco saneado, outcome}`
+(`FR-009`) por el **logger `pino` compartido** mediante un puerto **propio** `DeniedAccessLoggerPort` (no el
+`AccessLogPort` de 007, tipado para ai-summary y sin caso 401; 007 inamovible) — el **registro forense durable**
+(append-only, transversal) es la feature **#009** (BL-002/067), fuera del MVP; #010 **no** crea tabla ni migración.
+Todas las lecturas (**la fila `order` completa** + guard de propiedad + última reject + último submit + notas/evidencia)
+se resuelven en **un snapshot atómico** (una consulta con CTE/subconsultas, o `REPEATABLE READ`/`SERIALIZABLE` si son
+varias — **nunca** múltiples SELECT en READ COMMITTED, que no fija snapshot).
 **Read-only puro**: no muta estado/version/notas/auditoría de negocio; no sirve el binario de evidencia.
 
 Reutiliza: auth/RBAC de 001; `orderScopeFor`/visibilidad de 002a; `OrderAudit`/`OrderEvidence`/`OrderExecutionNotes`
-de 003/005/006; el `pii-redactor` (`domain/ai/pii-redactor`) de 007; el patrón de auditoría append-only. **0
-entidades nuevas, 0 migraciones.**
+de 003/005/006; el `pii-redactor` (`domain/ai/pii-redactor`) de 007 y el logger `pino` compartido (puerto propio
+para accesos denegados, no el `AccessLogPort` de 007). **0 entidades nuevas, 0
+migraciones.**
 
 ## Technical Context
 
@@ -42,19 +48,26 @@ de 007, sin proveedor externo).
 **Performance Goals**: sin SC de latencia propio; objetivo prudente p95 < 300 ms (coherente con el resto de la API).
 **Constraints**:
 - **Read-only** (arch test): el handler de #010 NO importa write-side; `status`/`version` no se tocan.
-- **Snapshot consistente** (FR-003): guard de propiedad + última reject + último submit en **una** `$transaction`
-  (READ COMMITTED por defecto; una consulta con subconsultas o SELECTs dentro de la misma tx) — ni un submit ni
-  una reasignación concurrentes producen estado híbrido; el mecanismo exacto se decide en implementación pero DEBE
-  ser un único snapshot (verificar en test de concurrencia).
+- **Snapshot atómico** (FR-003): guard de propiedad + última reject + último submit se leen como **una sola
+  consulta atómica** (CTE/subconsultas en un `SELECT`) **o**, si se opta por varias lecturas, dentro de una
+  `$transaction` en **`REPEATABLE READ`/`SERIALIZABLE`**. **Prohibido** múltiples SELECT en READ COMMITTED
+  (aislamiento por sentencia → una reasignación/submit que comitee entre lecturas produce estado híbrido y podría
+  dejar al **ex-dueño** leer el motivo). Verificado con un test de concurrencia **determinista** (advisory locks /
+  dos clientes con pausa en tx, no timing real).
 - **PII**: motivo saneado al leer con `pii-redactor` (**fail-closed** → omitir campo si falla, nunca crudo);
   `object_ref` nunca en respuesta; `notes` es payload IX (servido a technician dueño/supervisor, no redactado —
   residual documentado); `reason` crudo nunca en logs (`REDACT_PATHS`).
 - **No-enumeración**: 404 genérico e indistinguible (mismo código y cuerpo) para inexistente/ajena/fuera-de-estado/
   malformado/rol-no-reconocido; `orderId` malformado NO produce 400; **sin 403**. Precedencia **401→404**.
-- **Auditoría (XI, FR-009)**: 401/404 → registro append-only con `recurso` saneado (UUID o `<malformed>`, nunca
-  crudo); best-effort no bloqueante (fallo de auditoría no degrada la respuesta; se loguea con recurso saneado).
+- **Observabilidad de accesos denegados (FR-009)**: 401/404 → **entrada de log best-effort** `{actor?, endpoint,
+  recurso, outcome∈{401_unauth,404_not_visible}}` por el logger `pino` compartido vía puerto **propio**
+  `DeniedAccessLoggerPort` (NO el `AccessLogPort` de 007, sin caso 401; 007 inamovible; #010 **sí** emite en 401);
+  `recurso` saneado (UUID o `<malformed>`, nunca crudo); no bloqueante (un fallo no degrada la respuesta).
+  **NO** se crea el registro **durable append-only** en #010 (`order_audit.order_id` es FK NOT NULL → no puede
+  sostener un 401/orden inexistente): eso es la feature **#009** (BL-002/067), fuera del MVP. Sin tabla ni migración.
 - **Excepción XI v1.9.0**: la lectura de `OrderAudit.reason` está acotada a la última reject de la propia orden del
-  técnico; NO abre el resto del registro (puerto de lectura dedicado, mínimo privilegio).
+  técnico; NO abre el resto del registro (puerto de lectura dedicado, mínimo privilegio). El desempate submit-vs-reject
+  usa el `id`/uuid v7 generado **server-side** (monótono con el commit).
 - BD no disponible → 503; error no transitorio → 500.
 **Scale/Scope**: 1 endpoint (GET), 9 FR, 5 SC, 0 entidades nuevas, 0 migraciones.
 
@@ -79,7 +92,10 @@ de 007, sin proveedor externo).
 - [x] PII: motivo **saneado al leer** (pii-redactor, **fail-closed**); `object_ref` nunca en la respuesta;
   `reason` crudo nunca en logs (`REDACT_PATHS`); minimización N/A (sin proveedor IA). `notes` = payload IX
   (residual documentado, servido solo a technician dueño/supervisor). **Sin** URLs firmadas (no se sirve binario).
-- [x] **Auditoría append-only** de accesos denegados (401/404, FR-009) con `recurso` saneado; lectura de
+- [x] **Observabilidad** de accesos denegados (401/404, FR-009) con `recurso` saneado vía **puerto propio**
+  `DeniedAccessLoggerPort` sobre el logger `pino` compartido (best-effort; **sí** cubre 401, a diferencia del
+  `AccessLogPort` de 007, que queda inamovible); el **registro forense durable** (XI, transversal) es la feature
+  **#009** (BL-002/067), fuera del MVP — #010 no crea tabla/migración. Lectura de
   `OrderAudit.reason` acotada por la excepción XI v1.9.0 (mínimo privilegio, puerto dedicado).
 
 ### Gate · Arquitectura Hexagonal (III)
@@ -121,12 +137,12 @@ backend/
 │   │   ├── current-cycle.ts               # NUEVO: resuelve ciclo vigente (audit_id del último submit)
 │   │   ├── rejection-reason.ts            # NUEVO: regla "rechazo sin atender" (última reject vs último submit)
 │   │   └── order-detail-assembler.ts      # NUEVO: decide campos por rol (dispatcher sin notes/evidence; motivo)
-│   │   └── ports.ts                        # NUEVO: OrderDetailReaderPort, PiiRedactorPort, DeniedAccessAuditPort
+│   │   └── ports.ts                        # NUEVO: OrderDetailReaderPort, PiiRedactorPort, DeniedAccessLoggerPort
 │   ├── domain/ai/pii-redactor.ts           # REUSA (007): saneo estructural, invocado fail-closed
 │   ├── handlers/orders/get-order-detail.ts # NUEVO: ruta GET /orders/{orderId}, precedencia 401→404, mapeo error
 │   └── infra/
 │       ├── prisma/order-detail-reader.ts   # NUEVO: snapshot consistente (guard+reject+submit+notes+evidence)
-│       └── audit/denied-access-audit.ts     # NUEVO/REUSA: registro append-only de 401/404 (recurso saneado)
+│       └── audit/denied-access-logger.ts    # NUEVO (fino): DeniedAccessLoggerPort sobre pino compartido (no AccessLogPort de 007); emite 401/404 best-effort (recurso saneado, outcome). Durable = #009
 └── tests/
     ├── unit/                               # dominio sin BD (visibilidad, ciclo, rechazo-sin-atender, fail-closed)
     ├── integration/                        # BD real: por rol, 404 ramas, snapshot concurrente, auditoría
