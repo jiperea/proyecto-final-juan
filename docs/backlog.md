@@ -282,4 +282,12 @@
   mínimo de accesos denegados transversal. **No se resuelve embebiéndolo en una feature de negocio.** No tocar
   la constitution sin verificar fidelidad al brief (docs/00-brief-original.md).
 
+- **BL-068** (evidencia · feature propia) — **Gestión de subida binaria de evidencia fotográfica**
+  (contingencia XV del roadmap #004; sizing de 005): el MVP de 005 (registro-ejecución) valida la evidencia
+  **por referencia/metadato** (object key + content_type + size, allowlist de imágenes + tamaño máx), fiel al
+  brief "adjuntar ≥1 foto válida" a nivel de **regla de negocio**. La **subida binaria real** (multipart /
+  almacenamiento de objetos / URLs firmadas ≤300 s / minimización de PII del binario) se **aísla en su propia
+  feature** — NO se cae del brief, se planifica aparte para no sobredimensionar 005 (lección de 004). Debe
+  entrar en el roadmap antes de considerar "registro de ejecución" 100% cerrado de cara al usuario final.
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->
