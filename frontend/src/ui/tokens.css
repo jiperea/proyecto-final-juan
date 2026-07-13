@@ -1,0 +1,81 @@
+/* Design tokens — mapea docs/design-system.md §2-4. Única fuente de color/tamaño/espaciado.
+   Este fichero está exento del lint de estilos sueltos (aquí SÍ se definen los literales). */
+:root {
+  /* Base (neutros) */
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-border: #cbd5e1;
+  --color-text: #1e293b;
+  --color-text-muted: #475569;
+  --color-text-on-accent: #ffffff;
+
+  /* Semánticos */
+  --color-primary: #1d4ed8;
+  --color-primary-hover: #1e40af;
+  --color-danger: #b91c1c;
+  --color-success: #15803d;
+  --color-warning-fg: #92400e;
+  --color-focus-ring: #1d4ed8;
+
+  /* Estado de la orden (badge) */
+  --status-assigned-bg: #dbeafe;
+  --status-assigned-fg: #1e40af;
+  --status-in_progress-bg: #fef9c3;
+  --status-in_progress-fg: #854d0e;
+  --status-pending_review-bg: #f3e8ff;
+  --status-pending_review-fg: #6b21a8;
+  --status-closed-bg: #dcfce7;
+  --status-closed-fg: #166534;
+  --status-draft-bg: #f1f5f9;
+  --status-draft-fg: #334155;
+
+  /* Tipografía */
+  --font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: 700 28px/1.2 var(--font-family);
+  --font-h2: 600 20px/1.3 var(--font-family);
+  --font-body: 400 16px/1.5 var(--font-family);
+  --font-label: 600 14px/1.4 var(--font-family);
+  --font-caption: 400 13px/1.4 var(--font-family);
+
+  /* Espaciado (escala 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Radios / elevación / táctil */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-full: 9999px;
+  --shadow-1: 0 1px 3px rgba(15, 23, 42, 0.12);
+  --shadow-2: 0 4px 12px rgba(15, 23, 42, 0.16);
+  --touch-target: 44px;
+
+  /* Breakpoints (referencia; se usan en media queries) */
+  --bp-md: 640px;
+  --bp-lg: 1024px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

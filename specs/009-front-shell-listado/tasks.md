@@ -29,22 +29,22 @@
 
 **Bloquea todas las user stories.** Incluye el design system y la infraestructura transversal de sesión/seguridad.
 
-- [ ] T008 Tokens del design system (CSS variables) en `frontend/src/ui/tokens.css` mapeando `docs/design-system.md` §2-4 (paleta, tipografía, espaciado, radios, foco, 44px)
-- [ ] T009 [P] Componentes base `Button`, `TextField`, `TextArea` en `frontend/src/ui/` (label asociado, `aria-invalid`/`aria-describedby`, foco visible, ≥44px)
-- [ ] T010 [P] `StatusBadge` en `frontend/src/ui/StatusBadge.tsx` con mapa `status → {etiqueta_es, tokens}` `satisfies Record<OrderStatus, …>` (color + texto; falla en compilación si falta un estado — FR-007 / SC-008c)
-- [ ] T011 [P] `EmptyState`, `Spinner` (`aria-busy`), `Toast`/`InlineError` (`role=status`/`role=alert`), `SkipLink` (oculto salvo foco) en `frontend/src/ui/` (FR-026/031/032)
-- [ ] T012 [P] `MasterDetail` + `BackToList` en `frontend/src/ui/` (landmarks, foco al panel al seleccionar, control de retorno con tokens/≥44px al colapsar <1024px) (FR-025, G2 F-008)
+- [X] T008 Tokens del design system (CSS variables) en `frontend/src/ui/tokens.css` mapeando `docs/design-system.md` §2-4 (paleta, tipografía, espaciado, radios, foco, 44px)
+- [X] T009 [P] Componentes base `Button`, `TextField`, `TextArea` en `frontend/src/ui/` (label asociado, `aria-invalid`/`aria-describedby`, foco visible, ≥44px)
+- [X] T010 [P] `StatusBadge` en `frontend/src/ui/StatusBadge.tsx` con mapa `status → {etiqueta_es, tokens}` `satisfies Record<OrderStatus, …>` (color + texto; falla en compilación si falta un estado — FR-007 / SC-008c)
+- [X] T011 [P] `EmptyState`, `Spinner` (`aria-busy`), `Toast`/`InlineError` (`role=status`/`role=alert`), `SkipLink` (oculto salvo foco) en `frontend/src/ui/` (FR-026/031/032)
+- [X] T012 [P] `MasterDetail` + `BackToList` en `frontend/src/ui/` (landmarks, foco al panel al seleccionar, control de retorno con tokens/≥44px al colapsar <1024px) (FR-025, G2 F-008)
 - [ ] T013 Zod de respuestas consumidas en `frontend/src/api/schemas.ts`, **generado** del contrato (openapi-zod-client o script; no a mano) e incluido en el diff de CI de T005 (FR-016, G2 F-005)
-- [ ] T014 Cliente HTTP en `frontend/src/api/client.ts`: `Authorization` desde memoria, `Cache-Control: no-store` en autenticadas (FR-030), superficie de error `{code,…}`
-- [ ] T015 Interceptor 401→refresh en `frontend/src/api/refresh.ts`: **promesa compartida única** (dedup), **reintento único** de todas las peticiones 401, sin bucle → login (FR-004)
-- [ ] T016 CSRF double-submit en `frontend/src/api/csrf.ts`: lee cookie `csrf_token`, envía `X-CSRF-Token` en refresh/logout (FR-022)
-- [ ] T017 Descarte de respuestas en vuelo (AbortController atado al ciclo de sesión) en `frontend/src/api/client.ts` (FR-005/029)
+- [X] T014 Cliente HTTP en `frontend/src/api/client.ts`: `Authorization` desde memoria, `Cache-Control: no-store` en autenticadas (FR-030), superficie de error `{code,…}`
+- [X] T015 Interceptor 401→refresh en `frontend/src/api/refresh.ts`: **promesa compartida única** (dedup), **reintento único** de todas las peticiones 401, sin bucle → login (FR-004)
+- [X] T016 CSRF double-submit en `frontend/src/api/csrf.ts`: lee cookie `csrf_token`, envía `X-CSRF-Token` en refresh/logout (FR-022)
+- [X] T017 Descarte de respuestas en vuelo (AbortController atado al ciclo de sesión) en `frontend/src/api/client.ts` (FR-005/029)
 - [ ] T018 Contexto de sesión en `frontend/src/features/auth/session.tsx`: `accessToken` en memoria, `session`, `bootStatus`, `pendingRoute` (memoria/router, no storage) (FR-003/021)
 - [ ] T019 Query client + provider en `frontend/src/app/queryClient.ts`: claves `['me']`/`['orders',role]`/`['order',id]`; `clear()` en logout/cambio de rol (FR-005/029)
 - [ ] T020 React Router en `frontend/src/routes/index.tsx` (`/login`, `/orders`, `/orders/:id`) + guarda de sesión que conserva destino en memoria (FR-021)
 - [ ] T021 Gestión de foco de ruta en `frontend/src/routes/focus.ts`: foco al `h1` de la vista destino en cada cambio de ruta (FR-024)
 - [ ] T022 Handler bfcache en `frontend/src/app/bfcache.ts`: `pageshow` `persisted` → blanqueo síncrono + revalidar sesión → login si no hay (FR-030)
-- [ ] T023 Mapa de errores español en `frontend/src/i18n/errors.ts` desde `docs/design-system.md §8` (incl. fallback genérico y «Sin conexión») (FR-015/027)
+- [X] T023 Mapa de errores español en `frontend/src/i18n/errors.ts` desde `docs/design-system.md §8` (incl. fallback genérico y «Sin conexión») (FR-015/027)
 - [ ] T024 App shell en `frontend/src/features/shell/AppShell.tsx`: layout responsive campo↔oficina, landmarks `<header>/<nav>/<main>`, skip-link, `prefers-reduced-motion` (FR-019/028/032)
 
 ### Tests (Red) — Foundational ⚠️ escribir primero y verlos fallar
