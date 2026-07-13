@@ -42,6 +42,12 @@ a subproceso/CLI incl. proveedor de IA vía argv/`stdin`, nunca shell; `stderr` 
 comandos del SO y anti fuga del prompt). Sube FR-009c de la feature 007 a garantía de plataforma. Enmienda
 aislada en rama dedicada (ADR-0004). Plantillas dependientes revisadas (sin cambios: ninguna enumera la
 lista de verificaciones de IX).
+v1.9.0 (MINOR): XI — **excepción operativa de mínimo privilegio**: el technician asignado puede leer el
+**motivo del último rechazo de SU propia orden** (`OrderAudit.reason`), retroalimentación del bucle
+aprobar/rechazar, sin abrir el resto del registro (sigue restringido a supervisor/auditor). Habilita la
+feature #010 (detalle read-side) vía lectura acotada en vez de denormalizar (menos invasiva; BL-070).
+Origen: BLOQUEANTE del gate G1 de 006 diferido. Enmienda aislada en rama dedicada (ADR-0004). Plantillas
+dependientes revisadas (sin cambios: ninguna enumera la RBAC de lectura de auditoría de XI).
 
 Principios (15):
   I.    Spec-Driven, spec-first
@@ -213,9 +219,18 @@ versionada por intento** y con su autor tras reasignar/rechazar, dentro del plaz
 campos de texto libre de la auditoría (p. ej. `motivo`) y el campo `recurso` de los accesos denegados
 **no almacenan PII cruda** (se usan identificadores opacos / texto saneado); la **lectura** del registro
 de auditoría está **restringida por RBAC** (solo supervisor/auditor).
+**Excepción operativa de mínimo privilegio (motivo de rechazo al técnico dueño):** el **actor asignado a una
+orden** (technician) PUEDE leer el **motivo del último rechazo de ESA orden** (`OrderAudit.reason` de la última
+transición de rechazo de su propia orden) como retroalimentación para corregir y reenviar (bucle de
+aprobar/rechazar). La excepción es **acotadísima**: solo el `motivo`, solo la **última transición de rechazo**,
+solo de una **orden asignada al propio actor**. NO abre el resto del registro (otras transiciones, accesos
+denegados, otras órdenes, otros campos), que sigue **restringido a supervisor/auditor**. El `motivo` ya se
+guarda **saneado / sin PII cruda** (garantía de escritura de este mismo principio).
 - **Verificación:** test de que una transición crea un registro de auditoría inmutable con referencia a
   la evidencia; test de que un acceso denegado queda registrado; test de que la evidencia previa
-  persiste (versionada) tras reasignación/rechazo.
+  persiste (versionada) tras reasignación/rechazo; **test de que el technician asignado lee el motivo del último
+  rechazo de SU orden, y NO puede leer el de otra orden, ni otras transiciones, ni accesos denegados
+  (403/404)**.
 - **Nota (estado seed):** las órdenes creadas por datos semilla registran un **actor de sistema** en la
   auditoría, para no dejar el primer eslabón sin trazabilidad.
 - **Rationale:** trazabilidad legal y detección forense de escaladas, sin retener PII más de lo debido.
@@ -398,4 +413,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.8.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-13
+**Version**: 1.9.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-13
