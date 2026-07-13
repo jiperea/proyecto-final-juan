@@ -22,7 +22,7 @@ entidades de 002b/005 y sólo **muta** `orders` e **inserta** en `order_audit` (
 
 ### OrderEvidence (`order_evidence`) — sólo lectura (COUNT)
 - **Guard FR-013 (approve)**: `SELECT COUNT(*) FROM order_evidence WHERE order_id = :id` dentro de la
-  transacción; `< 1` → `409 EVIDENCE_REQUIRED`. No se lee `object_ref` (PII) — sólo el conteo.
+  transacción; `< 1` → `409 EVIDENCE_MISSING`. No se lee `object_ref` (PII) — sólo el conteo.
 - `attempt` (nullable): **no** lo usa 006 (versionado por intento = 005/#008).
 
 ### OrderExecutionNotes (`order_execution_notes`) — intacta
@@ -31,7 +31,7 @@ entidades de 002b/005 y sólo **muta** `orders` e **inserta** en `order_audit` (
 ## Transacción atómica (una `$transaction` interactiva)
 
 **approve** (`decision=approve`):
-1. Guard: `COUNT(order_evidence WHERE order_id) ≥ 1` → si 0, abortar → `409 EVIDENCE_REQUIRED`.
+1. Guard: `COUNT(order_evidence WHERE order_id) ≥ 1` → si 0, abortar → `409 EVIDENCE_MISSING`.
 2. `UPDATE orders SET status='closed', version=version+1, updated_at=now() WHERE id=:id AND status='pending_review'`
    → 0 filas ⇒ clasificar (re-lectura): no visible → `404`.
 3. `INSERT order_audit {transition, from=pending_review, to=closed, actor=<token>, reason=sanitize(reason)|NULL}`.

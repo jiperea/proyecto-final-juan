@@ -8,7 +8,7 @@ Convergencia en **3 pases** (remediación vía re-ejecución de `/speckit-clarif
 | Pase | Veredicto | Bloqueantes | Acción |
 |------|-----------|-------------|--------|
 | 1 | BLOQUEADA | 2 (B1 motivo-aprobación, B2 lectura) + 4 ALTA + 7 MEDIA + 1 BAJA | Remediación ronda 1 (13 FR; B2 = decisión humana → read-side fuera de 006) |
-| 2 | BLOQUEADA | 1 (T-001: FR-013 sin código HTTP) + 1 ALTA + MEDIAs | Remediación ronda 2 (FR-013 → `409 EVIDENCE_REQUIRED`; #010/BL-070; SoD) |
+| 2 | BLOQUEADA | 1 (T-001: FR-013 sin código HTTP) + 1 ALTA + MEDIAs | Remediación ronda 2 (FR-013 → `409 EVIDENCE_MISSING`; #010/BL-070; SoD) |
 | 3 | APROBADA_CON_COMENTARIOS | 0 | Limpieza de 2 residuos doc (placeholder M6; numeración roadmap) |
 
 ## Cómo se cerró cada hallazgo
@@ -25,7 +25,7 @@ Convergencia en **3 pases** (remediación vía re-ejecución de `/speckit-clarif
 - **M3** → FR-012: actor derivado del JWT server-side.
 - **M4** → accesos denegados diferidos a #009.
 - **M5/S-006** → asunción de unicidad de rol (aprovisionamiento, sin enforcement); SoD = backlog.
-- **M6** → FR-013: guard defensivo `COUNT(OrderEvidence) ≥ 1` → `409 EVIDENCE_REQUIRED` (suelo de integridad,
+- **M6** → FR-013: guard defensivo `COUNT(OrderEvidence) ≥ 1` → `409 EVIDENCE_MISSING` (suelo de integridad,
   no frescura).
 - **M7** → nº de rechazos observable vía `OrderAudit`.
 - **M8** → sin interacción con reasignación (004 solo assigned/in_progress).

@@ -28,7 +28,7 @@ decisiones de diseño con impacto, todas derivadas de la spec (G1 PASS) y del c�
 - **Decisión**: UPDATE condicional keyeando `id + status='pending_review'`. Si 0 filas, **re-lectura** (sin
   SELECT previo → sin TOCTOU) para clasificar: no existe/no `pending_review` → **404 genérico** (GUARD_UNMET,
   no-enumeración). En `approve`, tras confirmar visibilidad, guard `COUNT(order_evidence) ≥ 1`; si 0 → **409
-  EVIDENCE_REQUIRED**. Precedencia global: `401→403→422(VALIDATION_ERROR: decision/body)→422(INVALID_REASON:
+  EVIDENCE_MISSING**. Precedencia global: `401→403→422(VALIDATION_ERROR: decision/body)→422(INVALID_REASON:
   motivo)→404→409`.
 - **Rationale**: coherente con 005 (payload antes que recurso; el 422 de payload no correlaciona con el recurso).
   El supervisor no tiene pertenencia; su visibilidad es puramente de estado (`listOrders` supervisor =
@@ -39,7 +39,7 @@ decisiones de diseño con impacto, todas derivadas de la spec (G1 PASS) y del c�
 
 ## D4 — Código HTTP del guard de evidencia (FR-013)
 
-- **Decisión**: **409 CONFLICT** `EVIDENCE_REQUIRED`.
+- **Decisión**: **409 CONFLICT** `EVIDENCE_MISSING`.
 - **Rationale**: la orden es visible y está en `pending_review` (pasó el 404), pero su estado de datos
   (0 evidencias) **entra en conflicto** con la precondición de aprobación (invariante de 005 rota). 409 comunica
   "conflicto con el estado del recurso, re-lee", accionable y testeable. No es 404 (la orden sí es visible), no

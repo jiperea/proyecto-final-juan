@@ -86,7 +86,7 @@ ambos casos. Reutiliza el auth/RBAC de **001** y el patrón atómico + `OrderAud
   formal = backlog (fuera de 006).
 - Q: **(M6)** ¿La aprobación re-valida evidencia? → A: **sí, guard defensivo fail-closed** — antes de aprobar
   verifica `COUNT(OrderEvidence) ≥ 1`; si la invariante de 005 no se cumple, no aprueba →
-  **`409 CONFLICT EVIDENCE_REQUIRED`** (ronda 2 de remediación G1; ver **FR-013**).
+  **`409 CONFLICT EVIDENCE_MISSING`** (ronda 2 de remediación G1; ver **FR-013**).
 - Q: **(M7)** ¿Visibilidad del nº de rechazos? → A: observable contando `OrderAudit {from:pending_review,
   to:in_progress}` de la orden (sin columna nueva); tope duro = backlog.
 - Q: **(M8)** ¿Interacción con la reasignación (004)? → A: **ninguna** — `reassignOrder` sólo opera sobre
@@ -188,7 +188,7 @@ supervisor sobre una orden inexistente o en estado distinto de `pending_review` 
 - **Sin interacción con la reasignación (004)**: `reassignOrder` sólo opera sobre `assigned`/`in_progress`,
   nunca sobre `pending_review`; no existe carrera posible entre reasignación y decisión de revisión.
 - **Aprobación sobre orden sin evidencia** (invariante de 005 rota por bug/migración): el guard defensivo
-  fail-closed (FR-013) **no** la aprueba → `409 EVIDENCE_REQUIRED`.
+  fail-closed (FR-013) **no** la aprueba → `409 EVIDENCE_MISSING`.
 - **Error de escritura no transitorio** (`ACTOR_INVALID`, constraint inesperada): `500` genérico (no `503`).
 - **BD no disponible**: `503` fail-closed (nunca aplica media transición ni deja auditoría huérfana).
 
@@ -233,7 +233,7 @@ supervisor sobre una orden inexistente o en estado distinto de `pending_review` 
   la vez THE sistema SHALL aplicar el orden único **`401` (no autenticado) → `403` (rol ≠ supervisor) → `422
   VALIDATION_ERROR` (`decision` ausente/inválida o body malformado, FR-011) → `422 INVALID_REASON` (motivo
   inválido: en rechazo **siempre**, en aprobación **sólo si `reason` presente**) → `404` (orden no visible en
-  `pending_review`) → `409` (`EVIDENCE_REQUIRED`, guard de evidencia en aprobación, FR-013)**.
+  `pending_review`) → `409` (`EVIDENCE_MISSING`, guard de evidencia en aprobación, FR-013)**.
   `VALIDATION_ERROR` precede a `INVALID_REASON` porque sin una `decision` válida no se puede determinar si el
   motivo es obligatorio. El payload se valida antes que el recurso porque no correlaciona con la existencia de la
   orden (coherente con 005). El `409` va al final: sólo se evalúa sobre una orden ya resuelta como visible.
@@ -250,7 +250,7 @@ supervisor sobre una orden inexistente o en estado distinto de `pending_review` 
 - **FR-013** (guard defensivo de evidencia): WHEN un supervisor aprueba una orden en `pending_review` THE sistema
   SHALL verificar **antes** de transicionar que la orden tiene **≥1 evidencia** asociada (`COUNT(OrderEvidence)
   ≥ 1`); si la invariante de 005 no se cumple, SHALL **no** aprobar y responder **`409 CONFLICT`
-  `EVIDENCE_REQUIRED`** (fail-closed), en lugar de cerrar la orden silenciosamente. El `409` se evalúa **después**
+  `EVIDENCE_MISSING`** (fail-closed), en lugar de cerrar la orden silenciosamente. El `409` se evalúa **después**
   del `404` (la orden es visible y está en `pending_review`, pero su estado de datos entra en conflicto con la
   precondición de aprobación). Es un **suelo de integridad** (existe ≥1 evidencia), **no** un chequeo de
   frescura/novedad: si un reenvío tras rechazo aporta o no evidencia nueva es validación de **005**
@@ -297,7 +297,7 @@ supervisor sobre una orden inexistente o en estado distinto de `pending_review` 
 - **Esquemas**: `ReviewDecision` (`enum [approve, reject]`); `reason` con longitud acotada; reutiliza `Order`
   (con `closed` ya en el `enum` de `status`) y `OrderListResponse`.
 - **Errores** `{ code, message, details, agent_action }` con HTTP correcto: `401` (uniforme), `403`
-  (`FORBIDDEN_ROLE`), `404` (genérico, no-enumeración), `409` (`EVIDENCE_REQUIRED`, guard de evidencia en
+  (`FORBIDDEN_ROLE`), `404` (genérico, no-enumeración), `409` (`EVIDENCE_MISSING`, guard de evidencia en
   aprobación), `422` (`VALIDATION_ERROR` para `decision`/body; `INVALID_REASON` para el motivo), `500` (error no
   transitorio), `503` (fail-closed BD no disponible).
 - **Fuera del contrato de 006**: ningún endpoint de **lectura** de detalle (notas/evidencia/motivo) — es

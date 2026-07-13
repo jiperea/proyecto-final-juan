@@ -33,7 +33,7 @@ npm run test:integration            # BD real: transición + auditoría atómica
 | 5 | S `{decision:approve, reason:"   "}` (vacío tras saneo) | 422 `INVALID_REASON`, sin efecto | FR-008 |
 | 6 | Sin token → 401; T o D → 403; orden inexistente/`orderId` malformado/estado ≠ `pending_review` → 404 genérico | precedencia `401→403→…→404` | SC-003, FR-006/007 |
 | 7 | Body sin `decision` / `decision:"aprove"` / body no-JSON | 422 `VALIDATION_ERROR` (antes que INVALID_REASON) | FR-011 |
-| 8 | S `{decision:approve}` sobre `pending_review` **sin** evidencia | 409 `EVIDENCE_REQUIRED`, sin efecto | FR-013 |
+| 8 | S `{decision:approve}` sobre `pending_review` **sin** evidencia | 409 `EVIDENCE_MISSING`, sin efecto | FR-013 |
 | 9 | Enviar `actorId` en el body; comprobar auditoría | el actor es el del token (S), se ignora el del body | FR-012 |
 | 10 | `reason` centinela; `grep` en logs y cuerpo de error | el valor **no aparece**; en logs sólo id/estado | SC-005, FR-008 |
 | 11 | Forzar fallo en la tx (auditoría) | orden NO transiciona; 0 auditorías nuevas de ese intento | SC-005, FR-004 |

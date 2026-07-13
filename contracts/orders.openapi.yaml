@@ -224,9 +224,9 @@ paths:
         (pending_review→in_progress con motivo obligatorio). En UNA transacción: transición, version+1 y
         auditoría append-only (OrderAudit.reason = motivo pre-saneado, nunca en logs/errores). La aprobación
         aplica un guard defensivo: la orden debe conservar ≥1 evidencia (invariante de 005) o 409
-        EVIDENCE_REQUIRED. Evidencia y notas de 005 se conservan intactas. Precedencia única:
+        EVIDENCE_MISSING. Evidencia y notas de 005 se conservan intactas. Precedencia única:
         401→403→422(VALIDATION_ERROR: decision/body)→422(INVALID_REASON: motivo)→404(no visible pending_review)
-        →409(EVIDENCE_REQUIRED, sólo approve). Actor server-side. Sin If-Match/409-optimista (=#008). 006 no
+        →409(EVIDENCE_MISSING, sólo approve). Actor server-side. Sin If-Match/409-optimista (=#008). 006 no
         expone lectura del detalle (read-side = #010).
       security:
         - bearerAuth: []
@@ -263,7 +263,7 @@ paths:
         '409':
           description: >
             Aprobación sobre una orden visible en pending_review pero SIN evidencia (invariante de 005 rota):
-            EVIDENCE_REQUIRED, fail-closed. Sin efecto. Sólo aplica a decision=approve.
+            EVIDENCE_MISSING, fail-closed. Sin efecto. Sólo aplica a decision=approve.
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '422':
@@ -425,7 +425,7 @@ components:
         005 (startOrderWork/submitOrderExecution) 401/403/404/422/500 — códigos de dominio
         EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e
         INVALID_TRANSITION (422). 006 (reviewOrder) 401/403/404/409/422/500/503 — VALIDATION_ERROR (422,
-        decision/body), INVALID_REASON (422, motivo), GUARD_UNMET (404, no visible), EVIDENCE_REQUIRED (409,
+        decision/body), INVALID_REASON (422, motivo), GUARD_UNMET (404, no visible), EVIDENCE_MISSING (409,
         guard de evidencia en approve). `agent_action` se emite en las respuestas de **negocio** de los handlers
         de 004/005/006 (404/409/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no
         llevarlo (por eso `agent_action` es opcional, no `required`).

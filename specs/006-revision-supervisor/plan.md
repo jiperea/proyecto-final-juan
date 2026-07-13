@@ -10,7 +10,7 @@ y auditoría forense de accesos (#009) quedan fuera. 001/002a/002b/004/005 **ina
 
 Un endpoint HTTP para el **supervisor**: `reviewOrder` (`POST /v1/orders/{orderId}/review`) con body
 `{ decision: approve|reject, reason? }`. **approve** → `pending_review→closed` (con guard defensivo
-`COUNT(OrderEvidence) ≥ 1` → `409 EVIDENCE_REQUIRED`); **reject** → `pending_review→in_progress` con **motivo
+`COUNT(OrderEvidence) ≥ 1` → `409 EVIDENCE_MISSING`); **reject** → `pending_review→in_progress` con **motivo
 obligatorio**. Todo en **una transacción atómica** con auditoría append-only (`OrderAudit.reason` = motivo
 pre-saneado, nunca las notas). RBAC **sólo-supervisor** + estado de origen `pending_review`, con **precedencia
 determinista única** (`401→403→422(VALIDATION_ERROR)→422(INVALID_REASON)→404(no visible)→409(evidencia)`). La
@@ -65,7 +65,7 @@ BD no disponible → 503. **Sin** If-Match/409-optimista, lectura de detalle, ni
   ver Complexity Tracking. El saneo + no-fuga (no excepcionable) se hace ya.
 - [~] **Desviación XI (registro forense de accesos denegados 401/403/404)**: diferida a **#009 (BL-002/067)**.
 - [~] **Desviación X (robustez/concurrencia — sin `If-Match`/409-optimista)**: el 409-optimista se difiere a
-  **#008 (BL-001)**; el doble-clic/carrera es **404 fail-safe** (UPDATE condicional). El `409 EVIDENCE_REQUIRED`
+  **#008 (BL-001)**; el doble-clic/carrera es **404 fail-safe** (UPDATE condicional). El `409 EVIDENCE_MISSING`
   de FR-013 es un guard de **integridad** (distinto del 409-optimista de #008).
 - [~] **Deuda #010 (lectura del motivo por el technician + read-side)**: fuera de 006 (write-only); requiere
   enmienda de Constitution XI — trazada en el roadmap (BL-070). Ver Complexity Tracking.
@@ -107,7 +107,7 @@ backend/
 │   │   │   ├── apply-transition.ts         # de 002b, INTACTO — NO invocado por reviewOrder de 006
 │   │   │   ├── classify-review-guard.ts     # NUEVO (006): clasifica POST-0-filas (re-lee, sin SELECT previo →
 │   │   │   │                                 #   sin TOCTOU): visibilidad pending_review → 404; en approve, guard
-│   │   │   │                                 #   COUNT(OrderEvidence) ≥ 1 → 409 EVIDENCE_REQUIRED. NO toca 002b.
+│   │   │   │                                 #   COUNT(OrderEvidence) ≥ 1 → 409 EVIDENCE_MISSING. NO toca 002b.
 │   │   │   ├── review-order.ts              # NUEVO (006): dominio puro — valida decision, sanea/valida reason
 │   │   │   │                                 #   (sanitizeReason), decide estado destino (approve→closed |
 │   │   │   │                                 #   reject→in_progress), delega en el puerto. NO usa applyTransition.
@@ -119,7 +119,7 @@ backend/
 │   │   ├── orders/review.ts                 # NUEVO handler DELGADO (auth→requireRole('supervisor')→body(Zod)→
 │   │   │                                     #   dominio→map). Actor del token (FR-012).
 │   │   ├── contract/{schemas,order-types}.ts    # +reviewRequestSchema (Zod: decision enum + reason condicional)
-│   │   ├── error-mapper.ts                   # +INVALID_REASON/VALIDATION_ERROR→422, EVIDENCE_REQUIRED→409,
+│   │   ├── error-mapper.ts                   # +INVALID_REASON/VALIDATION_ERROR→422, EVIDENCE_MISSING→409,
 │   │   │                                     #   ACTOR_INVALID/constraint→500, BD no disponible→503
 │   │   └── app.ts                            # monta POST .../review con authenticate+requireRole('supervisor')
 │   └── infra/repositories/
@@ -141,5 +141,5 @@ lectura de evidencia (COUNT) vive en el repositorio dentro de la misma transacci
 |---|---|---|
 | Cifrado en reposo de `OrderAudit.reason` **diferido** a BL-051 | XV: el MVP fija el saneo + no-fuga (no excepcionable, XI) y deja el cifrado at-rest como deuda transversal ya trazada (IX). | Implementar cifrado app-level aquí sobredimensiona una feature de una acción; BL-051 ya lo cubre para toda la columna `reason`. |
 | Registro forense de **accesos denegados** (401/403/404) **diferido** a #009 | XV: cluster de gobernanza transversal (XI ampliado), no del núcleo de revisión. | Embeberlo repite el sobredimensionado; ya es feature propia #009 (BL-002/067). |
-| **Sin** `If-Match`/409-optimista | El UPDATE condicional atómico (`status='pending_review'` en WHERE) ya hace fail-safe el doble-clic/carrera entre supervisores (→404). | La semántica `409`/`If-Match` es endurecimiento (#008), no requisito del MVP funcional. Distinto del `409 EVIDENCE_REQUIRED` (guard de integridad) que sí se hace. |
+| **Sin** `If-Match`/409-optimista | El UPDATE condicional atómico (`status='pending_review'` en WHERE) ya hace fail-safe el doble-clic/carrera entre supervisores (→404). | La semántica `409`/`If-Match` es endurecimiento (#008), no requisito del MVP funcional. Distinto del `409 EVIDENCE_MISSING` (guard de integridad) que sí se hace. |
 | **Lectura del motivo por el technician + read-side** diferida a #010 (BL-070) | XV: 006 es write-only; exponer lectura exige un backend read-side y **enmienda de Constitution XI** (technician lee su propio motivo), fuera del alcance de una feature de escritura. | Ampliar 006 con lectura reabriría G1 y forzaría una enmienda de principio desde una feature de negocio; se traza como feature propia antes de FE-1. |

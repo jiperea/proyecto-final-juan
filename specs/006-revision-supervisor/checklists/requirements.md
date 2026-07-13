@@ -48,7 +48,7 @@
   camino). Spec pasa de 10 a **13 FR**.
 - **Ronda 2 de remediación G1**: el 2º pase encontró 1 BLOQUEANTE nuevo (T-001: FR-013 sin código HTTP) + 1 ALTA
   (guard como suelo de integridad, no de frescura) + MEDIAs (dueño de la deuda read-side, SoD sin enforcement).
-  Encodados: FR-013 → `409 EVIDENCE_REQUIRED` (en FR-009 y contrato); US2-AC3 acotada a capacidad FSM; deuda
+  Encodados: FR-013 → `409 EVIDENCE_MISSING` (en FR-009 y contrato); US2-AC3 acotada a capacidad FSM; deuda
   read-side numerada como **#010 (BL-070)** en el roadmap con enmienda XI como precondición; SoD = asunción de
   aprovisionamiento sin enforcement.
 - Checklist completo → pendiente confirmar **G1 en 0 BLOQUEANTES** (3er pase) antes de `/speckit-plan`.
