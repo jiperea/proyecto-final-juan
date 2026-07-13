@@ -34,18 +34,18 @@
 - [X] T010 [P] `StatusBadge` en `frontend/src/ui/StatusBadge.tsx` con mapa `status → {etiqueta_es, tokens}` `satisfies Record<OrderStatus, …>` (color + texto; falla en compilación si falta un estado — FR-007 / SC-008c)
 - [X] T011 [P] `EmptyState`, `Spinner` (`aria-busy`), `Toast`/`InlineError` (`role=status`/`role=alert`), `SkipLink` (oculto salvo foco) en `frontend/src/ui/` (FR-026/031/032)
 - [X] T012 [P] `MasterDetail` + `BackToList` en `frontend/src/ui/` (landmarks, foco al panel al seleccionar, control de retorno con tokens/≥44px al colapsar <1024px) (FR-025, G2 F-008)
-- [ ] T013 Zod de respuestas consumidas en `frontend/src/api/schemas.ts`, **generado** del contrato (openapi-zod-client o script; no a mano) e incluido en el diff de CI de T005 (FR-016, G2 F-005)
+- [X] T013 Zod de respuestas consumidas en `frontend/src/api/schemas.ts`, **generado** del contrato (openapi-zod-client o script; no a mano) e incluido en el diff de CI de T005 (FR-016, G2 F-005)
 - [X] T014 Cliente HTTP en `frontend/src/api/client.ts`: `Authorization` desde memoria, `Cache-Control: no-store` en autenticadas (FR-030), superficie de error `{code,…}`
 - [X] T015 Interceptor 401→refresh en `frontend/src/api/refresh.ts`: **promesa compartida única** (dedup), **reintento único** de todas las peticiones 401, sin bucle → login (FR-004)
 - [X] T016 CSRF double-submit en `frontend/src/api/csrf.ts`: lee cookie `csrf_token`, envía `X-CSRF-Token` en refresh/logout (FR-022)
 - [X] T017 Descarte de respuestas en vuelo (AbortController atado al ciclo de sesión) en `frontend/src/api/client.ts` (FR-005/029)
-- [ ] T018 Contexto de sesión en `frontend/src/features/auth/session.tsx`: `accessToken` en memoria, `session`, `bootStatus`, `pendingRoute` (memoria/router, no storage) (FR-003/021)
-- [ ] T019 Query client + provider en `frontend/src/app/queryClient.ts`: claves `['me']`/`['orders',role]`/`['order',id]`; `clear()` en logout/cambio de rol (FR-005/029)
-- [ ] T020 React Router en `frontend/src/routes/index.tsx` (`/login`, `/orders`, `/orders/:id`) + guarda de sesión que conserva destino en memoria (FR-021)
-- [ ] T021 Gestión de foco de ruta en `frontend/src/routes/focus.ts`: foco al `h1` de la vista destino en cada cambio de ruta (FR-024)
-- [ ] T022 Handler bfcache en `frontend/src/app/bfcache.ts`: `pageshow` `persisted` → blanqueo síncrono + revalidar sesión → login si no hay (FR-030)
+- [X] T018 Contexto de sesión en `frontend/src/features/auth/session.tsx`: `accessToken` en memoria, `session`, `bootStatus`, `pendingRoute` (memoria/router, no storage) (FR-003/021)
+- [X] T019 Query client + provider en `frontend/src/app/queryClient.ts`: claves `['me']`/`['orders',role]`/`['order',id]`; `clear()` en logout/cambio de rol (FR-005/029)
+- [X] T020 React Router en `frontend/src/routes/index.tsx` (`/login`, `/orders`, `/orders/:id`) + guarda de sesión que conserva destino en memoria (FR-021)
+- [X] T021 Gestión de foco de ruta en `frontend/src/routes/focus.ts`: foco al `h1` de la vista destino en cada cambio de ruta (FR-024)
+- [X] T022 Handler bfcache en `frontend/src/app/bfcache.ts`: `pageshow` `persisted` → blanqueo síncrono + revalidar sesión → login si no hay (FR-030)
 - [X] T023 Mapa de errores español en `frontend/src/i18n/errors.ts` desde `docs/design-system.md §8` (incl. fallback genérico y «Sin conexión») (FR-015/027)
-- [ ] T024 App shell en `frontend/src/features/shell/AppShell.tsx`: layout responsive campo↔oficina, landmarks `<header>/<nav>/<main>`, skip-link, `prefers-reduced-motion` (FR-019/028/032)
+- [X] T024 App shell en `frontend/src/features/shell/AppShell.tsx`: layout responsive campo↔oficina, landmarks `<header>/<nav>/<main>`, skip-link, `prefers-reduced-motion` (FR-019/028/032)
 
 ### Tests (Red) — Foundational ⚠️ escribir primero y verlos fallar
 - [ ] T049 [P] Tests de a11y/infra transversal en `frontend/tests/unit/foundational-a11y.test.tsx`: foco al `h1` en cada cambio de ruta (FR-024); skip-link salta a `<main>` (FR-032); `prefers-reduced-motion` desactiva transiciones (FR-028); `aria-busy` en carga y live-region genérica (FR-026/031); foco al panel al seleccionar en `MasterDetail` (FR-025); **bfcache: `pageshow persisted` → blanqueo síncrono + revalidación → login (FR-030)** — cubre el hueco de TDD de la fundación (G2 F-001/K-001)
@@ -62,16 +62,16 @@
 **Independent Test**: entrar con usuario semilla de cada rol, ver nombre+rol, recargar (persiste), expirar access (renueva), logout (purga) → login.
 
 ### Tests (Red) ⚠️ escribir primero y verlos fallar
-- [ ] T025 [P] [US1] Tests login éxito / fallo 401 genérico / `me` identidad+rol (MSW) en `frontend/tests/unit/auth-login.test.tsx`
-- [ ] T026 [P] [US1] Tests sesión: dedup refresh + reintento único + relogin conservando ruta; re-montaje por cambio de rol; bootstrap (silent refresh + reintento de `me`) (FR-004/023/029) en `frontend/tests/unit/auth-session.test.tsx`
-- [ ] T027 [P] [US1] Tests logout: purga de estado + best-effort ante cualquier fallo (red/401/403/5xx) + descarte de respuestas en vuelo + `X-CSRF-Token` (FR-005/022) en `frontend/tests/unit/auth-logout.test.tsx`
+- [X] T025 [P] [US1] Tests login éxito / fallo 401 genérico / `me` identidad+rol (MSW) en `frontend/tests/unit/auth-login.test.tsx`
+- [X] T026 [P] [US1] Tests sesión: dedup refresh + reintento único + relogin conservando ruta; re-montaje por cambio de rol; bootstrap (silent refresh + reintento de `me`) (FR-004/023/029) en `frontend/tests/unit/auth-session.test.tsx`
+- [X] T027 [P] [US1] Tests logout: purga de estado + best-effort ante cualquier fallo (red/401/403/5xx) + descarte de respuestas en vuelo + `X-CSRF-Token` (FR-005/022) en `frontend/tests/unit/auth-logout.test.tsx`
 
 ### Implementación
-- [ ] T028 [US1] `LoginPage` en `frontend/src/features/auth/LoginPage.tsx` (formulario accesible, mensaje genérico «Credenciales no válidas») (FR-001/002)
-- [ ] T029 [US1] Bootstrap de sesión en `frontend/src/features/auth/bootstrap.ts` (estado carga + refresh silencioso + `me` con reintento) (FR-023)
-- [ ] T030 [US1] Acción logout en `frontend/src/features/auth/logout.ts` (purga caché+estado, best-effort, descarte in-flight) (FR-005)
-- [ ] T031 [US1] Re-montaje por cambio de rol en `frontend/src/features/auth/session.tsx` (purga + re-render bajo rol nuevo) (FR-029)
-- [ ] T032 [US1] Identidad (nombre+rol) y «Cerrar sesión» en el header del shell en `frontend/src/features/shell/AppShell.tsx` (FR-001)
+- [X] T028 [US1] `LoginPage` en `frontend/src/features/auth/LoginPage.tsx` (formulario accesible, mensaje genérico «Credenciales no válidas») (FR-001/002)
+- [X] T029 [US1] Bootstrap de sesión en `frontend/src/features/auth/bootstrap.ts` (estado carga + refresh silencioso + `me` con reintento) (FR-023)
+- [X] T030 [US1] Acción logout en `frontend/src/features/auth/logout.ts` (purga caché+estado, best-effort, descarte in-flight) (FR-005)
+- [X] T031 [US1] Re-montaje por cambio de rol en `frontend/src/features/auth/session.tsx` (purga + re-render bajo rol nuevo) (FR-029)
+- [X] T032 [US1] Identidad (nombre+rol) y «Cerrar sesión» en el header del shell en `frontend/src/features/shell/AppShell.tsx` (FR-001)
 
 **Checkpoint**: US1 funcional y testeable de forma independiente.
 

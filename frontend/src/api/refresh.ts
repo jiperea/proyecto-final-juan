@@ -1,5 +1,5 @@
 import { csrfHeaders } from './csrf';
-import { setAccessToken } from './session-store';
+import { notifyRoleChange, setAccessToken } from './session-store';
 import type { Role } from './types';
 
 export interface RefreshResult {
@@ -20,6 +20,8 @@ async function doRefresh(): Promise<RefreshResult | null> {
     const body = (await res.json()) as { access_token?: string; user?: { role?: Role } };
     if (!body.access_token) return null;
     setAccessToken(body.access_token);
+    // FR-029: el contrato relee el rol de BD al rotar; si cambió, notifica para re-montar el shell.
+    if (body.user?.role) notifyRoleChange(body.user.role);
     return { role: body.user?.role };
   } catch {
     return null; // fallo de red → tratado como refresh fallido

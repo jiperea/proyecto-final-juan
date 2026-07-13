@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:a11y": "vitest run --dir tests/a11y",
     "test:e2e": "playwright test",
-    "lint": "eslint . && stylelint \"src/**/*.css\"",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . && stylelint \"src/**/*.css\"",
     "typecheck": "tsc -b --noEmit && npm run codegen:check",
     "codegen": "openapi-typescript ../contracts/auth.openapi.yaml -o src/api/generated/auth.ts && openapi-typescript ../contracts/orders.openapi.yaml -o src/api/generated/orders.ts",
     "codegen:check": "npm run codegen && git diff --exit-code -- src/api/generated"

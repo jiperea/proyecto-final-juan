@@ -71,6 +71,11 @@ body {
   background: var(--color-bg);
 }
 
+/* FR-030: blanqueo síncrono del contenido restaurado desde bfcache hasta revalidar la sesión. */
+:root[data-bfcache-blank] main {
+  visibility: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
