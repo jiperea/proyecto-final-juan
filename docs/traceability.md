@@ -218,3 +218,26 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > sesión dev autenticada). Deuda trazada: **BL-072..078** (proveedor prod+re-eval, PII texto libre, segmentación
 > por ámbito, juez runtime, robustez anti-injection, juez de familia distinta, rate-limit multi-réplica) — ver
 > `spec.md §Modelo de amenaza` y `gates/dispositioned.md`.
+
+## 008/#010 — Detalle de orden (read-side) (`getOrderDetail`) — G1 PASS / implementado
+
+| RF | Qué garantiza | Dónde | Test(s) |
+| ---- | ------------- | ----- | ------- |
+| FR-001 | detalle por visibilidad del rol (order + campos de trabajo opcionales/omitibles) | order-detail-visibility + assembler + handler | `unit/order-detail-visibility(.supervisor-dispatcher)`, `integration/get-order-detail.technician`/`.roles`, `contract/get-order-detail.contract` |
+| FR-002 | notas + metadatos de evidencia del ciclo vigente (count==len, order at asc); dispatcher los omite; nunca object_ref | current-cycle + assembler + reader | `unit/order-detail-assembler(.roles)`, `integration/get-order-detail.roles`/`.pii` |
+| FR-003 | motivo de la última reject SIN atender leído de OrderAudit.reason (XI v1.9.0), saneado; snapshot atómico | rejection-reason + reader + assembler | `unit/rejection-reason`, `integration/get-order-detail.technician`/`.snapshot` |
+| FR-004 | 401→404 no-enumeración; malformado/ajena/draft/closed/rol-raro → 404 genérico; nunca 403 | handler + visibility + order-http | `integration/get-order-detail.no-enumeration`/`.roles`, `contract/get-order-detail.contract` |
+| FR-005 | solo el technician dueño ACTUAL ve el motivo; reasignación (nuevo dueño ve ciclo previo + motivo; ex-dueño→404) | assembler + reader (snapshot) | `unit/order-detail-assembler(.roles)`, `integration/get-order-detail.roles`/`.snapshot`/`.min-privilege` |
+| FR-006 | 0 object_ref en cuerpo; motivo saneado (0 PII estructural); fail-closed del redactor; reason crudo nunca en logs | pii-redactor + assembler + logger REDACT | `integration/get-order-detail.pii`, `unit/order-detail-assembler` (fail-closed) |
+| FR-007 | read-only puro (no muta status/version/notas/auditoría; no sirve binario) | reader (solo SELECT) + arch test | `unit/arch/get-order-detail-read-only`, `unit/write-side-boundary` |
+| FR-008 | contrato estricto `OrderDetailResponse` × 200/401/404/500/503 (sin 403); evidence/notes opcionales; dispatcher los omite | DTO + contrato | `contract/get-order-detail.contract` |
+| FR-009 | señal best-effort de acceso denegado (401 sin actor / 404 con actor; recurso saneado; no bloqueante). Durable = #009 | denied-access-logger + auth-denied-log + handler | `unit/denied-access-logger`, `integration/get-order-detail.denied-log` |
+| SC-005 | mínimo privilegio XI: sin vía a otra transición/orden/registro; ≤1 campo de auditoría; ajena→404 sin motivo | handler (query ignorada) + assembler | `integration/get-order-detail.min-privilege` |
+
+> Snapshot atómico (D4): reader en `$transaction` REPEATABLE READ (fila order + guard + última reject + último
+> submit + notas/evidencia en un instante lógico) — verificado con interleaving determinista (dos clientes
+> Prisma, tx en vuelo retenida) en `integration/get-order-detail.snapshot`. Arquitectura: `unit/arch/
+> get-order-detail-read-only` (dominio read-side no importa infra/write-side; no muta Order). Sin migración
+> (read-side puro). Deuda trazada: **#009** (registro forense durable de accesos denegados, BL-002/067, absorbe
+> el emisor ad-hoc de FR-009); **BL-073** (PII texto-libre en motivo); **BL-074** (aislamiento org-única);
+> **BL-080** (contexto cruzado entre supervisores; alta por rama de fundación).

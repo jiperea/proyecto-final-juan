@@ -26,3 +26,7 @@ Thumbs.db
 # Editores
 .idea/
 *.swp
+
+# Analítica de tokens (data cruda generada; los reports .md sí se versionan)
+costs.jsonl
+backend/informes/

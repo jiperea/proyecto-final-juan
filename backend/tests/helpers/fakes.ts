@@ -168,6 +168,11 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
       rateLimit,
       thresholds: { minNotesChars: 30, minEvidence: 1 },
     },
+    orderDetailDeps: {
+      reader: { read: async () => null },
+      redactor: { redact: (t) => t },
+      deniedLogger: { record: () => undefined },
+    },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,
   };

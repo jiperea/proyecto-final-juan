@@ -19,6 +19,8 @@ import type { CookieOptions } from './auth/cookies';
 import { probeHandler } from './rbac/probe';
 import { jsonErrorHandler } from './error-mapper';
 import { listOrdersHandler } from './orders/list';
+import { getOrderDetailHandler, type GetOrderDetailDeps } from './orders/get-order-detail';
+import { authWithDeniedAccessLog } from './middleware/auth-denied-log';
 import { reassignOrderHandler, type ReassignHandlerDeps } from './orders/reassign';
 import { startOrderWorkHandler } from './orders/start';
 import type { StartOrderWorkDeps } from '../domain/order/write-side/start-order-work';
@@ -59,6 +61,8 @@ export interface AppDeps {
   readonly reviewDeps: ReviewOrderDeps;
   // 007 — resumen de incidencia por IA (guards dentro del handler, K5).
   readonly summaryDeps: SummarizeIncidentHandlerDeps;
+  // 008/#010 — detalle de orden (read-side): reader snapshot + pii-redactor + logger de accesos denegados.
+  readonly orderDetailDeps: GetOrderDetailDeps;
   readonly cookie: CookieOptions;
 }
 
@@ -101,6 +105,14 @@ function registerOrderRoutes(app: Express, deps: AppDeps): void {
   const auth = authenticate(deps.tokens, deps.sessionState);
   // Listado por rol (002a).
   app.get('/v1/orders', auth, requireRole('dispatcher', 'technician', 'supervisor'), listOrdersHandler(deps.orderListDeps));
+  // Detalle por rol (008/#010): SOLO auth (sin requireRole — un 403 sobre un orderId revelaría existencia;
+  // la visibilidad filtra a 404 dentro del handler). authWithDeniedAccessLog emite el 401 (FR-009); el
+  // handler emite el 404 (con actor). Precedencia 401→404; orderId malformado → 404.
+  app.get(
+    '/v1/orders/:orderId',
+    authWithDeniedAccessLog(auth, deps.orderDetailDeps.deniedLogger),
+    getOrderDetailHandler(deps.orderDetailDeps),
+  );
   // Reasignación (004): 403 FORBIDDEN_ROLE dentro del handler (orden 401→403→404→422 de FR-004).
   app.post('/v1/orders/:orderId/reassignments', auth, reassignOrderHandler(deps.reassignDeps));
   // Inicio de trabajo (005, US1): 401→403→404 (pertenencia/uuid)→422 (estado).

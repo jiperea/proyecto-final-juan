@@ -14,6 +14,9 @@ import { PinoAccessLog } from './ai/access-logger';
 import { RefreshSessionValidity } from './session-validity';
 import { PrismaAccountState, PrismaProbeRepository } from './repositories/account-state';
 import { PrismaOrderRepository } from './repositories/order-repository';
+import { PrismaOrderDetailReader } from './repositories/order-detail-reader';
+import { PinoDeniedAccessLogger } from './audit/denied-access-logger';
+import { redactStructured } from '../domain/ai/pii-redactor';
 import {
   PrismaOrderExecutionRepository,
   PrismaOrderReassignmentRepository,
@@ -145,6 +148,11 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
       rateLimit: a.aiRateLimit,
       thresholds: { minNotesChars: config.aiMinNotesChars, minEvidence: config.aiMinEvidence },
     }, // 007
+    orderDetailDeps: {
+      reader: new PrismaOrderDetailReader(prisma),
+      redactor: { redact: redactStructured },
+      deniedLogger: new PinoDeniedAccessLogger(createLogger()),
+    }, // 008/#010
 
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,
