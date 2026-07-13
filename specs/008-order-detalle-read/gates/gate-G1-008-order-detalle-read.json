@@ -1,0 +1,77 @@
+{
+  "phase": "G1",
+  "feature": "008-order-detalle-read",
+  "ronda": 7,
+  "bloqueantes": 0,
+  "altas": 0,
+  "medias": 6,
+  "total": 6,
+  "veredicto": "PASS",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad"],
+  "nota_avance": "0 BLOQUEANTES en DOS rondas consecutivas (6 y 7) por los tres revisores → se cumple el criterio de avance (Constitution XIII). Convergencia alcanzada. Trail de remediación: R2 (opción B, 404 sin 403), R3 (B endurecida: atado al ciclo, saneo al leer, dispatcher mínimo privilegio), R4 (evidence opcional, PII texto-libre=BL-073), R5 (H-001 evidence en DTO/esquema resuelto; H-002/403 falso positivo), R6 (BLOQUEANTE notes/SC-004 acotado + fail-closed; FR-009 auditoría XI; evidence vs 005; reasignación/autoría; transición única + reason obligatorio; snapshot con guard; precedencia 401→404), R7 (FR-009 recurso saneado + fallo best-effort; efecto compuesto notes+BL-074 documentado; rol-no-reconocido→404; BL-075→BL-080; desambiguación 'saneo').",
+  "altas_cerradas_en_este_gate": [
+    "notes/SC-004 (BLOQUEANTE R6) — SC-004/FR-006 acotados a object_ref+motivo; notes=residual IX documentado",
+    "S-001 fail-closed del pii-redactor",
+    "S-002/XI auditoría de accesos denegados (nuevo FR-009) reconciliada con FR-007",
+    "C-001 evidence {count:0} vs 005 (1..MAX) reformulado",
+    "C-002/C-003 reasignación (mínimo privilegio + autoría del ciclo + BL-080)",
+    "FR-009 recurso saneado anti-inyección de PII (R7 cinico H-001)",
+    "efecto compuesto notes+BL-074 documentado como residual con dueño (R7 cinico H-003)"
+  ],
+  "residuales_no_bloqueantes": [
+    {
+      "id": "R-001",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-006 / SC-004 (efecto compuesto notes + BL-074)",
+      "descripcion": "`notes` sin redactor (payload IX) + visibilidad org-wide de supervisores (BL-074) → PII estructural en notes visible al pool de supervisores. Residual PREEXISTENTE (005/006), no escalada nueva de #010 (read-side). Cierre: 005 D4 (cifrado/purga) + backlog multi-tenant.",
+      "severidad": "ALTA-preexistente-no-bloqueante",
+      "dueño": "005-D4 + backlog multi-tenant",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "R-002",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "BL-080 (contexto cruzado entre supervisores) y residual de timing (SC-003)",
+      "descripcion": "BL-080 se cita en la spec pero aún NO está creado en docs/06-roadmap.md; el residual de canal lateral de tiempos (SC-003) también debe registrarse. Ambos son altas de backlog/fundación → van por RAMA DE FUNDACIÓN (regla de enmiendas aisladas, no esta rama de feature). ACCIÓN DE SEGUIMIENTO antes/tras merge: registrar BL-080 y el residual de timing en el roadmap.",
+      "severidad": "MEDIA",
+      "dueño": "rama de fundación (docs/06-roadmap.md)",
+      "agente": "revisor-cinico + revisor-rbac-seguridad"
+    },
+    {
+      "id": "R-003",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-006 (BL-073, PII de texto libre en el motivo)",
+      "descripcion": "El redactor estructural no capta PII de texto libre (nombres/direcciones) en el motivo; residual best-effort ya trazado (BL-073), mitigado por rol de confianza (supervisor). Endurecimiento (NER / disciplina de escritura en 006) = BL-073.",
+      "severidad": "MEDIA",
+      "dueño": "BL-073 (006)",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "R-004",
+      "categoria": "EDGE_CASE",
+      "elemento_afectado": "FR-003 (desempate uuid v7 vs at)",
+      "descripcion": "El desempate submit-vs-reject por uuid v7 monótono asume misma fuente de reloj/orden monótono. Mecanismo exacto (fuente única monótona) se fija en /plan; a nivel spec el criterio observable está acotado.",
+      "severidad": "MEDIA",
+      "dueño": "/plan",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "R-005",
+      "categoria": "SEGURIDAD",
+      "elemento_afectado": "SC-003 (canal lateral de tiempos)",
+      "descripcion": "No hay comparación constant-time entre ramas de 404; oráculo de temporización teórico. Fuera de alcance MVP, documentado en SC-003; seguimiento en roadmap (ver R-002).",
+      "severidad": "MEDIA",
+      "dueño": "backlog seguridad (roadmap)",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "R-006",
+      "categoria": "REQUISITO_FALTANTE",
+      "elemento_afectado": "FR-009 (modo de fallo)",
+      "descripcion": "Fallo de escritura de auditoría = best-effort no bloqueante; se loguea con recurso saneado. Detalle transaccional exacto → /plan.",
+      "severidad": "MEDIA",
+      "dueño": "/plan",
+      "agente": "revisor-cinico"
+    }
+  ]
+}

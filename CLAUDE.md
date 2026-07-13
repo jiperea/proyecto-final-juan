@@ -1,6 +1,6 @@
 <!-- SPECKIT START -->
-Plan activo: `specs/007-resumen-incidencia-ia/plan.md` (+ research.md, data-model.md, quickstart.md).
-Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1, operación `summarizeOrderIncident`: resumen IA de la incidencia, fallback no-inventa, minimización de PII, eval promptfoo).
+Plan activo: `specs/008-order-detalle-read/plan.md` (+ research.md, data-model.md, quickstart.md).
+Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1 v1.5.0, operación `getOrderDetail` GET /orders/{orderId}: detalle read-side por rol; motivo del último rechazo sin atender leído de OrderAudit.reason —excepción XI v1.9.0, saneado fail-closed— solo al técnico dueño; 404 uniforme sin 403; auditoría de accesos denegados FR-009). Read-only puro, sin migración.
 Para tecnologías, estructura y comandos, leer ese plan.
 <!-- SPECKIT END -->
 

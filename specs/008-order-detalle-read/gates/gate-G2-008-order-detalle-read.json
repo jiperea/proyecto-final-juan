@@ -1,0 +1,42 @@
+{
+  "phase": "G2",
+  "feature": "008-order-detalle-read",
+  "ronda": 4,
+  "acumulativo": "G1 (regresión) + consistencia",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-consistencia"],
+  "bloqueantes": 0,
+  "altas": 0,
+  "medias": 3,
+  "total": 3,
+  "veredicto": "PASS",
+  "nota_avance": "0 BLOQUEANTES; los 4 revisores en APROBADA. Convergencia tras remediar en cascada spec→plan→tasks (memoria sdd-skill-order). El BLOQUEANTE de G2 ronda 1 (FR-009 exigía registro append-only durable imposible: order_audit.order_id es FK NOT NULL, y duplicaba la feature #009) se cerró re-acotando FR-009 a observabilidad best-effort con puerto propio DeniedAccessLoggerPort sobre pino (no el AccessLogPort de 007, inamovible), difiriendo el registro forense durable a #009 (BL-002/067, fuera del MVP). ALTAS cerradas: snapshot atómico (no READ COMMITTED con múltiples SELECT; incluye la fila Order completa), uuid v7 server-side, SC-005 con test propio (T031), contract test estricto (additionalProperties:false), TDD-Red de FR-009, campo outcome{401_unauth,404_not_visible}, actor presente en 404/ausente en 401.",
+  "trail_rondas": {
+    "r1": "BLOQUEADA — bloqueante FR-009 durable imposible (cinico H-001) + K-001 duplica #009; ALTAS snapshot/uuid/SC-005/TDD-Red/contract-strict",
+    "r2": "rbac+spec-theater APROBADA; cinico+consistencia ALTA: la narrativa 'reutiliza access-logger de 007' era incompatible (AccessLogPort tipado para ai-summary, sin caso 401; 007 inamovible)",
+    "r3": "consistencia APROBADA; cinico ALTA: la fila Order no estaba en el texto normativo de FR-003",
+    "r4": "cinico APROBADA (última MEDIA de redacción de FR-009 cerrada)"
+  },
+  "residuales_no_bloqueantes": [
+    {
+      "id": "R2-001",
+      "categoria": "TRAZABILIDAD",
+      "descripcion": "BL-080 (contexto cruzado supervisores) y el residual de canal lateral de tiempos (SC-003) citados en la spec pero aún no dados de alta en docs/06-roadmap.md.",
+      "severidad": "MEDIA",
+      "dueño": "rama de fundación (enmiendas aisladas): alta de BL-080 + residual de timing en el roadmap; también nota '#010 emite señal, #009 la hace durable'."
+    },
+    {
+      "id": "R2-002",
+      "categoria": "FUGA_DATOS",
+      "descripcion": "Efecto compuesto notes(payload IX sin redactor)+BL-074 (visibilidad org-wide de supervisores) y PII texto-libre en el motivo (BL-073). Residuales preexistentes documentados, no escalada de #010.",
+      "severidad": "MEDIA",
+      "dueño": "005-D4 (cifrado/purga) + backlog multi-tenant (BL-074); BL-073 (006)."
+    },
+    {
+      "id": "R2-003",
+      "categoria": "REQUISITO_FALTANTE",
+      "descripcion": "Retirada/fusión del DeniedAccessLoggerPort ad-hoc cuando aterrice #009 (evitar doble log). Documentado en FR-009 como seguimiento de #009.",
+      "severidad": "MEDIA",
+      "dueño": "#009"
+    }
+  ]
+}

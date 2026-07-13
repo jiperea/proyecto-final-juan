@@ -52,6 +52,18 @@ export function makeTestAppWithSummary(
   return { app, prisma };
 }
 
+// 008/#010 — app con override de orderDetailDeps (redactor que lanza / logger captor), conservando el
+// reader real (Postgres). Patrón de inyección de fallo/observabilidad (cf. makeTestAppWithSummary).
+type OrderDetailOverride = Partial<AppDeps['orderDetailDeps']>;
+export function makeTestAppWithOrderDetail(
+  over: OrderDetailOverride,
+  overrides: Partial<Config> = {},
+): { app: Express; prisma: PrismaClient } {
+  const { deps, prisma } = buildContainer(testConfig(overrides));
+  const app = buildApp({ ...deps, orderDetailDeps: { ...deps.orderDetailDeps, ...over } });
+  return { app, prisma };
+}
+
 export function cookieValue(setCookie: string[] | string | undefined, name: string): string {
   const arr = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
   const found = arr.find((c) => c.startsWith(`${name}=`));

@@ -1,0 +1,57 @@
+{
+  "phase": "G3",
+  "feature": "008-order-detalle-read",
+  "ronda": 1,
+  "acumulativo": "G1 + G2 + revisor-implementacion (+ rbac-seguridad sobre código)",
+  "panel": ["revisor-implementacion", "revisor-rbac-seguridad"],
+  "promptfoo": "N/A — #010 no tiene componente IA; los SC se verifican con tests deterministas.",
+  "bloqueantes": 0,
+  "altas": 0,
+  "medias": 3,
+  "total": 3,
+  "veredicto": "PASS",
+  "verificacion": {
+    "suite": "485 passed | 5 skipped (perf preexistentes) | 0 failed (110 ficheros); +64 tests nuevos vs baseline; 0 regresiones",
+    "typecheck": "limpio (tsc --noEmit)",
+    "lint": "limpio (eslint .)",
+    "cobertura_010": "dominio read-side 100% stmts; handler 94.6%; middleware 95.8%; infra reader 84.3%; denied-logger 100% (todo ≥80%)",
+    "controles_seguridad_aplicados_en_codigo": [
+      "visibilidad fail-secure por rol (orderScopeFor única fuente; rol desconocido→deny)",
+      "404 uniforme byte-a-byte sin 403; orderId malformado→404 (regex UUID antes de Prisma, evita P2023→500); precedencia 401→404",
+      "object_ref nunca seleccionado ni servido; motivo pii-redactor fail-closed real (test que fuerza throw→omite)",
+      "snapshot atómico $transaction REPEATABLE READ (guard+order+reject+submit); test de concurrencia determinista: ex-dueño no lee motivo tras reasignación",
+      "FR-009 recurso saneado (UUID|<malformed>) + best-effort try/catch en ambos puntos de emisión; no usa AccessLogPort de 007; sin tabla/migración",
+      "read-only verificado por arch test (write-side-boundary)"
+    ]
+  },
+  "huecos": [
+    {
+      "id": "I3-001",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "Constitution VII (TDD fase Red) / historial git",
+      "descripcion": "La implementación se hizo en una pasada sin commits intermedios, así que no hay un commit de test 'en rojo' verificable en el historial (aunque el flujo TDD Red→Green se siguió durante la implementación). Se documenta en el commit/bitácora que el Red se verificó antes de implementar.",
+      "severidad": "MEDIA",
+      "resolucion": "Aceptado con nota; el código y los tests son coherentes y verdes. Mejora de proceso para próximas features: commit test-en-rojo separado.",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "I3-002",
+      "categoria": "TEST_COVERAGE",
+      "elemento_afectado": "tests/contract/get-order-detail.contract.spec.ts",
+      "descripcion": "El contract test usa comparación manual de `Object.keys().sort()` (convención de TODOS los contract tests del repo) en vez de validación ajv estricta contra el YAML como prometía T010. Detecta claves extra/faltantes y campos de auditoría de más (cumple el intent de FR-008/SC-005), pero no valida tipos/enums del esquema.",
+      "severidad": "MEDIA",
+      "resolucion": "Aceptado como consistente con el repo (mismo riesgo ya asumido en el resto); la validación ajv completa contra el OpenAPI es una mejora transversal (backlog), no específica de #010.",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "S3-001",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "scope-policy.ts / alcance del supervisor (= BL-074)",
+      "descripcion": "El supervisor ve todas las órdenes pending_review de la organización (sin partición por equipo/tenant, porque el modelo es org-única). Es el residual BL-074 ya trazado y aceptado, no una escalada nueva de #010.",
+      "severidad": "MEDIA",
+      "resolucion": "Residual preexistente documentado (BL-074); cierre = backlog multi-tenant. No bloquea.",
+      "agente": "revisor-rbac-seguridad"
+    }
+  ],
+  "seguimiento_fundacion": "Sigue pendiente (rama de fundación, no esta rama): alta de BL-080 y del residual de timing (SC-003) en docs/06-roadmap.md; nota '#010 emite señal / #009 la hace durable'; retirada del DeniedAccessLoggerPort ad-hoc cuando aterrice #009."
+}
