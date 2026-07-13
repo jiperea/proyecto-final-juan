@@ -81,3 +81,29 @@ export interface OrderExecutionPort {
   submitExecution(cmd: SubmitExecutionCommand): Promise<Result<OrderRecord>>;
 }
 
+// ---------------------------------------------------------------------------------------------------
+// Feature 006 — revisión del supervisor. Puerto PROPIO de 006 (patrón 005): NO reutiliza applyTransition/
+// classifyZeroRows de 002b. `actorId` server-side (del token, FR-012); nunca del body. `reason` YA saneado
+// y validado por el dominio (sanitize-reason.ts); `null` en aprobación sin motivo.
+
+export type ReviewDecision = 'approve' | 'reject';
+
+export interface ReviewOrderCommand {
+  readonly orderId: string;
+  readonly actorId: string;
+  readonly decision: ReviewDecision;
+  /** Motivo pre-saneado (obligatorio en reject; opcional en approve → `null` si no se aportó). */
+  readonly reason: string | null;
+}
+
+/**
+ * Aplica la decisión (`pending_review→closed` en approve | `pending_review→in_progress` en reject) en UNA
+ * `$transaction`: UPDATE condicional (`status='pending_review'`; en approve además filtro de relación
+ * `evidence:{some:{}}` en el WHERE → guard atómico) + auditoría `transition` (reason pre-saneado o NULL) en la
+ * misma tx. 0 filas → re-lectura `{status, evidenceCount}` + classifyReviewGuard (404 no-visible antes que 409
+ * EVIDENCE_MISSING). BD no disponible → SERVICE_UNAVAILABLE (503); FK actor → ACTOR_INVALID (500).
+ */
+export interface ReviewOrderPort {
+  review(cmd: ReviewOrderCommand): Promise<Result<OrderRecord>>;
+}
+

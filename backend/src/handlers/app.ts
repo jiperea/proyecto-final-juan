@@ -24,6 +24,8 @@ import { startOrderWorkHandler } from './orders/start';
 import type { StartOrderWorkDeps } from '../domain/order/write-side/start-order-work';
 import { submitOrderExecutionHandler } from './orders/execution';
 import type { SubmitExecutionDeps } from '../domain/order/write-side/submit-execution';
+import { reviewOrderHandler } from './orders/review';
+import type { ReviewOrderDeps } from '../domain/order/write-side/review-order';
 import { authenticate } from './middleware/authenticate';
 import { authorizeProbe } from './middleware/authorize';
 import { csrf, type SessionValidityPort } from './middleware/csrf';
@@ -52,6 +54,8 @@ export interface AppDeps {
   readonly startDeps: StartOrderWorkDeps;
   // 005 — registro de ejecución (write-side propio de 005).
   readonly executionDeps: SubmitExecutionDeps;
+  // 006 — revisión del supervisor (write-side propio de 006).
+  readonly reviewDeps: ReviewOrderDeps;
   readonly cookie: CookieOptions;
 }
 
@@ -82,40 +86,24 @@ export function buildApp(deps: AppDeps): Express {
     probeHandler,
   );
 
-  // Orders (/v1) — listado por rol (002a)
-  app.get(
-    '/v1/orders',
-    authenticate(deps.tokens, deps.sessionState),
-    requireRole('dispatcher', 'technician', 'supervisor'),
-    listOrdersHandler(deps.orderListDeps),
-  );
-
-  // Orders write-side (/v1) — reasignación (004). 401 vía authenticate; 403 FORBIDDEN_ROLE dentro del
-  // handler (controla el orden 401→403→404→422 de FR-004).
-  app.post(
-    '/v1/orders/:orderId/reassignments',
-    authenticate(deps.tokens, deps.sessionState),
-    reassignOrderHandler(deps.reassignDeps),
-  );
-
-  // Orders write-side (/v1) — inicio de trabajo (005, US1). 401 (authenticate) → 403 (requireRole) →
-  // 404 (pertenencia/uuid) → 422 (estado), en el handler delgado.
-  app.post(
-    '/v1/orders/:orderId/start',
-    authenticate(deps.tokens, deps.sessionState),
-    requireRole('technician'),
-    startOrderWorkHandler(deps.startDeps),
-  );
-
-  // Orders write-side (/v1) — registro de ejecución (005, US2). 401 → 403 → 422 (payload) → 404 (pertenencia)
-  // → 422 (estado), en el handler delgado.
-  app.post(
-    '/v1/orders/:orderId/execution',
-    authenticate(deps.tokens, deps.sessionState),
-    requireRole('technician'),
-    submitOrderExecutionHandler(deps.executionDeps),
-  );
+  registerOrderRoutes(app, deps);
 
   app.use(jsonErrorHandler);
   return app;
+}
+
+// Rutas /v1/orders (002a listado + 004 reasignación + 005 start/execution + 006 review). Extraído de buildApp
+// para acotar su tamaño (max-lines-per-function). 401 via authenticate; 403 via requireRole o dentro del handler.
+function registerOrderRoutes(app: Express, deps: AppDeps): void {
+  const auth = authenticate(deps.tokens, deps.sessionState);
+  // Listado por rol (002a).
+  app.get('/v1/orders', auth, requireRole('dispatcher', 'technician', 'supervisor'), listOrdersHandler(deps.orderListDeps));
+  // Reasignación (004): 403 FORBIDDEN_ROLE dentro del handler (orden 401→403→404→422 de FR-004).
+  app.post('/v1/orders/:orderId/reassignments', auth, reassignOrderHandler(deps.reassignDeps));
+  // Inicio de trabajo (005, US1): 401→403→404 (pertenencia/uuid)→422 (estado).
+  app.post('/v1/orders/:orderId/start', auth, requireRole('technician'), startOrderWorkHandler(deps.startDeps));
+  // Registro de ejecución (005, US2): 401→403→422 (payload)→404 (pertenencia)→422 (estado).
+  app.post('/v1/orders/:orderId/execution', auth, requireRole('technician'), submitOrderExecutionHandler(deps.executionDeps));
+  // Revisión del supervisor (006): 401→403→422 (VALIDATION_ERROR/INVALID_REASON)→404 (no visible)→409 (evidencia).
+  app.post('/v1/orders/:orderId/review', auth, requireRole('supervisor'), reviewOrderHandler(deps.reviewDeps));
 }

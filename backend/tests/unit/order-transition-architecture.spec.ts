@@ -3,7 +3,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const FORBIDDEN = ['express', '@prisma/client', 'prisma', 'jsonwebtoken', 'argon2', 'helmet', 'pino'];
-const TRANSITION_REPO = 'order-write-side-repository.ts';
+// La CAPA write-side puede repartirse en varios ficheros (separados por tamaño; 006 añadió order-review).
+// El invariante es "sólo la capa write-side muta status/version" (ver BL-071: carpeta, no un único fichero).
+const WRITE_SIDE_FILES = ['order-write-side-repository.ts', 'order-review-repository.ts'];
 
 function tsFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((e) => {
@@ -35,7 +37,7 @@ describe('arquitectura transición (FR-006, Const. III, D6)', () => {
     const rawOrderWrite = /(\$executeRaw|\$executeRawUnsafe)[^;]*\borders\b/;
     const offenders: string[] = [];
     for (const file of tsFiles('src')) {
-      if (file.endsWith(TRANSITION_REPO)) continue;
+      if (WRITE_SIDE_FILES.some((w) => file.endsWith(w))) continue;
       const src = readFileSync(file, 'utf8');
       if (orderWrite.test(src)) offenders.push(`${file} → escritura Prisma de Order`);
       if (rawOrderWrite.test(src)) offenders.push(`${file} → SQL crudo sobre orders`);

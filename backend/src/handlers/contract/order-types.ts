@@ -27,3 +27,9 @@ export interface ExecutionRequestDto {
   notes: string;
   evidence: EvidenceRefDto[];
 }
+
+// 006 — DTO de la decisión de revisión (derivado del contrato ReviewRequest).
+export interface ReviewRequestDto {
+  decision: 'approve' | 'reject';
+  reason?: string;
+}

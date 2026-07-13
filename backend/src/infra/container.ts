@@ -17,6 +17,7 @@ import {
   PrismaStartOrderWorkRepository,
   PrismaUserLookupRepository,
 } from './repositories/order-write-side-repository';
+import { PrismaReviewOrderRepository } from './repositories/order-review-repository';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
 import { PrismaSessionRepository } from './repositories/session-repository';
 import { PrismaUserRepository } from './repositories/user-repository';
@@ -55,6 +56,7 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
     orderReassignment: new PrismaOrderReassignmentRepository(prisma),
     startOrderWork: new PrismaStartOrderWorkRepository(prisma),
     orderExecution: new PrismaOrderExecutionRepository(prisma),
+    orderReview: new PrismaReviewOrderRepository(prisma),
     rateLimit: new InMemoryRateLimit({
       max: config.lockoutMax,
       windowMs: config.lockoutWindowMin * MIN_MS,
@@ -65,11 +67,11 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
 }
 
 // Wiring de dependencias (puertos→adaptadores). Único lugar donde se instancian los adaptadores.
-export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaClient } {
-  const prisma = createPrisma(config.databaseUrl);
-  const a = buildAdapters(prisma, config);
-  const deps: AppDeps = {
-    checkDb: () => checkDb(prisma),
+type Adapters = ReturnType<typeof buildAdapters>;
+
+// Deps de auth (login/logout/refresh) — extraído para acotar el tamaño de buildContainer (max-lines-per-function).
+function authDeps(a: Adapters, config: Config): Pick<AppDeps, 'loginDeps' | 'logoutDeps' | 'refreshDeps'> {
+  return {
     loginDeps: {
       users: a.users,
       sessions: a.sessions,
@@ -98,6 +100,15 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
       clock: a.clock,
       graceMs: config.graceMs,
     },
+  };
+}
+
+export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaClient } {
+  const prisma = createPrisma(config.databaseUrl);
+  const a = buildAdapters(prisma, config);
+  const deps: AppDeps = {
+    checkDb: () => checkDb(prisma),
+    ...authDeps(a, config),
     users: a.users,
     probes: a.probes,
     tokens: a.tokens,
@@ -108,6 +119,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
     reassignDeps: { visibility: a.orderVisibility, users: a.userLookup, reassignment: a.orderReassignment },
     startDeps: { start: a.startOrderWork }, // 005 US1
     executionDeps: { execution: a.orderExecution }, // 005 US2
+    reviewDeps: { review: a.orderReview }, // 006
 
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,

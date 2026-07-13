@@ -34,6 +34,9 @@ export type ErrorCode =
   // --- 005: registro de ejecución (validación de evidencia, payload primero) ---
   | 'EVIDENCE_REQUIRED' // 422 ejecución sin ≥1 evidencia (bloqueante, Brief "al menos una foto")
   | 'INVALID_EVIDENCE' // 422 evidencia inválida (tipo/tamaño/object_ref/duplicado/>máximo)
+  // --- 006: revisión del supervisor ---
+  | 'INVALID_REASON' // 422 motivo inválido tras saneo (rechazo obligatorio; approve si se aporta) — 1..1000
+  | 'EVIDENCE_MISSING' // 409 aprobar una orden visible en pending_review pero SIN ≥1 evidencia (invariante 005 rota)
   | 'INTERNAL'; // 500 genérico (error de BD/inesperado); nunca filtra detalle de Postgres (FR-009)
 
 export interface DomainError {

@@ -159,3 +159,33 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > Deuda trazada (no MVP, documentada): **BL-069** (cifrado en reposo + purga/retención de
 > `OrderExecutionNotes.notes`, IX; distinto de BL-051/055); **BL-068** (subida binaria + at-rest de
 > `object_ref`, #007); **BL-001** (If-Match/409, #008); **BL-002/067** (auditoría de accesos denegados, #009).
+
+## 006 — Revisión por el supervisor (`reviewOrder`)
+
+| RF | Descripción | Endpoint | Tarea(s) | Test(s) |
+|----|-------------|----------|----------|---------|
+| FR-001 | approve → pending_review→closed (200, version+1, 1 auditoría) | reviewOrder (approve) | T009-T012 | `integration/review-order-approve` |
+| FR-002 | reject → pending_review→in_progress con motivo (200, version+1, auditoría) | reviewOrder (reject) | T015-T017 | `integration/review-order-reject` |
+| FR-003 | motivo obligatorio en reject; 1..1000 tras saneo | dominio | T006/T015/T017 | `unit/sanitize-reason`, `integration/review-order-reject` |
+| FR-004 | atomicidad transición+auditoría (todo o nada) | order-write-side-repository | T011/T018 | `integration/review-order-atomicity` |
+| FR-005 | conservación de evidencia/notas de 005 | order-write-side-repository | T019 | `integration/review-order-preservation` |
+| FR-006 | RBAC sólo-supervisor → 403 (401 sin auth) | requireRole + handler | T012/T013 | `integration/review-order-approve` (403), `contract/review-order.contract` |
+| FR-007 | no-enumeración: no visible/malformado → 404 genérico (state-scoped) | classify-review-guard | T007/T012 | `unit/classify-review-guard`, `integration/review-order-approve` |
+| FR-008 | motivo pre-saneado en OrderAudit.reason; nunca en logs/errores | sanitize-reason / logger | T005/T006/T021 | `integration/review-pii-redaction` |
+| FR-009 | precedencia 401→403→422(VALIDATION_ERROR)→422(INVALID_REASON)→404→409 | handler + repo | T013/T017 | `integration/review-order-reject` (precedencia + caso cruzado uuid) |
+| FR-010 | BD no disponible → 503; error no transitorio → 500 genérico | repo + handler | T021/T022 | `integration/review-db-errors`, `contract/review-order.contract` (500/503) |
+| FR-011 | decision ausente/fuera de enum/body no-JSON → 422 VALIDATION_ERROR (antes que INVALID_REASON) | Zod + handler | T008/T017 | `integration/review-order-reject` (FR-011) |
+| FR-012 | actor de la auditoría del token server-side (`.strict()` rechaza body) | handler | T012 | `integration/review-order-approve` (actor_id en body → 422) |
+| FR-013 | guard de evidencia en approve (≥1 dentro del UPDATE) → 409 EVIDENCE_MISSING, tras 404 | classify-review-guard + repo | T007/T011/T012 | `unit/classify-review-guard`, `integration/review-order-approve` |
+| SC-001 | approve → closed, 1 auditoría, version+1 | reviewOrder | T012 | `integration/review-order-approve` |
+| SC-002 | reject con/sin motivo (200 / 422 sin efecto) | reviewOrder | T017 | `integration/review-order-reject` |
+| SC-003 | RBAC (403/401) + no visible (404) sin fuga de estado | reviewOrder | T012 | `integration/review-order-approve` |
+| SC-004 | evidencia/notas conservadas (0 pérdidas) | reviewOrder | T019 | `integration/review-order-preservation` |
+| SC-005 | 0 fugas del motivo (logs/errores) + atomicidad | logger / repo | T018/T021 | `integration/review-pii-redaction`, `integration/review-order-atomicity` |
+| SC-006 | p95 < 300 ms por camino (approve/reject) | — | T023 | `integration/review-latency` (RUN_PERF) |
+
+> Arquitectura: `unit/write-side-boundary` extendido (review no muta status/version fuera del repo write-side;
+> approve usa `UPDATE … EXISTS(evidencia)`; review-order no reutiliza applyTransition/classifyZeroRows).
+> Ciclo cruzado 006↔005 (US2 AC3): `integration/review-reject-resubmit-cycle`.
+> Deuda trazada: **BL-070** (#010 read-side + enmienda XI), **BL-071** (reconciliar 003 FR-006), **BL-051**
+> (cifrado at-rest de `reason`), **#008** (If-Match/409), **#009** (accesos denegados).
