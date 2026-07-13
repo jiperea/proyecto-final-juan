@@ -329,6 +329,10 @@ paths:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '429':
           description: Rate-limit por usuario superado (10/60 s). RATE_LIMITED + Retry-After. Sin llamar al proveedor.
+          headers:
+            Retry-After:
+              description: Segundos hasta que expira la ventana de rate-limit (coherente con 001).
+              schema: { type: integer }
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '503':
@@ -501,9 +505,11 @@ components:
         EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e
         INVALID_TRANSITION (422). 006 (reviewOrder) 401/403/404/409/422/500/503 — VALIDATION_ERROR (422,
         decision/body), INVALID_REASON (422, motivo), GUARD_UNMET (404, no visible), EVIDENCE_MISSING (409,
-        guard de evidencia en approve). `agent_action` se emite en las respuestas de **negocio** de los handlers
-        de 004/005/006 (404/409/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no
-        llevarlo (por eso `agent_action` es opcional, no `required`).
+        guard de evidencia en approve). 007 (summarizeOrderIncident) 401/403/404/429/503 — FORBIDDEN_ROLE (403),
+        404 genérico (no-enumeración, orden no visible/estado ≠ pending_review), RATE_LIMITED (429, con header
+        Retry-After), SERVICE_UNAVAILABLE (503, timeout/fallo del proveedor). `agent_action` se emite en las
+        respuestas de **negocio** de los handlers de 004/005/006 (404/409/422/500); los 401/403 provienen del
+        middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es opcional, no `required`).
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }
