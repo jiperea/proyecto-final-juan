@@ -1,0 +1,147 @@
+{
+  "gate": "G1",
+  "feature": "007-resumen-incidencia-ia",
+  "fecha": "2026-07-13",
+  "artefactos": ["specs/007-resumen-incidencia-ia/spec.md"],
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad"],
+  "veredicto_global": "BLOQUEADA",
+  "conteo": { "BLOQUEANTE": 4, "ALTA": 7, "MEDIA": 6 },
+  "huecos": [
+    {
+      "id": "B1",
+      "severidad": "BLOQUEANTE",
+      "fuentes": ["S-001", "H-002-cinico"],
+      "categoria": "seguridad/PII (Constitution VIII, no excepcionable)",
+      "ubicacion": "FR-003 / clarificación 'allowlist estructural'",
+      "descripcion": "FR-003 envía el texto libre de las notas 'tal cual' al proveedor externo y declara la redacción de PII 'stretch/no-MVP'. Contradice Constitution VIII ('antes de enviar a la IA se minimiza/redacta la PII; no se envía PII cruda a terceros'). La minimización de ENTRADA es obligatoria (MVP), no stretch."
+    },
+    {
+      "id": "B2",
+      "severidad": "BLOQUEANTE",
+      "fuentes": ["S-002", "H-002-cinico"],
+      "categoria": "inconsistencia/PII",
+      "ubicacion": "FR-004 (saneo defensivo de salida)",
+      "descripcion": "FR-004 exige saneo defensivo de PII en la salida (obligatorio) pero sin mecanismo definido; es la MISMA capacidad de detección por patrones que FR-003 declara stretch. Contradicción entrada/salida + mecanismo indefinido."
+    },
+    {
+      "id": "B3",
+      "severidad": "BLOQUEANTE",
+      "fuentes": ["H-001-cinico", "H-010", "H-008"],
+      "categoria": "inconsistencia/testabilidad",
+      "ubicacion": "FR-002 (disparador del fallback)",
+      "descripcion": "El único disparador determinista del fallback (notas vacías tras saneo Y 0 evidencias) es INALCANZABLE por el flujo normal (005 exige notas + ≥1 evidencia antes de pending_review). El golden case central de 'no inventar' (US2, P1) no tiene camino realista; el caso realista (notas telegráficas/pobres) queda sin cubrir."
+    },
+    {
+      "id": "B4",
+      "severidad": "BLOQUEANTE",
+      "fuentes": ["T-001"],
+      "categoria": "testabilidad",
+      "ubicacion": "FR-010 / SC-006 (timeout del proveedor)",
+      "descripcion": "No hay valor numérico de timeout del proveedor → la rama de timeout y '0 cuelgues' no son testeables de forma reproducible (a diferencia de 006 que fija p95<300ms)."
+    },
+    {
+      "id": "A1",
+      "severidad": "ALTA",
+      "fuentes": ["S-003"],
+      "categoria": "seguridad",
+      "ubicacion": "FR-006/007/008 (precedencia)",
+      "descripcion": "Sin orden determinista 401→403→404→429→503 (a diferencia de 006 FR-009). Riesgo de enumeración/inconsistencia 403/404/429."
+    },
+    {
+      "id": "A2",
+      "severidad": "ALTA",
+      "fuentes": ["S-005", "H-005"],
+      "categoria": "auditoría/gobernanza (XI)",
+      "ubicacion": "FR-005 / no-persistencia",
+      "descripcion": "Sin rastro de ACCESO (quién pidió resumen de qué orden y cuándo, sin PII) → cero trazabilidad forense de un endpoint que expone PII de cliente vía IA; y la decisión de 006 puede apoyarse en un resumen que desaparece sin rastro."
+    },
+    {
+      "id": "A3",
+      "severidad": "ALTA",
+      "fuentes": ["H-003", "T-002"],
+      "categoria": "inconsistencia",
+      "ubicacion": "FR-002 vs FR-010 (salida no conforme vs fallo/timeout)",
+      "descripcion": "Solape sin precedencia: 'salida no conforme' → fallback (200) vs 'fallo/timeout' → 503/fallback. Falta criterio determinista condición→código y qué es 'conforme' (validación de la salida cruda del CLI)."
+    },
+    {
+      "id": "A4",
+      "severidad": "ALTA",
+      "fuentes": ["H-004"],
+      "categoria": "edge-case",
+      "ubicacion": "FR-004 (PII detectada en salida)",
+      "descripcion": "No define si al detectar PII en la salida se redacta in-place (afecta faithfulness/sufficient) o se convierte en fallback. Ambas rutas tienen implicaciones distintas."
+    },
+    {
+      "id": "A5",
+      "severidad": "ALTA",
+      "fuentes": ["H-008"],
+      "categoria": "requisito-faltante",
+      "ubicacion": "FR-001 ('contenido suficiente')",
+      "descripcion": "Sin umbral de contenido mínimo: notas telegráficas ('todo bien') se consideran 'suficiente' y deben dar faithfulness≥0.90, incentivando alucinación de relleno. El caso realista de baja calidad no está cubierto."
+    },
+    {
+      "id": "A6",
+      "severidad": "ALTA",
+      "fuentes": ["T-003"],
+      "categoria": "testabilidad",
+      "ubicacion": "FR-011 (contrato de salida)",
+      "descripcion": "La cláusula '(o equivalente)' anula la fijación del esquema {summary, sufficient}. Debe fijarse el nombre/tipo exactos de cada campo."
+    },
+    {
+      "id": "A7",
+      "severidad": "ALTA",
+      "fuentes": ["S-004"],
+      "categoria": "seguridad",
+      "ubicacion": "Assumptions 'visibilidad de 006'",
+      "descripcion": "Cualquier supervisor puede resumir cualquier orden en pending_review; el endpoint IA amplifica la exfiltración de PII (consumo condensado, ~14.400/día por el rate-limit). Heredado de 006 pero amplificado; sin ámbito ni trazabilidad de acceso."
+    },
+    {
+      "id": "M1",
+      "severidad": "MEDIA",
+      "fuentes": ["H-006"],
+      "categoria": "edge-case",
+      "ubicacion": "FR-001/007 (concurrencia con transición de estado)",
+      "descripcion": "Si la orden sale de pending_review mientras la llamada al proveedor está en vuelo, no se define si se re-valida el estado antes de responder."
+    },
+    {
+      "id": "M2",
+      "severidad": "MEDIA",
+      "fuentes": ["H-007"],
+      "categoria": "edge-case",
+      "ubicacion": "FR-008 (dedup de peticiones concurrentes)",
+      "descripcion": "Doble-clic/reintento consume cupo y coste por separado; sin coalescencia."
+    },
+    {
+      "id": "M3",
+      "severidad": "MEDIA",
+      "fuentes": ["T-004"],
+      "categoria": "testabilidad",
+      "ubicacion": "FR-001 (longitud/formato del resumen)",
+      "descripcion": "Sin cota de longitud/estructura del `summary`; un volcado de notas o una palabra pasan igual el eval de fidelidad."
+    },
+    {
+      "id": "M4",
+      "severidad": "MEDIA",
+      "fuentes": ["S-006"],
+      "categoria": "fuga-datos",
+      "ubicacion": "FR-005 (canales indirectos)",
+      "descripcion": "FR-005 cubre el logger pino, no stderr del subproceso CLI / APM / buffers de proceso hijo que podrían capturar el prompt (PII)."
+    },
+    {
+      "id": "M5",
+      "severidad": "MEDIA",
+      "fuentes": ["S-007"],
+      "categoria": "cumplimiento",
+      "ubicacion": "FR-009 (proveedor CLI en producción)",
+      "descripcion": "No aclara si el CLI transmite el prompt a servidores externos (Anthropic) ni qué corre en producción (TLS/DPA, Constitution IX)."
+    },
+    {
+      "id": "M6",
+      "severidad": "MEDIA",
+      "fuentes": ["H-010"],
+      "categoria": "consistencia-doc",
+      "ubicacion": "Edge Cases 'orden sin notas ni evidencia'",
+      "descripcion": "Debe reformularse como 'violación de invariante/defensivo', coherente con FR-002 (no un flujo alcanzable normal)."
+    }
+  ]
+}
