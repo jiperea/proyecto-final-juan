@@ -1,0 +1,126 @@
+{
+  "gate": "G1",
+  "feature": "006-revision-supervisor",
+  "fecha": "2026-07-13",
+  "artefactos": ["specs/006-revision-supervisor/spec.md"],
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad"],
+  "veredicto_global": "BLOQUEADA",
+  "conteo": { "BLOQUEANTE": 2, "ALTA": 4, "MEDIA": 7, "BAJA": 1 },
+  "huecos": [
+    {
+      "id": "B1",
+      "severidad": "BLOQUEANTE",
+      "fuentes": ["T-001", "S-001", "H-003"],
+      "categoria": "testeabilidad+seguridad",
+      "ubicacion": "FR-003/FR-008/FR-009 + Edge Cases 'Aprobación con motivo'",
+      "descripcion": "TBD auto-reconocido ('Ver FR-008 y aclaración pendiente'): el motivo en la APROBACIÓN es opcional pero no se define su validación ni su precedencia. ¿Un motivo de aprobación vacío-tras-saneo o >1000 chars responde 422 INVALID_REASON como en rechazo, o se ignora/trunca? Riesgo: texto sin acotar/sanear entrando en OrderAudit (append-only inmutable) por el camino de aprobación."
+    },
+    {
+      "id": "B2",
+      "severidad": "BLOQUEANTE",
+      "fuentes": ["H-001", "S-002"],
+      "categoria": "requisito-faltante",
+      "ubicacion": "User Story 1/2 + Scope",
+      "descripcion": "Ninguna spec del roadmap ofrece al supervisor un medio de LEER notas/metadatos de evidencia antes de decidir, ni al technician leer el motivo de su rechazo (para corregir). No existe endpoint de detalle de orden; listOrders solo da campos básicos. El supervisor 'revisa el trabajo' a ciegas. La lectura de OrderAudit.reason está además restringida por Constitution XI a supervisor/auditor, pero el technician la necesita. Gap silencioso de frontera de features."
+    },
+    {
+      "id": "A1",
+      "severidad": "ALTA",
+      "fuentes": ["T-002"],
+      "categoria": "testeabilidad",
+      "ubicacion": "FR-003/FR-008 ('vacío tras saneo', 'pre-saneado')",
+      "descripcion": "El algoritmo de 'saneo' no está definido (¿trim? ¿strip de control chars? ¿markup? ¿unicode?). 'Vacío tras saneo' admite ≥2 implementaciones con resultados pass/fail distintos para el mismo input. Heredado de 003 sin concretar."
+    },
+    {
+      "id": "A2",
+      "severidad": "ALTA",
+      "fuentes": ["H-004"],
+      "categoria": "requisito-faltante",
+      "ubicacion": "Contrato reviewOrder / campo decision",
+      "descripcion": "No hay FR ni escenario para 'decision' ausente, fuera de enum, o body no-JSON/malformado. Falta el código de error y su posición en la precedencia FR-009."
+    },
+    {
+      "id": "A3",
+      "severidad": "ALTA",
+      "fuentes": ["H-002"],
+      "categoria": "inconsistencia-cross-feature",
+      "ubicacion": "Assumptions / ciclo pending_review↔in_progress",
+      "descripcion": "005 introdujo la columna 'attempt' explícitamente 'para #005 (revisión)' = esta feature. 006 no la menciona. No se define si un reenvío tras rechazo incrementa 'attempt' ni quién lo hace, ni cómo se distingue evidencia corregida de la ya rechazada."
+    },
+    {
+      "id": "M1",
+      "severidad": "MEDIA",
+      "fuentes": ["H-005"],
+      "categoria": "inconsistencia",
+      "ubicacion": "FR-010",
+      "descripcion": "FR-010 solo cubre 503 (BD no disponible). 003 fija ACTOR_INVALID / constraint inesperada → 500 genérico. 006 no reproduce el mapeo → riesgo de clasificar como 503 un error no transitorio.",
+      "resolucion_autoritativa": "500 genérico (003 FR-009 nota ACTOR_INVALID). 503 solo para 'BD no disponible'."
+    },
+    {
+      "id": "M2",
+      "severidad": "MEDIA",
+      "fuentes": ["H-009"],
+      "categoria": "trazabilidad",
+      "ubicacion": "FR-007 (404 vs 403)",
+      "descripcion": "No se cita explícitamente por qué aplica la regla (a)→404 y no la (b)→403 de 003 FR-009 (cuyo ejemplo de (b) es 'supervisor/dispatcher por ámbito de rol').",
+      "resolucion_autoritativa": "404: el alcance del supervisor en listOrders es EXACTAMENTE pending_review (visibilidad state-scoped); una orden en otro estado NO es visible → regla (a). La regla (b)/403 de 003 aplica a guardas de PERTENENCIA sobre recursos visibles, no al filtro de estado que define la visibilidad del supervisor."
+    },
+    {
+      "id": "M3",
+      "severidad": "MEDIA",
+      "fuentes": ["S-003"],
+      "categoria": "seguridad",
+      "ubicacion": "FR-001/FR-002/FR-004 + Trazabilidad",
+      "descripcion": "No se reafirma como FR+test explícito (como 005 FR-007) que el actor de la auditoría se deriva del JWT server-side y nunca del body/params."
+    },
+    {
+      "id": "M4",
+      "severidad": "MEDIA",
+      "fuentes": ["S-004"],
+      "categoria": "autenticacion",
+      "ubicacion": "Scope",
+      "descripcion": "No se referencia el tratamiento de la auditoría forense de accesos denegados (403/404), que 005 difiere explícitamente a #009/BL-002/067."
+    },
+    {
+      "id": "M5",
+      "severidad": "MEDIA",
+      "fuentes": ["S-005"],
+      "categoria": "seguridad",
+      "ubicacion": "Assumptions 'Sin asignación para el supervisor'",
+      "descripcion": "No hay asunción explícita de unicidad de rol por usuario ni control de segregación de funciones (mismo humano dispatcher+supervisor)."
+    },
+    {
+      "id": "M6",
+      "severidad": "MEDIA",
+      "fuentes": ["H-007"],
+      "categoria": "asuncion-oculta",
+      "ubicacion": "Assumptions 'Origen único pending_review'",
+      "descripcion": "La aprobación confía en la invariante de 005 (≥1 evidencia) sin guard defensivo propio; inconsistente con el patrón fail-closed del resto de la spec."
+    },
+    {
+      "id": "M7",
+      "severidad": "MEDIA",
+      "fuentes": ["H-006"],
+      "categoria": "edge-case",
+      "ubicacion": "Assumptions 'Sin tope al ciclo de rechazo'",
+      "descripcion": "El bucle pending_review↔in_progress no tiene tope ni contador observable; sin visibilidad de bucles patológicos."
+    },
+    {
+      "id": "M8",
+      "severidad": "MEDIA",
+      "fuentes": ["H-008"],
+      "categoria": "edge-case",
+      "ubicacion": "Edge Cases (concurrencia)",
+      "descripcion": "No se cruza con la reasignación (004).",
+      "resolucion_autoritativa": "Sin interacción: reassignOrder (004) solo opera sobre assigned/in_progress; nunca sobre pending_review."
+    },
+    {
+      "id": "L1",
+      "severidad": "BAJA",
+      "fuentes": ["H-010"],
+      "categoria": "edge-case",
+      "ubicacion": "SC-006",
+      "descripcion": "El p95<300ms no distingue el camino approve (sin motivo, 1 insert) del reject (motivo hasta 1000 chars); podría medirse solo el más rápido."
+    }
+  ]
+}

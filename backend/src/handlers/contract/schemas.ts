@@ -52,3 +52,24 @@ export const executionRequestSchema = z
   .strict();
 
 export type ExecutionRequestDto = z.infer<typeof executionRequestSchema>;
+
+// 006 — cuerpo de la decisión de revisión. `.strict()` → additionalProperties:false (rechaza un `actor_id`/campo
+// extra; el actor sale del token, FR-012). `decision` enum (ausente/otro → VALIDATION_ERROR). `reason` OPCIONAL
+// con una cota CRUDA generosa (≤4000 code points, red de seguridad de payload → VALIDATION_ERROR). La
+// obligatoriedad por `decision`, el saneo y la longitud EFECTIVA 1..1000 (medida TRAS sanitizeReason →
+// INVALID_REASON) viven en el DOMINIO (review-order.ts / sanitize-reason.ts), NO aquí (G2/K2): un motivo con
+// mucho whitespace puede superar 1000 en crudo y ser válido tras saneo.
+const REVIEW_REASON_RAW_MAX = 4000;
+export const reviewRequestSchema = z
+  .object({
+    decision: z.enum(['approve', 'reject']),
+    reason: z
+      .string()
+      .refine((s) => [...s].length <= REVIEW_REASON_RAW_MAX, {
+        message: 'reason excede la cota cruda de payload',
+      })
+      .optional(),
+  })
+  .strict();
+
+export type ReviewRequestDto = z.infer<typeof reviewRequestSchema>;

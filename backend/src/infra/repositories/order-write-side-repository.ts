@@ -324,3 +324,7 @@ export class PrismaOrderExecutionRepository implements OrderExecutionPort {
     });
   }
 }
+
+// NOTA (006): la revisión del supervisor (PrismaReviewOrderRepository) vive en `order-review-repository.ts`
+// (misma CAPA write-side; separada por límite de tamaño de fichero). Ambos ficheros son el único punto de
+// escritura de `status`/`version` (arch test `write-side-boundary`).

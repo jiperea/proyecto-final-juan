@@ -1,6 +1,6 @@
 <!-- SPECKIT START -->
-Plan activo: `specs/005-registro-ejecucion/plan.md` (+ research.md, data-model.md, quickstart.md).
-Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1, operaciones `startOrderWork` y `submitOrderExecution`).
+Plan activo: `specs/006-revision-supervisor/plan.md` (+ research.md, data-model.md, quickstart.md).
+Contrato: `contracts/orders.openapi.yaml` (OpenAPI 3.1, operación `reviewOrder`: approve/reject en pending_review).
 Para tecnologías, estructura y comandos, leer ese plan.
 <!-- SPECKIT END -->
 

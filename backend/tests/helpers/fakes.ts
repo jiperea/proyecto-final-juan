@@ -158,6 +158,9 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
     executionDeps: {
       execution: { submitExecution: async () => err(domainError('ORDER_NOT_FOUND', 'no-op fake')) },
     },
+    reviewDeps: {
+      review: { review: async () => err(domainError('GUARD_UNMET', 'no-op fake')) },
+    },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,
   };

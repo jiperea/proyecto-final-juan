@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FieldOps — Orders API
-  version: 1.2.0
+  version: 1.3.0
   description: >
     Feature 002a (read-side): listado de órdenes filtrado por rol sobre el auth/RBAC de 001.
     Feature 004 (write-side): reasignación de una orden por el dispatcher (POST .../reassignments),
@@ -9,6 +9,8 @@ info:
     Feature 005 (write-side): registro de ejecución por el técnico — startOrderWork (POST .../start,
     assigned→in_progress) y submitOrderExecution (POST .../execution, in_progress→pending_review con
     ≥1 evidencia por referencia + notas).
+    Feature 006 (write-side): revisión por el supervisor — reviewOrder (POST .../review): approve
+    (pending_review→closed, guard ≥1 evidencia → 409) o reject (pending_review→in_progress con motivo).
     Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
     Reutiliza bearerAuth y ErrorResponse de contracts/auth.openapi.yaml (001).
 servers:
@@ -212,6 +214,76 @@ paths:
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
+  /orders/{orderId}/review:
+    post:
+      operationId: reviewOrder
+      tags: [orders]
+      summary: Aprobar o rechazar una orden en pending_review (sólo supervisor)
+      description: >
+        Un supervisor decide sobre una orden en `pending_review`: approve (pending_review→closed) o reject
+        (pending_review→in_progress con motivo obligatorio). En UNA transacción: transición, version+1 y
+        auditoría append-only (OrderAudit.reason = motivo pre-saneado, nunca en logs/errores). La aprobación
+        aplica un guard defensivo: la orden debe conservar ≥1 evidencia (invariante de 005) o 409
+        EVIDENCE_MISSING. Evidencia y notas de 005 se conservan intactas. Precedencia única:
+        401→403→422(VALIDATION_ERROR: decision/body)→422(INVALID_REASON: motivo)→404(no visible pending_review)
+        →409(EVIDENCE_MISSING, sólo approve). Actor server-side. Sin If-Match/409-optimista (=#008). 006 no
+        expone lectura del detalle (read-side = #010).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewRequest' }
+      responses:
+        '200':
+          description: Decisión aplicada. Orden actualizada (approve→closed | reject→in_progress; version+1).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        '401':
+          description: No autenticado. Uniforme (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Rol no supervisor (FORBIDDEN_ROLE). Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            Orden inexistente, orderId malformado, o en estado distinto de pending_review (no visible para el
+            supervisor). Cuerpo genérico indistinguible (no-enumeración, GUARD_UNMET). Precede a la comprobación
+            de evidencia.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '409':
+          description: >
+            Aprobación sobre una orden visible en pending_review pero SIN evidencia (invariante de 005 rota):
+            EVIDENCE_MISSING, fail-closed. Sin efecto. Sólo aplica a decision=approve.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '422':
+          description: >
+            decision ausente/fuera de {approve,reject} o body malformado (VALIDATION_ERROR); o motivo inválido
+            (INVALID_REASON: rechazo sin motivo, vacío tras saneo, o longitud fuera de 1..1000). VALIDATION_ERROR
+            se evalúa antes que INVALID_REASON. Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: >
+            Error interno genérico NO transitorio (ACTOR_INVALID, constraint inesperada). Cuerpo genérico; nunca
+            filtra detalle de Postgres.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: BD no disponible (fail-closed; nunca cuelga ni fail-open). Convención transversal (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -319,6 +391,33 @@ components:
           items: { $ref: '#/components/schemas/EvidenceRef' }
           description: ≥1 y ≤10 evidencias; sin object_ref duplicados (igualdad exacta). Bloqueante (Brief "≥1 foto").
 
+    ReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      description: >
+        Cuerpo de la decisión de revisión (feature 006). `decision` obligatorio (approve|reject). `reason`
+        obligatorio en reject, opcional en approve; si se envía en approve se valida IGUAL. Pre-saneado y
+        persistido en OrderAudit.reason; nunca en logs ni en cuerpos de error. El actor NO se envía (se deriva
+        del token server-side).
+      properties:
+        decision:
+          type: string
+          enum: [approve, reject]
+          description: Decisión del supervisor. Ausente o fuera del enum → 422 VALIDATION_ERROR.
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: >
+            Motivo de la decisión. Obligatorio si `decision=reject`; opcional si `approve`. El `maxLength: 4000`
+            es una **cota cruda de seguridad de payload** (evita cuerpos absurdos → 422 VALIDATION_ERROR). La
+            **longitud efectiva 1..1000 code points se mide en el DOMINIO TRAS `sanitizeReason`** (trim + colapso
+            de whitespace interno + strip de control chars Cc `U+0000`–`U+001F` `U+007F` salvo `\n` + NFC);
+            vacío tras saneo o >1000 tras saneo → 422 **INVALID_REASON** (no VALIDATION_ERROR). Un motivo con
+            mucho whitespace puede superar 1000 en crudo y ser válido tras saneo — por eso la cota del schema NO
+            es 1000. Nunca en logs/errores.
+
     ErrorResponse:
       type: object
       additionalProperties: false
@@ -327,9 +426,11 @@ components:
         Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/422/500;
         005 (startOrderWork/submitOrderExecution) 401/403/404/422/500 — códigos de dominio
         EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e
-        INVALID_TRANSITION (422). `agent_action` se emite en las respuestas de **negocio** de los handlers de 004
-        y 005 (404/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso
-        `agent_action` es opcional, no `required`).
+        INVALID_TRANSITION (422). 006 (reviewOrder) 401/403/404/409/422/500/503 — VALIDATION_ERROR (422,
+        decision/body), INVALID_REASON (422, motivo), GUARD_UNMET (404, no visible), EVIDENCE_MISSING (409,
+        guard de evidencia en approve). `agent_action` se emite en las respuestas de **negocio** de los handlers
+        de 004/005/006 (404/409/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no
+        llevarlo (por eso `agent_action` es opcional, no `required`).
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }
