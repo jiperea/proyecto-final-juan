@@ -39,3 +39,23 @@ export interface ReassignCommand {
 export interface OrderReassignmentPort {
   reassign(cmd: ReassignCommand): Promise<Result<OrderRecord>>;
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Feature 005 — registro de ejecución. Puertos PROPIOS de 005 (patrón 004 `reassign`): NO reutilizan
+// applyTransition/classifyZeroRows de 002b para clasificar (precedencia pertenencia-antes-que-estado).
+
+/** Comando de inicio de trabajo. `actorId` server-side (del token, FR-007); nunca del body. */
+export interface StartOrderWorkCommand {
+  readonly orderId: string;
+  readonly actorId: string;
+}
+
+/**
+ * Inicia el trabajo (`assigned→in_progress`) de forma atómica: UPDATE condicional
+ * (`status='assigned' AND assigned_to=actor`, SIN predicado de version) + auditoría `transition`
+ * (`reason` NULL) en la misma `$transaction`. 0 filas → clasificador 005 (pertenencia 404 / estado 422).
+ */
+export interface StartOrderWorkPort {
+  startWork(cmd: StartOrderWorkCommand): Promise<Result<OrderRecord>>;
+}
+

@@ -13,8 +13,11 @@ import type {
   OrderVisibilityPort,
   ReassignCommand,
   ReassignmentSnapshot,
+  StartOrderWorkCommand,
+  StartOrderWorkPort,
   UserLookupPort,
 } from '../../domain/order/write-side/write-side-ports';
+import { classifyExecutionGuard } from '../../domain/order/write-side/classify-execution-guard';
 
 const PG_FOREIGN_KEY_VIOLATION = 'P2003';
 
@@ -209,6 +212,50 @@ export class PrismaOrderReassignmentRepository implements OrderReassignmentPort 
           agentAction: 'Elige un técnico distinto, activo y con rol technician.',
         }),
       );
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Feature 005 — inicio de trabajo (write-side propio de 005). Comparte fichero de escritura (arch test);
+// applyTransition/classifyZeroRows de 002b NO se tocan ni se reutilizan. `status`/`version` sólo se mutan aquí.
+
+const START_FROM: OrderStatus = 'assigned';
+const START_TO: OrderStatus = 'in_progress';
+
+export class PrismaStartOrderWorkRepository implements StartOrderWorkPort {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async startWork(cmd: StartOrderWorkCommand): Promise<Result<OrderRecord>> {
+    const { orderId, actorId } = cmd;
+    return this.prisma.$transaction(async (tx) => {
+      // UPDATE condicional: legalidad (status=assigned) + pertenencia (assigned_to=actor) en el WHERE
+      // parametrizado (cierra TOCTOU). SIN predicado de version → VERSION_CONFLICT no surge (005).
+      const res = await tx.order.updateMany({
+        where: { id: orderId, status: START_FROM, assignedTo: actorId },
+        data: { status: START_TO, version: { increment: 1 } },
+      });
+      if (res.count === 1) {
+        // Auditoría transition en la misma tx, reason NULL (un inicio de trabajo no lleva motivo, FR-001).
+        await tx.orderAudit.create({
+          data: {
+            id: uuidv7(),
+            orderId,
+            actorId,
+            eventType: 'transition',
+            fromStatus: START_FROM,
+            toStatus: START_TO,
+          },
+        });
+        return ok(toRecord(await tx.order.findUniqueOrThrow({ where: { id: orderId } })));
+      }
+      // 0 filas: re-lectura DENTRO de la tx (sin SELECT previo → sin TOCTOU) + clasificador propio de 005.
+      const current = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { status: true, assignedTo: true },
+      });
+      const snapshot = current === null ? null : { status: current.status as OrderStatus, assignedTo: current.assignedTo };
+      return err(classifyExecutionGuard(snapshot, { actorId, fromStatus: START_FROM, toStatus: START_TO }));
     });
   }
 }

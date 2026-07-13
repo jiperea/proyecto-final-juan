@@ -13,6 +13,7 @@ import {
   PrismaOrderReassignmentRepository,
   PrismaOrderTransitionRepository,
   PrismaOrderVisibilityRepository,
+  PrismaStartOrderWorkRepository,
   PrismaUserLookupRepository,
 } from './repositories/order-write-side-repository';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
@@ -51,6 +52,7 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
     orderVisibility: new PrismaOrderVisibilityRepository(prisma),
     userLookup: new PrismaUserLookupRepository(prisma),
     orderReassignment: new PrismaOrderReassignmentRepository(prisma),
+    startOrderWork: new PrismaStartOrderWorkRepository(prisma),
     rateLimit: new InMemoryRateLimit({
       max: config.lockoutMax,
       windowMs: config.lockoutWindowMin * MIN_MS,
@@ -102,6 +104,8 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
     orderListDeps: { orders: a.orders },
     orderTransition: a.orderTransition, // 002b (dominio puro; sin ruta)
     reassignDeps: { visibility: a.orderVisibility, users: a.userLookup, reassignment: a.orderReassignment },
+    startDeps: { start: a.startOrderWork }, // 005 US1
+
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,
       secure: config.nodeEnv === 'production',
