@@ -72,6 +72,62 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > (`NNN-…`) lo asigna la extensión git al lanzar `/speckit-specify`; aquí fijan alcance y orden lógico. Físicos
 > ya asignados: 003 (roadmap #003 reasignación = rama `004-orden-reasignacion`), #004 ejecución = `005-…`.
 
+## Fase Front (FE) — completa el "front+back juntos" del enunciado
+
+> El **enunciado del curso** define "hecho" como *frontend + backend + tests en verde a la vez*. El brief de
+> negocio no menciona UI pero la **implica** (técnico en campo con foto, dispatcher, supervisor). Las features
+> 001–009 se construyeron **API-first**; el front se planifica ahora como slices que **consumen los contratos ya
+> congelados** (`contracts/*.openapi.yaml`) — no es retrabajo, el contrato es la costura. App **responsive**:
+> móvil para el técnico en campo, escritorio *master-detail* para dispatcher/supervisor.
+
+| # | Rama | Feature | Depende de | Demostrable |
+|---|---|---|---|---|
+| FE-1 | `NNN-front-shell-listado` | **Shell + acceso + listado (read-only)**: app responsive (React 18 + Vite, design system), login/sesión, "mis órdenes" por rol, detalle solo-lectura | 001, 002a | "entro, veo mis órdenes por rol, abro una" |
+| FE-2 | `NNN-front-tecnico` | **Front del técnico (campo/móvil)**: iniciar trabajo + registrar ejecución + captura de evidencia | FE-1, 004 (subida binaria real → #007) | "registro la ejecución con ≥1 foto y la envío a revisión" |
+| FE-3 | `NNN-front-dispatcher` | **Front del dispatcher (escritorio)**: reasignación en master-detail | FE-1, 003 | "reasigno una orden reasignable a otro técnico" |
+| FE-4 | `NNN-front-supervisor` | **Front del supervisor (escritorio)**: aprobar/rechazar + panel de resumen IA | FE-1, revisión (005), 006 | "reviso, veo el resumen y apruebo/rechazo con motivo" |
+
+> **Sistema de diseño (UX/UI) — se define justo antes de FE-1**, no por adelantado: tokens/paleta, tipografía,
+> componentes base, patrón responsive campo↔oficina, accesibilidad **WCAG 2.1 AA** (Constitution, Convenciones).
+> Referencia de partida: exploración de vistas mínimas (login · lista · detalle por rol · registro de ejecución
+> con evidencia; móvil + escritorio master-detail).
+
+## Fase DevOps (DO) — transversal (ADR-0004) · Reto M12
+
+> **Spec antes que YAML** (regla del reto y del programa): el historial de git debe demostrar que la spec del
+> pipeline es anterior al primer `.yml`. Transversal → **rama/tarea dedicada** (no de feature), como
+> constitución/fundación (ADR-0004). Estrategia de ramas del reto: `feature/*` → `develop` → `main`. Flujos
+> **separados por componente** con filtros `paths:` (un cambio solo en `backend/` no dispara los de front).
+
+| # | Entregable | Capa | Depende de |
+|---|---|---|---|
+| DO-1 | **`pipeline-constitution.md` + `pipeline-spec.md`** (FRs EARS, NFR CI < 10 min, ACs); commit **anterior** a cualquier `.yml` | Mínima | — |
+| DO-2 | **Contenerización**: Dockerfile del backend (multi-stage) + `docker-compose` que orquesta **db (Postgres) · back · front** para dev y paridad dev=prod; prerequisito de imagen/Trivy/GHCR. El servicio `front` queda declarado pero **inerte hasta FE-1** | Mínima | — (front: FE-1) |
+| DO-3 | **`pr-validation-back.yml`**: gates M9 (lint/test · Spectral · oasdiff · gitleaks · acceptance-check · **Trivy**) + **guardián de Constitución** → bloquea el merge | Mínima | DO-1, DO-2 |
+| DO-4 | **`ci-develop-back.yml`**: CI + imagen `x.y.z-snapshot.{sha}` → GHCR + dist (`upload-artifact`, 90 d) | Mínima | DO-3 |
+| DO-5 | **`ci-main-back.yml`**: CI + imagen `x.y.z` (tag semver) + GitHub Release con dist | Mínima | DO-4 |
+| DO-6 | **Workflows de front** (`pr-validation-front` · `ci-develop-front` · `ci-main-front`) | Mínima\* | FE-1 |
+| DO-7 | **CD**: dev (develop, auto) · pre (main, auto) · prod (main, **aprobación manual** vía GitHub Environment) | Opcional | DO-4/5 + target cloud |
+
+> \* Los workflows de front son obligatorios en el reto pero **inertes hasta que exista `frontend/`** → dependen de FE-1.
+>
+> **No rebuild en CD** (no negociable, va en `pipeline-constitution.md`): la imagen que pasó CI en GHCR es la que
+> se despliega; nunca se reconstruye desde el fuente.
+>
+> **Decisiones abiertas, a resolver en DO-1**: (a) adoptar `develop`/`main` vs conservar `rama-por-spec`
+> (ADR-0004); (b) `pipeline-constitution.md` separado vs principio en `constitution.md` **+** fichero; (c) target
+> de CD → recomendado **PaaS que consume la imagen de GHCR + Postgres gestionada** (Render/Railway/Fly.io), sin
+> OIDC/Azure. El gate de aprobación a prod (Environment + reviewer) topa con el muro de **repo privado Free** (M9 J2).
+
+## Enmiendas de constitución (progresivas)
+
+Las enmiendas se aplican **al entrar en cada fase, no por adelantado**:
+
+- **Antes de FE-1**: definir el sistema de diseño/UX-UI y **reconciliar la "definición de hecho"** (front+back a
+  la vez) con el modo API-first ya seguido en 001–009.
+- **Antes de DO-1**: añadir la gobernanza del pipeline (spec-as-gate, pin por SHA, permisos mínimos, no rebuild en
+  CD, flujos separados por componente) — como principio nuevo en `constitution.md` y/o `pipeline-constitution.md`.
+
 ## Orden y paralelismo
 
 ```
