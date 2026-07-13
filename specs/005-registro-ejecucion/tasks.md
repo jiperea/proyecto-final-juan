@@ -88,13 +88,13 @@ inválidas/orden ajena/estado incorrecto → rechazado **sin efecto** (atomicida
 
 ## Phase 5: Polish & Cross-Cutting
 
-- [ ] T023 [P] Arch test — extender `backend/tests/unit/write-side-boundary.spec.ts`: la nueva ruta de ejecución **no** muta `status`/`version` fuera de `domain/order/write-side/*` + `order-write-side-repository.ts`. (La verificación del clasificador único compartido se adelantó a T015, checkpoint US1.)
-- [ ] T024 [P] No-fuga PII `backend/tests/integration/execution-pii-redaction.spec.ts` (SC-007): registrar con `notes` y `object_ref` centinela; grep negativo en logs y en el cuerpo de error; `OrderAudit.reason` = `"execution_registered"` (sin el texto de notas).
-- [ ] T025 [P] Saneo de errores de BD (SC-008): forzar error de BD en execution/start → 500 genérico sin SQLSTATE/constraint/columna/query.
-- [ ] T026 [P] Latencia (SC-009): p95 < 300 ms (50 req secuenciales, BD caliente, nearest-rank) en ambos endpoints; correlation-ID en respuesta y logs.
-- [ ] T027 [P] Trazabilidad: actualizar `docs/traceability.md` (FR-001→`startOrderWork`; FR-002/004/005/006→`submitOrderExecution`; FR-003/007/008→ambos; SC-001..009→tests).
-- [ ] T028 **(obligatorio antes del merge — sin vía de escape)** Crear ítem de backlog propio de **cifrado en reposo + purga/retención** de `OrderExecutionNotes.notes` (IX; distinto de BL-051/055, que son de `OrderAudit.reason`) y referenciarlo en `docs/06-roadmap.md` + `Assumptions`. **(K-102)** El tratamiento at-rest de `OrderEvidence.object_ref` **NO** entra aquí: pertenece a **#007** (minimización de PII del binario/almacenamiento); documentarlo así. Unicidad global de `object_ref` entre órdenes: fuera de alcance (opaco, #007).
-- [ ] T029 Cobertura y regresión final: dominio ≥80%, handlers/servicios ≥80%; `npm run test` completo verde (001/002/004/005). Preparar para el gate G3.
+- [X] T023 [P] Arch test — extender `backend/tests/unit/write-side-boundary.spec.ts`: la nueva ruta de ejecución **no** muta `status`/`version` fuera de `domain/order/write-side/*` + `order-write-side-repository.ts`. (La verificación del clasificador único compartido se adelantó a T015, checkpoint US1.)
+- [X] T024 [P] No-fuga PII `backend/tests/integration/execution-pii-redaction.spec.ts` (SC-007): registrar con `notes` y `object_ref` centinela; grep negativo en logs y en el cuerpo de error; `OrderAudit.reason` = `"execution_registered"` (sin el texto de notas).
+- [X] T025 [P] Saneo de errores de BD (SC-008): forzar error de BD en execution/start → 500 genérico sin SQLSTATE/constraint/columna/query.
+- [X] T026 [P] Latencia (SC-009): p95 < 300 ms (50 req secuenciales, BD caliente, nearest-rank) en ambos endpoints; correlation-ID en respuesta y logs.
+- [X] T027 [P] Trazabilidad: actualizar `docs/traceability.md` (FR-001→`startOrderWork`; FR-002/004/005/006→`submitOrderExecution`; FR-003/007/008→ambos; SC-001..009→tests).
+- [X] T028 **(obligatorio antes del merge — sin vía de escape)** Crear ítem de backlog propio de **cifrado en reposo + purga/retención** de `OrderExecutionNotes.notes` (IX; distinto de BL-051/055, que son de `OrderAudit.reason`) y referenciarlo en `docs/06-roadmap.md` + `Assumptions`. **(K-102)** El tratamiento at-rest de `OrderEvidence.object_ref` **NO** entra aquí: pertenece a **#007** (minimización de PII del binario/almacenamiento); documentarlo así. Unicidad global de `object_ref` entre órdenes: fuera de alcance (opaco, #007).
+- [X] T029 Cobertura y regresión final: dominio ≥80%, handlers/servicios ≥80%; `npm run test` completo verde (001/002/004/005). Preparar para el gate G3.
 
 ---
 
