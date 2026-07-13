@@ -1,18 +1,21 @@
 openapi: 3.1.0
 info:
   title: FieldOps — Orders API
-  version: 1.1.0
+  version: 1.2.0
   description: >
     Feature 002a (read-side): listado de órdenes filtrado por rol sobre el auth/RBAC de 001.
     Feature 004 (write-side): reasignación de una orden por el dispatcher (POST .../reassignments),
     primer endpoint que muta una orden (conserva estado, version+1, auditoría append-only atómica).
+    Feature 005 (write-side): registro de ejecución por el técnico — startOrderWork (POST .../start,
+    assigned→in_progress) y submitOrderExecution (POST .../execution, in_progress→pending_review con
+    ≥1 evidencia por referencia + notas).
     Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
     Reutiliza bearerAuth y ErrorResponse de contracts/auth.openapi.yaml (001).
 servers:
   - url: /v1
 tags:
   - name: orders
-    description: Órdenes de trabajo (listado + reasignación)
+    description: Órdenes de trabajo (listado + reasignación + registro de ejecución)
 
 paths:
   /orders:
@@ -111,9 +114,10 @@ paths:
       summary: Iniciar el trabajo de una orden propia (sólo technician)
       description: >
         Un technician inicia su orden en estado `assigned` (assigned→in_progress), con version+1 y auditoría
-        append-only atómica. Sin cuerpo. Precedencia única 401→403→404(pertenencia)→422(estado). Actor derivado
-        del token server-side. Pertenencia (assigned_to == actor) antes que estado: orden ajena en cualquier
-        estado → 404 genérico. Reutiliza applyTransition (002b), reason NULL.
+        append-only atómica (reason NULL). Sin cuerpo. Precedencia única 401→403→404(pertenencia)→422(estado).
+        Actor derivado del token server-side. Pertenencia (assigned_to == actor) antes que estado: orden ajena en
+        cualquier estado → 404 genérico. Se aplica vía el módulo write-side propio de 005 (start-order-work.ts +
+        classify-execution-guard.ts); NO reutiliza applyTransition/classifyZeroRows de 002b para clasificar.
       security:
         - bearerAuth: []
       parameters:
@@ -160,8 +164,10 @@ paths:
         Un technician registra la ejecución de su orden en estado `in_progress` (in_progress→pending_review),
         adjuntando ≥1 evidencia válida (por referencia) y notas. En UNA sola transacción: transición, version+1,
         auditoría (reason = marcador opaco, sin las notas), evidencia(s) append-only y notas en tabla aparte
-        (OrderExecutionNotes, payload PII). Todo o nada. Precedencia única 401→403→404(pertenencia)→422(estado)→
-        422(payload); dentro del payload, evidencia antes que notas. Actor server-side. Sin If-Match/409 (=#008).
+        (OrderExecutionNotes, payload PII). Todo o nada, en orden transición→auditoría→evidencia→notas.
+        Precedencia única PAYLOAD PRIMERO: 401→403→422(payload)→404(pertenencia)→422(estado); dentro del payload,
+        evidencia antes que notas. Orden ajena con payload válido → 404; con payload inválido → 422 (el 422 de
+        payload no es correlacionable con el recurso destino). Actor server-side. Sin If-Match/409 (=#008).
       security:
         - bearerAuth: []
       parameters:
@@ -318,10 +324,12 @@ components:
       additionalProperties: false
       required: [code, message]
       description: >
-        Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/422/500.
-        `agent_action` se emite en las respuestas de **negocio** del handler de 004 (404/422/500); los
-        401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es
-        opcional, no `required`).
+        Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/422/500;
+        005 (startOrderWork/submitOrderExecution) 401/403/404/422/500 — códigos de dominio
+        EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e
+        INVALID_TRANSITION (422). `agent_action` se emite en las respuestas de **negocio** de los handlers de 004
+        y 005 (404/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso
+        `agent_action` es opcional, no `required`).
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }

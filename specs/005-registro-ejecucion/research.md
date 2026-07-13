@@ -32,8 +32,11 @@ de `object_ref` — rompería la opacidad; límite de notas ≤500 — demasiado
 4. **Notas** (`OrderExecutionNotes`, 1 fila) con `audit_id` → la auditoría del paso 2 (**enlace unidireccional**;
    no hay ciclo de FKs).
 
-Si **cualquier** paso falla → rollback total (sin orden en `pending_review` sin sus notas/evidencia). `startOrderWork`
-reutiliza `applyTransition` tal cual (`assigned→in_progress`, `reason` NULL).
+Si **cualquier** paso falla → rollback total (sin orden en `pending_review` sin sus notas/evidencia).
+`startOrderWork` usa su **propio módulo write-side de 005** (`start-order-work.ts` + clasificador
+`classify-execution-guard.ts`), mismo patrón que `submitExecution`: UPDATE condicional `assigned→in_progress`
+(`status`+`assigned_to`+`version` en el `WHERE`, `expectedVersion` leído dentro de la tx) + auditoría `reason`=NULL;
+si 0 filas → clasificador 005. **No** reutiliza `applyTransition`/`classifyZeroRows` de 002b para clasificar.
 
 **Racional**: reutiliza la garantía de atomicidad y no-enumeración ya probada en 002b/004; el orden auditoría→notas
 resuelve el ciclo FK detectado en G1. **Alternativa descartada**: FK bidireccional `reason↔audit_id` (ciclo,
@@ -62,7 +65,8 @@ frágil, contradice XI; cifrado app-level en esta feature — fuera del MVP magr
 **Decisión**: reutilizar sin tocar 001/002 —
 - **Auth/RBAC**: `authenticate` + `requireRole('technician')` (001); actor sólo del token (FR-007).
 - **FSM**: `transition-table.ts` ya declara legales `['assigned','in_progress']` e `['in_progress','pending_review']`
-  (verificado). `applyTransition` intacto.
+  (verificado). `applyTransition`/`classifyZeroRows` de 002b quedan **intactos y no se reutilizan** para la
+  clasificación 404-vs-422 de 005 (que usa su propio módulo write-side + clasificador, patrón de 004 `reassign`).
 - **Auditoría**: `OrderAudit` (002b/004) reutilizada; `event_type=transition`; sin cambio de esquema.
 - **Errores/observabilidad**: contrato `{code,message,details?,agent_action}`, `error-mapper`, correlation-ID (001).
 - **Migración aditiva**: nuevas tablas `order_evidence` (+trigger append-only) y `order_execution_notes`; sin tocar

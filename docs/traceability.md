@@ -78,7 +78,10 @@
 **FR-009 (contrato de no-enumeración)** y el contrato **`actor_id` = server-side** (nunca de input del
 cliente, G1:S-002 re-run) **NO se implementan en 002b** (dominio puro, sin endpoint): se enuncian como
 contrato y son **precondición verificada en 003/004/005** (reasignación/ejecución/revisión — carpetas
-físicas `004`/`005`/`006`), que consumen `applyTransition` y mapean `GUARD_UNMET`→403 / no-autorizado→404.
+físicas `004`/`005`/`006`). Nota: la ejecución (rama física `005-registro-ejecucion`) **no** reutiliza
+`applyTransition`/`classifyZeroRows` de 002b para clasificar; usa su **módulo write-side propio**
+(`classify-execution-guard.ts`) con precedencia payload→pertenencia(404)→estado(422), y mapea `GUARD_UNMET`→**404**
+(no-enumeración, no 403). La reasignación (004) resuelve la visibilidad→404 antes de escribir.
 
 **Diferido 002b** (documentado, no silencioso): If-Match→409 al cliente (BL-050); cifrado de `reason` en
 reposo (BL-051); accesos denegados como entidad (BL-052); hardening bypass status (BL-053);

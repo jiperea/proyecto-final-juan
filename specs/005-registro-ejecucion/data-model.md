@@ -20,15 +20,16 @@ Referencia/metadato de evidencia; el binario NO se almacena aquí (feature #007)
 |---|---|---|
 | `id` | uuid (PK) | uuidv7. |
 | `order_id` | uuid (FK→orders, RESTRICT) | Orden a la que pertenece. |
+| `audit_id` | uuid (FK→order_audit, RESTRICT) | Referencia explícita al evento de auditoría que la originó (Constitution XI). Enlace unidireccional; la auditoría se inserta antes. Índice. |
 | `object_ref` | text | String opaco, **1..512** code points, sin control ni whitespace de borde. Validado por formato, **sin** chequeo de existencia. Único (exacto) dentro de una request. |
 | `content_type` | text | Allowlist `image/jpeg\|png\|webp\|heic`. |
 | `size_bytes` | int | `> 0` y `≤ 26214400` (25 MiB). Metadato declarado. |
 | `uploaded_by` | uuid (FK→users, RESTRICT) | Derivado del token server-side (FR-007), nunca del cuerpo. |
-| `attempt` | int **NULL** | Base-ready (#005); siempre NULL en el MVP (D6). |
+| `attempt` | int **NULL** | Base-ready para el **roadmap #005** (revisión supervisor, feature futura; no esta rama); siempre NULL en el MVP (D6). |
 | `at` | timestamptz(3) | `default now()`. |
 
 - **Trigger append-only** a nivel de BD (como `order_audit`): sin UPDATE/DELETE.
-- **Índice**: `(order_id)`.
+- **Índices**: `(order_id)`, `(audit_id)`.
 
 ## Entidad nueva · `OrderExecutionNotes` (payload PII, mutable/purgable)
 
@@ -40,13 +41,14 @@ Notas de ejecución del técnico, **separadas** de la auditoría (Constitution I
 | `order_id` | uuid (FK→orders, RESTRICT) | Orden. |
 | `audit_id` | uuid (FK→order_audit, RESTRICT) | **Enlace unidireccional** a la auditoría de la transición (insertada **antes**). Rompe el ciclo de FKs (G1). |
 | `notes` | text | **Payload PII** (IX). 1..2000 code points, no vacío/whitespace/control. Cifrado en reposo/purga = ítem de backlog propio (D4), fuera del MVP. |
-| `attempt` | int **NULL** | Base-ready (#005), paralelo a `OrderEvidence.attempt` (mismo valor por registro). |
+| `attempt` | int **NULL** | Base-ready para el **roadmap #005** (revisión supervisor, no esta rama), paralelo a `OrderEvidence.attempt` (mismo valor por registro). |
 | `created_by` | uuid (FK→users, RESTRICT) | Actor server-side (FR-007). |
 | `at` | timestamptz(3) | `default now()`. |
 
 - **NO** append-only (a diferencia de `order_audit`/`order_evidence`): debe admitir purga/anonimización (IX).
-- **Lectura**: restringida por RBAC (supervisor en función de auditoría; nunca technician de otra orden). No hay
-  endpoint de lectura en este MVP (constancia para #005/#007).
+- **Lectura**: **no hay endpoint de lectura en este MVP** (por tanto, no exigible/testeable aquí). **Nota de
+  diseño para #005/#007** (no obligación de test en G3): cuando exista lectura, restringir por RBAC (supervisor
+  en función de auditoría; nunca technician de otra orden). Trazado en Assumptions M8.
 - **Índices**: `(order_id)`, `(audit_id)`.
 
 ## Reglas de validación (dominio puro, antes de tocar BD)
@@ -55,16 +57,22 @@ Notas de ejecución del técnico, **separadas** de la auditoría (Constitution I
    `object_ref` en formato; **sin `object_ref` duplicados** (igualdad exacta). Fallo → `EVIDENCE_REQUIRED`
    (0 ítems) o `INVALID_EVIDENCE` (resto). Se valida **antes** que las notas.
 2. **Notas**: presentes, no vacías/whitespace/control, `≤ 2000` code points. Fallo → `VALIDATION_ERROR`.
-3. **RBAC/estado** (guard compartido, precedencia única): `401 → 403 → 404 (pertenencia) → 422 (estado
-   `INVALID_TRANSITION`) → 422 (payload)`. Pertenencia **antes** que estado.
+3. **RBAC/estado** (precedencia única, **payload primero**): `401 → 403 → 422 (payload inválido) → 404
+   (pertenencia; orden inexistente/ajena/orderId malformado) → 422 (estado `INVALID_TRANSITION`)`. El payload se
+   valida primero (no revela nada del recurso); entre los códigos de recurso, pertenencia (404) **antes** que estado (422).
 
 ## Transacción atómica (FR-006) — `submitOrderExecution`
 
-`UPDATE` condicional (`in_progress→pending_review`, `version`+guard) → `OrderAudit` (reason opaco) →
-`OrderEvidence` (≥1) → `OrderExecutionNotes` (audit_id). Todo o nada. `startOrderWork` = `applyTransition`
-(`assigned→in_progress`) reutilizado.
+`UPDATE` condicional (`in_progress→pending_review`, `status`+`assigned_to` en el WHERE — **sin** `version`, que se
+incrementa pero no guarda; `VERSION_CONFLICT` no surge en 005) → **auditoría**
+`OrderAudit` (reason opaco `"execution_registered"`) → **evidencia** `OrderEvidence` (≥1) → **notas**
+`OrderExecutionNotes` (audit_id). Todo o nada, en ese orden. `startOrderWork` = **módulo write-side propio de 005**
+(`start-order-work.ts` + clasificador `classify-execution-guard.ts`), mismo patrón que `submitExecution`
+(`assigned→in_progress`, auditoría `reason`=NULL); **no** reutiliza `applyTransition` de 002b para clasificar.
 
 ## Migración Prisma (aditiva)
 
-`<ts>_add_order_evidence_and_execution_notes`: crea `order_evidence` (+trigger append-only + índice) y
-`order_execution_notes` (+índices). Sin ALTER sobre `orders`/`order_audit`. FKs con `onDelete: Restrict`.
+`<ts>_add_order_evidence_and_execution_notes`: crea `order_evidence` (FKs `order_id`, `audit_id`→order_audit,
+`uploaded_by`; +trigger append-only + índices `order_id`,`audit_id`) y `order_execution_notes` (FKs `order_id`,
+`audit_id`, `created_by`; +índices `order_id`,`audit_id`). Sin ALTER sobre `orders`/`order_audit`. FKs con
+`onDelete: Restrict`.
