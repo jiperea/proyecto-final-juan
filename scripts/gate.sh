@@ -91,15 +91,23 @@ run_agent() {
   claude -p "$prompt" --output-format json > "$out" 2>/dev/null || true
 }
 
-# Fase 1 — LANZAR EN PARALELO: los agentes son independientes (misma entrada, JSON propio, sin estado
-# compartido) → cada `claude -p` corre en background escribiendo su salida cruda a un fichero temporal.
-pids=()
-for agent in "${AGENTS[@]}"; do
-  echo "  - lanzando $agent (paralelo) ..."
-  run_agent "$agent" "$TMP_DIR/$agent.raw" &
-  pids+=("$!")
-done
-wait "${pids[@]}" 2>/dev/null || true
+# Fase 1 — EJECUTAR LOS AGENTES. Por defecto EN SERIE (operativo/fiable): el CLI `claude -p` throttlea las
+# llamadas grandes concurrentes y el paralelo daba INCONCLUSO. Con GATE_PARALLEL=1 se lanzan en paralelo
+# (más rápido; úsese sólo si los prompts son pequeños o el CLI no throttlea). Reliability por defecto.
+if [[ "${GATE_PARALLEL:-0}" == "1" ]]; then
+  pids=()
+  for agent in "${AGENTS[@]}"; do
+    echo "  - lanzando $agent (paralelo) ..."
+    run_agent "$agent" "$TMP_DIR/$agent.raw" &
+    pids+=("$!")
+  done
+  wait "${pids[@]}" 2>/dev/null || true
+else
+  for agent in "${AGENTS[@]}"; do
+    echo "  - ejecutando $agent (serie) ..."
+    run_agent "$agent" "$TMP_DIR/$agent.raw"
+  done
+fi
 
 # Fase 2 — CONSOLIDAR: parsea/valida cada salida. Si un agente NO devuelve JSON válido, se REINTENTA una
 # vez en secuencial (posible contención del CLI bajo concurrencia); si sigue inválido, el gate es

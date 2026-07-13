@@ -2,29 +2,33 @@
   "phase": "G3",
   "feature": "007-resumen-incidencia-ia",
   "bloqueantes": 0,
-  "altas": 1,
+  "altas": 0,
   "total": 2,
   "veredicto": "APROBADA_CON_COMENTARIOS",
   "huecos": [
     {
       "id": "S-001",
       "categoria": "FUGA_DATOS",
-      "elemento_afectado": "FR-003b / FR-004a / SC-003 — pii-redactor.ts (PATTERNS)",
-      "descripcion": "La allowlist de PII estructurada 'con garantía determinista' se limita a {email, teléfono, DNI/NIF/NIE, matrícula}. Clases de identificadores de cliente igualmente estructuradas y muy plausibles en notas de ejecución de campo —IBAN/nº de cuenta, tarjeta de crédito, nº de pasaporte, nº de póliza/cliente— NO tienen patrón: ni se redactan en la entrada (redactStructured) ni se bloquean en la salida (hasStructuredPii, mismo set). No es el residual de texto libre de nombres/direcciones (BL-073) ni el falso positivo K6: es una clase estructurada nueva no cubierta.",
-      "pregunta_critica": "¿La 'garantía determinista' de SC-003/FR-003b se restringe explícitamente al set {email,teléfono,DNI/NIF,matrícula}, o debe cubrir también IBAN/tarjeta/pasaporte? Si se restringe, ¿por qué esas clases de PII de cliente (transmitidas al proveedor SIN redactar y devueltas al supervisor SIN bloquear) quedan fuera del alcance VIII sin siquiera un BL trazado?",
-      "riesgo_si_no_se_corrige": "Un IBAN/tarjeta/pasaporte escrito por el technician en las notas viaja en claro al proveedor IA (violación de 'minimización antes de la IA', Constitution VIII/IX) y, como entrada y salida comparten el mismo set de patrones, tampoco se detecta en la salida: puede aparecer en el resumen entregado al supervisor. La spec lo vende como garantía determinista, ocultando el hueco.",
-      "severidad": "ALTA",
+      "elemento_afectado": "Assumptions (fuente del ciclo vigente por `auditId`) / IncidentSourceRepository (T007) / FR-007",
+      "descripcion": "La fuente del resumen se resuelve por `auditId` (el del último `submitOrderExecution` que dejó la orden en `pending_review`), y el repo lee `order_execution_notes`/`order_evidence` WHERE `auditId = X`. En ningún artefacto se exige que esa lectura esté ADEMÁS acotada por `orderId`: la autorización (estado `pending_review` + visibilidad) se comprueba sobre la Order, pero la lectura de contenido se hace por `auditId`. Si la resolución del `auditId` vigente y la lectura de notas/evidencia no comparten el mismo `orderId` como predicado, una desalineación (auditId reutilizado, join sin `orderId`, o resolución del 'último submit' que devuelve el de otra orden) devolvería contenido de otra orden a un supervisor que sí superó el guard de visibilidad — el control de acceso se pasa sobre una entidad (Order) y los datos se sirven desde otra clave (auditId) no re-validada contra esa entidad.",
+      "pregunta_critica": "¿La spec/plan exige explícitamente que la lectura de notas/evidencia por `auditId` esté doblemente acotada por `orderId` (el mismo cuyo estado autorizó el acceso), de modo que sea imposible servir contenido de un `auditId` que no pertenezca a la orden solicitada? ¿Se cubre con un test de aislamiento (orden A con auditId de la orden B → 404/vacío, nunca notas de B)?",
+      "riesgo_si_no_se_corrige": "Fuga de datos de cliente entre órdenes (IDOR por desacople autorización-en-Order vs lectura-por-auditId): el resumen de una orden podría construirse sobre notas/evidencia de otra, filtrando la incidencia de un cliente ajeno pese a que el guard de visibilidad pasó sobre la orden pedida.",
+      "severidad": "MEDIA",
       "agente": "revisor-rbac-seguridad"
     },
     {
-      "id": "S-002",
-      "categoria": "SEGURIDAD",
-      "elemento_afectado": "FR-013 / SC-007 — infra/ai/access-logger.ts (PinoAccessLog) + container.ts",
-      "descripcion": "El evento de acceso se emite con un logger propio creado en el wiring (`new PinoAccessLog(createLogger())`), NO con el logger correlacionado por petición (`correlation(createLogger())` que adjunta correlation-ID a req). El evento de acceso queda por tanto SIN correlation-ID, desligado del resto de trazas de la misma petición.",
-      "pregunta_critica": "¿Cómo se correlaciona forensemente un evento `access.ai_summary {outcome=denied, deniedReason=role_403}` (señal de intento de escalada de un rol inferior) con el resto de la petición si el evento no lleva correlation-ID? Sin ese enlace, ¿la 'detección de abuso' que justifica FR-013 es realmente accionable?",
-      "riesgo_si_no_se_corrige": "El rastro forense que sustenta la mitigación de S-001 (amplificación de cosecha de PII) y la detección de un rol inferior sondeando el endpoint pierde trazabilidad transversal: no se puede reconstruir la sesión/petición completa desde el evento de acceso, degradando el detective control (Constitution XI) que la spec presenta como mitigación.",
+      "id": "K-001",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-009b (fila de la matriz de trazabilidad)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "La matriz de trazabilidad mapea FR-009b únicamente a T012 (test unitario `should construct provider with temperature=0 + determinism directive`). Sin embargo, FR-009b exige que la temperatura configurada sea la MISMA en runtime y eval (paridad dev/eval), y esa realización del lado eval —`temperature=0` en `evals/promptfooconfig.yaml`— es explícitamente parte de T023 (tanto la spec §Eval como el propio T023 lo declaran: «provider `claude -p` con temperature=0 —misma que runtime, paridad dev/eval, FR-009b/K-001»). La cadena FR-009b → tarea → test omite T023, dejando la mitad eval de FR-009b sin nodo en la matriz.",
+      "pregunta_critica": "Añadir T023 a la fila FR-009b de la trazabilidad (o dividir FR-009b en runtime/eval como se hizo con FR-004 a/b), de modo que la paridad de temperatura dev/eval quede trazada y no dependa solo del test unitario de construcción del provider.",
+      "riesgo_si_no_se_corrige": "Un cambio futuro en la temperatura del eval (T023) no tendría un requisito trazado que lo obligue a mantener la paridad con runtime, debilitando la garantía de reproducibilidad de SC-001 que FR-009b sostiene; la trazabilidad RF→tarea→test (Constitution VI) queda incompleta para la mitad eval del requisito.",
       "severidad": "MEDIA",
-      "agente": "revisor-rbac-seguridad"
+      "agente": "revisor-consistencia"
     }
   ]
 }

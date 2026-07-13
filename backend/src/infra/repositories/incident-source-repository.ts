@@ -46,13 +46,16 @@ export class PrismaIncidentSourceRepository implements IncidentSourcePort {
         return { notes: '', evidence: { count: 0, contentTypes: [] } };
       }
 
+      // Defensa en profundidad: la lectura de contenido incluye `orderId` ADEMÁS del `auditId` (aunque el
+      // auditId ya se derivó de esta orden) → un auditId reutilizado/desalineado nunca sirve contenido de
+      // otra orden a un supervisor que superó el guard de visibilidad sobre ESTA orden.
       const notesRow = await this.prisma.orderExecutionNotes.findFirst({
-        where: { auditId: audit.id },
+        where: { auditId: audit.id, orderId },
         orderBy: { at: 'desc' },
         select: { notes: true },
       });
       const evidence = await this.prisma.orderEvidence.findMany({
-        where: { auditId: audit.id },
+        where: { auditId: audit.id, orderId },
         select: { contentType: true },
       });
 

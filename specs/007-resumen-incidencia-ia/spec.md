@@ -483,7 +483,7 @@ en los logs; superar el límite de peticiones → `429`.
 | FR-007 | `summarizeOrderIncident` | T013, T018 | `should 404 generic when order not in pending_review` |
 | FR-008 | `summarizeOrderIncident` | T009, T019 | `should 429 when rate limit exceeded (no provider call)` |
 | FR-009 | `summarizeOrderIncident` | T012, T014 | `should use mocked provider in tests (no network)` |
-| FR-009b | `summarizeOrderIncident` | T012 | `should construct provider with temperature=0 + determinism directive (CLI has no sampler flag → BL-072)` |
+| FR-009b | `summarizeOrderIncident` | T012, T023 | `should construct provider with temperature=0 + determinism directive (T012); misma temperature=0 en el eval promptfoo (T023, paridad dev/eval)` |
 | FR-009c | `summarizeOrderIncident` | T012, T020 | `should invoke subprocess via execFile/argv/stdin (no shell); shell metachars in notes run no OS command` |
 | FR-010 | `summarizeOrderIncident` | T012, T016, T017, T021 | `should 503 on timeout/process-failure, 200 fallback on empty/non-conforming/malformed-JSON` |
 | FR-010 (fuente/transversal) | `summarizeOrderIncident` | T021 | `should 503 on DB-unavailable + 500 on unexpected (ai-summary-source-failure)` |

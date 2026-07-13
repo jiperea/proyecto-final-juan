@@ -64,6 +64,11 @@
   libre). **NO re-levantar "clase de PII estructurada X no cubierta"**: la garantía se declara sobre el conjunto
   enumerado, no sobre "toda PII estructurada" (enumeración infinita imposible de garantizar por regex).
 
+## Dispuestos en G3 (ronda final, PASS 0 bloq/0 ALTA) — hardening de las 2 MEDIAs
+- **Defensa en profundidad de control de acceso**: la lectura de notas/evidencia va `WHERE auditId Y orderId`
+  (no solo auditId) → un auditId desalineado no sirve contenido de otra orden. RESUELTO (incident-source-repository + T007).
+- **Trazabilidad FR-009b**: mapeada a T012 (runtime) **y T023** (eval, paridad temperature=0). RESUELTO.
+
 ## Controles de runtime cerrados (no reportar como huecos)
 - **FR-009c** — invocación del subproceso `claude` por `execFile`/`spawn` (argv + `stdin`), NUNCA `exec`/shell →
   sin inyección de comandos del SO (S-001). Cerrado en runtime + test.
