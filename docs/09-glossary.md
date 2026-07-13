@@ -31,13 +31,22 @@
 
 ## Conceptos
 
-- **Evidencia:** fotos + notas del técnico asociadas a un intento de ejecución. Contiene PII.
-- **Foto válida:** (umbral definido en la spec) formato soportado + tamaño ≤ límite + decodificable.
+- **Evidencia:** fotos del técnico asociadas a un intento de ejecución. Contiene PII. *(En la feature 005 se
+  modela como entidad propia `OrderEvidence`, separada de las **notas** —`OrderExecutionNotes`— por mandato de
+  Constitution XI; no conflar ambas.)*
+- **Foto válida:** (umbral definido en la spec) formato soportado + tamaño ≤ límite. **MVP #005** (validación
+  *por referencia*): `object_ref` bien formado + `content_type` en allowlist + `size_bytes` ≤ máximo, **sin**
+  decodificar ni comprobar existencia del binario. **Decodificabilidad y transporte binario** llegan en **#007**.
 - **Evidencia suficiente (IA):** (umbral definido en la spec) mínimo de fotos/notas para que el
   asistente resuma; por debajo, declara "evidencia insuficiente" y no inventa.
-- **PII:** datos personales de cliente (nombre, dirección, matrícula, ubicación, rostros en fotos).
+- **PII:** datos personales de cliente (nombre, dirección, matrícula, ubicación, rostros en fotos) y, por
+  extensión, **datos operativos sensibles** tratados con la misma protección (IX): notas de ejecución del técnico
+  (`OrderExecutionNotes.notes`) y referencias de objeto (`object_ref`) — nunca en logs/errores; cifrado/purga por IX.
 - **Auditoría:** registro **append-only** e inmutable de cada transición (actor, timestamp, acción,
-  motivo, referencia a evidencia) y de los accesos denegados.
+  motivo, referencia a evidencia) y de los accesos denegados. *(En 005 el `motivo`/`reason` de una transición
+  puede ser un **marcador opaco constante** —p.ej. `"execution_registered"`—, nunca PII cruda —XI—; y la
+  "referencia a evidencia" se materializa como `OrderEvidence.audit_id → OrderAudit` —la evidencia referencia a la
+  auditoría, no al revés—.)*
 - **Matriz rol×alcance:** política centralizada que define qué órdenes ve/opera cada rol.
 - **Gate (G1/G2/G3):** punto de control adversarial tras clarify / analyze / implement.
 - **Success Criteria (SC):** criterios medibles de éxito de una spec, evaluados como métricas.

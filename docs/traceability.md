@@ -78,7 +78,10 @@
 **FR-009 (contrato de no-enumeración)** y el contrato **`actor_id` = server-side** (nunca de input del
 cliente, G1:S-002 re-run) **NO se implementan en 002b** (dominio puro, sin endpoint): se enuncian como
 contrato y son **precondición verificada en 003/004/005** (reasignación/ejecución/revisión — carpetas
-físicas `004`/`005`/`006`), que consumen `applyTransition` y mapean `GUARD_UNMET`→403 / no-autorizado→404.
+físicas `004`/`005`/`006`). Nota: la ejecución (rama física `005-registro-ejecucion`) **no** reutiliza
+`applyTransition`/`classifyZeroRows` de 002b para clasificar; usa su **módulo write-side propio**
+(`classify-execution-guard.ts`) con precedencia payload→pertenencia(404)→estado(422), y mapea `GUARD_UNMET`→**404**
+(no-enumeración, no 403). La reasignación (004) resuelve la visibilidad→404 antes de escribir.
 
 **Diferido 002b** (documentado, no silencioso): If-Match→409 al cliente (BL-050); cifrado de `reason` en
 reposo (BL-051); accesos denegados como entidad (BL-052); hardening bypass status (BL-053);
@@ -118,3 +121,41 @@ Endpoint `reassignOrder` — `POST /v1/orders/{orderId}/reassignments`. Suite co
 
 > Residuales/stretch (no MVP, documentados): BL-001 (If-Match/409), BL-063/064/066 (hardening), BL-067
 > (gobernanza XI accesos denegados), BL-002/051/055 (heredados).
+
+---
+
+## 005 · Registro de ejecución por el técnico — MVP magro (G1 PASS / G2 remediado / implementado)
+
+Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderExecution` —
+`POST /v1/orders/{orderId}/execution` (rol `technician`). Módulo write-side **propio de 005** (no reutiliza
+`applyTransition`/`classifyZeroRows` de 002b para clasificar). Precedencia única **payload primero**
+`401→403→422(payload)→404(pertenencia)→422(estado)`.
+
+| FR / SC | Descripción | Endpoint | Tarea | Test(s) |
+|----|-------------|----------|-------|---------|
+| FR-001 | iniciar trabajo (assigned→in_progress, version+1, 1 auditoría reason NULL) | startOrderWork | T013-T014 | `integration/start-order-work`, `contract/start-order-work.contract` |
+| FR-002 | registrar ejecución (in_progress→pending_review) en 1 tx: transición→auditoría (reason opaco)→evidencia[]→notas | submitOrderExecution | T019/T022 | `integration/submit-execution`, `contract/…` (via app) |
+| FR-003 | precedencia única 401→403→422(payload)→404(pertenencia)→422(estado); pertenencia antes que estado; orderId malformado→404; payload primero | ambos | T010b/T013/T022 | `unit/classify-execution-guard`, `integration/start-order-work`, `integration/submit-execution` |
+| FR-004 | evidencia por referencia bloqueante (≥1..10, allowlist, size, object_ref formato, sin duplicados) → EVIDENCE_REQUIRED/INVALID_EVIDENCE | evidence.ts / submit-execution | T010/T016/T017 | `unit/evidence`, `unit/submit-execution`, `integration/submit-execution` |
+| FR-005 | notas 1..2000 code points (VALIDATION_ERROR); notes/object_ref nunca en logs/errores | submit-execution / logger | T009/T017/T024 | `unit/submit-execution`, `integration/execution-pii-redaction` |
+| FR-006 | atomicidad todo-o-nada (transición+auditoría+evidencia+notas); append-only evidencia; único punto de escritura | order-write-side-repository | T019/T021/T023 | `integration/submit-execution-atomicity`, `unit/write-side-boundary` |
+| FR-007 | actor server-side (uploaded_by/created_by/actor_id del token; `.strict()` rechaza body) | ambos | T016/T020 | `integration/submit-execution` (.strict + actor del token) |
+| FR-008 | errores de BD → 500 genérico sin detalle de Postgres | error-mapper / handlers | T007/T025 | `integration/execution-db-error`, `contract/start-order-work.contract` (500) |
+| Migración | +order_evidence (append-only trigger) +order_execution_notes (purgable), FKs RESTRICT, sin ALTER a orders/order_audit | — | T003-T006 | `integration/order-evidence-migration` |
+| SC-001 | inicio válido → 200 in_progress + version+1 + 1 auditoría | startOrderWork | T012 | `integration/start-order-work` |
+| SC-002 | registro válido → 200 pending_review + version+1 + 1 auditoría (reason opaco) + 1 notas + ≥1 evidencia | submitOrderExecution | T020 | `integration/submit-execution` (happy path) |
+| SC-003 | precedencia RBAC+payload+pertenencia+estado | ambos | T012/T020 | `integration/start-order-work`, `integration/submit-execution` |
+| SC-004 | evidencia bloqueante (0/>10/formato) → 422 | submitOrderExecution | T010/T020 | `unit/evidence`, `integration/submit-execution` |
+| SC-005 | notas ausentes/vacías/>2000 → 422 VALIDATION_ERROR | submitOrderExecution | T017/T020 | `unit/submit-execution`, `integration/submit-execution` |
+| SC-006 | atomicidad (fallo evidencia/auditoría/notas → sin efecto) | order-write-side-repository | T021 | `integration/submit-execution-atomicity` |
+| SC-007 | no-fuga de notes/object_ref (logs y cuerpo de error); reason="execution_registered" | logger / handlers | T024 | `integration/execution-pii-redaction` |
+| SC-008 | error de BD → 500 genérico sin SQLSTATE/constraint/columna/query | handlers | T025 | `integration/execution-db-error` |
+| SC-009 | p95 < 300 ms (50 secuenciales, warm-up, nearest-rank); correlation-ID | — | T026 | `integration/execution-latency` (RUN_PERF) |
+
+> Arquitectura: `unit/write-side-boundary` (status/version sólo en el repo write-side) y
+> `unit/execution-guard-single-source` (start/execution usan el clasificador propio de 005, no
+> `classifyZeroRows` de 002b — precedencia pertenencia-antes-que-estado).
+>
+> Deuda trazada (no MVP, documentada): **BL-069** (cifrado en reposo + purga/retención de
+> `OrderExecutionNotes.notes`, IX; distinto de BL-051/055); **BL-068** (subida binaria + at-rest de
+> `object_ref`, #007); **BL-001** (If-Match/409, #008); **BL-002/067** (auditoría de accesos denegados, #009).

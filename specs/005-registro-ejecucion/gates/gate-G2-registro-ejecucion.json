@@ -1,0 +1,86 @@
+{
+  "gate": "G2",
+  "fase": "after_analyze",
+  "feature": "005-registro-ejecucion",
+  "fecha": "2026-07-13",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-consistencia"],
+  "artefactos_revisados": ["spec.md", "plan.md", "tasks.md", "research.md", "data-model.md", "contracts/orders.openapi.yaml"],
+  "veredicto_global": "FAIL_REMEDIADO",
+  "bloqueantes": 0,
+  "resolucion_ronda": "G2 requirió varias rondas de remediación en CASCADA (spec→contrato→data-model/plan→tasks→docs) hasta 0 bloqueantes, verificado mecánicamente.",
+  "rondas": [
+    "R1: 3 bloqueantes iniciales (BG1 notas-como-motivo en US2-AC1; BG2 VERSION_CONFLICT sin decidir; BG3 plan no reflejaba el clasificador propio) + ALTA/MEDIA.",
+    "R2: nuevo bloqueante (T013 start contradictorio applyTransition vs T010b; expectedVersion) — resuelto con puerto propio de 005 y clasificador post-0-filas.",
+    "R3: decisión de usuario PAYLOAD PRIMERO (401→403→422 payload→404 pertenencia→422 estado); cascada a FR-003/SC-003/US2/plan/tasks.",
+    "R4: propagación incompleta detectada — el CONTRATO (contract-first) y clarificación B1/Scope/data-model seguían en payload-último y con applyTransition; cascada completa incl. contrato + audit_id en OrderEvidence (XI) + H-003 payload-antes-que-UUID.",
+    "R5 (cierre): bloqueante VERSION_CONFLICT-literal + rama de versión muerta → 005 sin predicado de versión (VERSION_CONFLICT no surge; 409 reservado a #008); + fixes de glosario/traceability/ErrorResponse/#005."
+  ],
+  "verificacion_mecanica_final": "0 residuos en 8 artefactos: applyTransition-reuse=0, version-in-WHERE=0, GUARD_UNMET→403=0, VERSION_CONFLICT→404-viejo=0; contrato YAML válido; audit_id propagado (spec/data-model/tasks).",
+  "leccion": "Cascada SDD en orden (spec→contrato→plan→tasks→docs) y propagación COMPLETA (incl. contrato contract-first y glosario), no sólo los FR. Registrada en memoria sdd-skill-order.",
+  "huecos": [
+    {
+      "id": "BG1", "severidad": "BLOQUEANTE", "fuentes": ["revisor-consistencia K-002", "revisor-cinico H-001"],
+      "elemento": "spec.md US2 Acceptance Scenario 1",
+      "descripcion": "Texto residual 'con las notas como motivo' en la auditoría, contradice FR-002/B2 y Constitution XI (no PII cruda en auditoria). No se actualizó al remediar B2 en G1.",
+      "correccion": "Reescrito AC1 de US2: reason = marcador opaco 'execution_registered'; las notas van a OrderExecutionNotes."
+    },
+    {
+      "id": "BG2", "severidad": "BLOQUEANTE", "fuentes": ["auditor-spec-theater T-001", "revisor-consistencia K-003", "revisor-cinico H-002", "revisor-rbac S-001"],
+      "elemento": "tasks.md T007 (F3) VERSION_CONFLICT",
+      "descripcion": "Dos opciones sin decidir (404 vs relectura); el error-mapper global reserva VERSION_CONFLICT->409 para #008; FR-003/SC-003 no ubican el codigo.",
+      "correccion": "Decision unica: en 005 el desajuste de version se trata fail-safe como 404 (sin reintento, sin 409). El mapeo global VERSION_CONFLICT->409 no se toca (reservado #008). Encodeado en T007 + nota en FR-003."
+    },
+    {
+      "id": "BG3", "severidad": "BLOQUEANTE", "fuentes": ["revisor-consistencia K-001"],
+      "elemento": "plan.md Project Structure / Summary",
+      "descripcion": "plan.md dice que startOrderWork reutiliza apply-transition 'tal cual' y no ubica el clasificador propio de 005 (pertenencia-antes-que-estado). Implementar segun el plan reintroduciria el IDOR de FR-003.",
+      "correccion": "plan.md actualizado: clasificador propio de 005 en domain/order/write-side/ (Foundational compartido); startOrderWork NO reutiliza la clasificacion 404-vs-422 de 002b tal cual."
+    },
+    {
+      "id": "AG1", "severidad": "ALTA", "fuentes": ["revisor-cinico H-003"],
+      "elemento": "tasks.md paralelismo vs clasificador compartido",
+      "descripcion": "US1/US2 declaradas 'paralelas totales' pero el clasificador 005 es compartido -> dependencia real / riesgo de duplicacion divergente.",
+      "correccion": "Clasificador 005 movido a Foundational (T010b): se crea una vez antes de US1/US2; ambas lo reutilizan."
+    },
+    {
+      "id": "AG2", "severidad": "ALTA", "fuentes": ["revisor-cinico H-004"],
+      "elemento": "tasks.md T013/T019 TOCTOU",
+      "descripcion": "Resolver pertenencia con SELECT de visibilidad ANTES del UPDATE atomico abre ventana TOCTOU con reasignacion (004) concurrente, contradiciendo M7.",
+      "correccion": "El clasificador 005 re-clasifica POST-0-filas (re-lee tras el UPDATE atomico, como 002b) pero reordenado pertenencia->estado->version; sin SELECT previo separado. Cierra la ventana."
+    },
+    {
+      "id": "AG3", "severidad": "ALTA", "fuentes": ["revisor-consistencia K-004"],
+      "elemento": "plan.md Constitution Check recuento",
+      "descripcion": "Complexity Tracking lista 3 desviaciones pero el Resultado dice '2'; falta fila de gate para Principio X (sin If-Match/409).",
+      "correccion": "Recuento corregido a 3; anadida constancia de Principio X (concurrencia If-Match -> #008)."
+    },
+    {
+      "id": "AG4", "severidad": "ALTA", "fuentes": ["revisor-rbac S-003", "revisor-cinico H-005"],
+      "elemento": "object_ref fuera del backlog de cifrado",
+      "descripcion": "object_ref se trata como PII para redaccion pero se excluye del item de cifrado/retencion; ademas es append-only (mas persistente). Sin unicidad global (aceptado, #007).",
+      "correccion": "Item de backlog (T028) ampliado para incluir object_ref (append-only) ademas de notes. Unicidad global de object_ref: fuera de alcance (opaco, #007), documentado."
+    },
+    {
+      "id": "AG5", "severidad": "ALTA", "fuentes": ["revisor-rbac S-002", "auditor-spec-theater T-002"],
+      "elemento": "Assumptions S-001 / T028 aceptacion de riesgo",
+      "descripcion": "'crear item O aceptar riesgo con plazo' sin dueno ni plazo concreto -> via de escape para mergear con PII en claro.",
+      "correccion": "T028 concreto y OBLIGATORIO (no 'si procede'): crear el item de backlog de cifrado/purga antes del merge; se elimina la via de escape."
+    },
+    {
+      "id": "MG1", "severidad": "MEDIA", "fuentes": ["revisor-consistencia K-005"], "elemento": "T018 sin caso 'orden propia closed -> 422'", "correccion": "Anadido el caso closed a T018."
+    },
+    {
+      "id": "MG2", "severidad": "MEDIA", "fuentes": ["revisor-rbac S-005"], "elemento": "T022 sin asercion orderId malformado -> 404", "correccion": "Anadido a T022 (paridad con T014)."
+    },
+    {
+      "id": "MG3", "severidad": "MEDIA", "fuentes": ["revisor-rbac S-006"], "elemento": "FR-007 sin test de inyeccion de uploaded_by/actor_id en el body", "correccion": "Anadido caso a T018 (inyeccion ignorada; actor del token)."
+    },
+    {
+      "id": "MG4", "severidad": "MEDIA", "fuentes": ["revisor-rbac S-004"], "elemento": "posible inversion de precedencia en 004", "correccion": "Verificado: reassignOrder (004) resuelve 404 via consulta de visibilidad (findReassignable) ANTES de la escritura; no transiciona estado -> sin inversion. Sin accion en 005."
+    },
+    {
+      "id": "MG5", "severidad": "MEDIA", "fuentes": ["revisor-rbac S-007", "revisor-cinico H-006"], "elemento": "RBAC de lectura de OrderExecutionNotes no exigible en MVP", "correccion": "data-model: degradado a nota de diseno para #005/#007 (sin endpoint de lectura en 005); trazado en Assumptions M8."
+    }
+  ],
+  "resumen": "G2 FAIL con 3 bloqueantes: BG1 (residual PII notas-como-motivo en spec US2-AC1), BG2 (VERSION_CONFLICT sin decidir), BG3 (plan.md no refleja F1). Remediados con una decision de diseno unificada (clasificador 005 Foundational, post-0-filas reordenado, version fail-safe 404) que cierra ademas AG1/AG2/BG2. ALTA de cifrado (object_ref, dueno/plazo) y MEDIA de cobertura de tests tambien cerradas. Verificado que 004 no comparte el IDOR (usa visibilidad previa)."
+}

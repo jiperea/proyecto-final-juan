@@ -25,6 +25,11 @@ const STATUS: Record<ErrorCode, number> = {
   // 004: reasignación
   FORBIDDEN_ROLE: 403,
   INVALID_ASSIGNEE: 422,
+  // 005: registro de ejecución — payload de evidencia (validado ANTES que pertenencia/estado, FR-003).
+  // VERSION_CONFLICT NO surge en 005 (el UPDATE keyea status+assigned_to sin version); el mapeo global
+  // VERSION_CONFLICT→409 queda intacto (reservado a #008). El error-mapper sigue genérico (catch-all BD → 500).
+  EVIDENCE_REQUIRED: 422,
+  INVALID_EVIDENCE: 422,
   INTERNAL: 500,
 };
 

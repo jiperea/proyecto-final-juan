@@ -1,18 +1,21 @@
 openapi: 3.1.0
 info:
   title: FieldOps — Orders API
-  version: 1.1.0
+  version: 1.2.0
   description: >
     Feature 002a (read-side): listado de órdenes filtrado por rol sobre el auth/RBAC de 001.
     Feature 004 (write-side): reasignación de una orden por el dispatcher (POST .../reassignments),
     primer endpoint que muta una orden (conserva estado, version+1, auditoría append-only atómica).
+    Feature 005 (write-side): registro de ejecución por el técnico — startOrderWork (POST .../start,
+    assigned→in_progress) y submitOrderExecution (POST .../execution, in_progress→pending_review con
+    ≥1 evidencia por referencia + notas).
     Contract-first (Constitution II). Nombres externos snake_case; internos camelCase.
     Reutiliza bearerAuth y ErrorResponse de contracts/auth.openapi.yaml (001).
 servers:
   - url: /v1
 tags:
   - name: orders
-    description: Órdenes de trabajo (listado + reasignación)
+    description: Órdenes de trabajo (listado + reasignación + registro de ejecución)
 
 paths:
   /orders:
@@ -103,6 +106,112 @@ paths:
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
+  # ---- Feature 005 — registro de ejecución por el técnico ----
+  /orders/{orderId}/start:
+    post:
+      operationId: startOrderWork
+      tags: [orders]
+      summary: Iniciar el trabajo de una orden propia (sólo technician)
+      description: >
+        Un technician inicia su orden en estado `assigned` (assigned→in_progress), con version+1 y auditoría
+        append-only atómica (reason NULL). Sin cuerpo. Precedencia única 401→403→404(pertenencia)→422(estado).
+        Actor derivado del token server-side. Pertenencia (assigned_to == actor) antes que estado: orden ajena en
+        cualquier estado → 404 genérico. Se aplica vía el módulo write-side propio de 005 (start-order-work.ts +
+        classify-execution-guard.ts); NO reutiliza applyTransition/classifyZeroRows de 002b para clasificar.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Trabajo iniciado. Orden actualizada (status in_progress, version+1).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        '401':
+          description: No autenticado. Uniforme (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Autenticado pero el rol no es technician (FORBIDDEN_ROLE, default-deny). Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            Orden inexistente, ajena (assigned_to != actor) u orderId malformado. Cuerpo genérico indistinguible
+            (no-enumeración), incluso si la orden ajena está en estado no operable.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '422':
+          description: >
+            Orden PROPIA pero en estado de origen no legal para iniciar (ya in_progress/pending_review/closed):
+            INVALID_TRANSITION. Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: Error interno genérico (todo error de BD). Cuerpo genérico; nunca filtra detalle de Postgres.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
+  /orders/{orderId}/execution:
+    post:
+      operationId: submitOrderExecution
+      tags: [orders]
+      summary: Registrar la ejecución con evidencia y notas (sólo technician)
+      description: >
+        Un technician registra la ejecución de su orden en estado `in_progress` (in_progress→pending_review),
+        adjuntando ≥1 evidencia válida (por referencia) y notas. En UNA sola transacción: transición, version+1,
+        auditoría (reason = marcador opaco, sin las notas), evidencia(s) append-only y notas en tabla aparte
+        (OrderExecutionNotes, payload PII). Todo o nada, en orden transición→auditoría→evidencia→notas.
+        Precedencia única PAYLOAD PRIMERO: 401→403→422(payload)→404(pertenencia)→422(estado); dentro del payload,
+        evidencia antes que notas. Orden ajena con payload válido → 404; con payload inválido → 422 (el 422 de
+        payload no es correlacionable con el recurso destino). Actor server-side. Sin If-Match/409 (=#008).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExecutionRequest' }
+      responses:
+        '200':
+          description: Ejecución registrada. Orden actualizada (status pending_review, version+1).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Order' } }
+        '401':
+          description: No autenticado. Uniforme (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '403':
+          description: Rol no technician (FORBIDDEN_ROLE). Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            Orden inexistente, ajena u orderId malformado. Cuerpo genérico indistinguible (no-enumeración),
+            incluso si la orden ajena está en estado no operable.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '422':
+          description: >
+            Orden propia en estado no legal (INVALID_TRANSITION); o evidencia inválida: EVIDENCE_REQUIRED
+            (0 elementos) / INVALID_EVIDENCE (content_type fuera de allowlist, size_bytes fuera de rango,
+            object_ref con formato inválido, duplicados, o array > máximo); o notas inválidas (VALIDATION_ERROR:
+            ausentes/vacías/whitespace/>máx). La evidencia se valida antes que las notas. Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '500':
+          description: Error interno genérico (todo error de BD). Cuerpo genérico; nunca filtra detalle de Postgres.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -161,15 +270,66 @@ components:
             el Zod derivado debe contar code points (no UTF-16). Debe contener ≥1 carácter imprimible (no sólo
             whitespace/control). Nunca aparece en logs ni en cuerpos de error.
 
+    EvidenceRef:
+      type: object
+      additionalProperties: false
+      required: [object_ref, content_type, size_bytes]
+      description: >
+        Referencia/metadato de una evidencia (feature 005). El binario NO viaja aquí (transporte = #007). Se
+        valida por formato, sin comprobar existencia del objeto.
+      properties:
+        object_ref:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: >
+            String opaco (clave de objeto). 1..512 code points; sin caracteres de control ni whitespace de
+            borde. No se comprueba existencia. Igualdad exacta para detectar duplicados. Potencial PII: nunca en
+            cuerpos de error; en logs sólo id/conteo, no el ref crudo.
+        content_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/heic]
+          description: Allowlist de imágenes. Fuera de lista → INVALID_EVIDENCE.
+        size_bytes:
+          type: integer
+          minimum: 1
+          maximum: 26214400
+          description: Tamaño declarado (metadato). 1..26214400 (25 MiB). Fuera de rango → INVALID_EVIDENCE.
+
+    ExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [notes, evidence]
+      description: >
+        Cuerpo del registro de ejecución. `notes` obligatorias (payload PII: nunca en logs/errores; persistidas
+        en OrderExecutionNotes, no en la auditoría). `evidence` con 1..10 elementos, sin object_ref duplicados.
+        El actor NO se envía (se deriva del token server-side). Sin campo de versión (concurrencia server-side).
+      properties:
+        notes:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: >
+            Notas operativas. 1..2000 code points (Zod cuenta code points, no UTF-16); ≥1 carácter imprimible
+            (no sólo whitespace/control). Nunca aparecen en logs ni en cuerpos de error.
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: '#/components/schemas/EvidenceRef' }
+          description: ≥1 y ≤10 evidencias; sin object_ref duplicados (igualdad exacta). Bloqueante (Brief "≥1 foto").
+
     ErrorResponse:
       type: object
       additionalProperties: false
       required: [code, message]
       description: >
-        Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/422/500.
-        `agent_action` se emite en las respuestas de **negocio** del handler de 004 (404/422/500); los
-        401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es
-        opcional, no `required`).
+        Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/422/500;
+        005 (startOrderWork/submitOrderExecution) 401/403/404/422/500 — códigos de dominio
+        EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e
+        INVALID_TRANSITION (422). `agent_action` se emite en las respuestas de **negocio** de los handlers de 004
+        y 005 (404/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso
+        `agent_action` es opcional, no `required`).
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }

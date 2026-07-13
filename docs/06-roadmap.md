@@ -53,9 +53,15 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 | 004 | `004-registro-ejecucion` | **Iniciar trabajo** (assigned→in_progress) + **registrar ejecución** con evidencia (≥1 foto válida) → pending_review | 001, 002b | Func. #2 |
 | 005 | `005-revision-supervisor` | **Aprobar/rechazar** en pending_review (rechazo→in_progress con motivo; evidencia conservada) | 001, 002b, 004 | Func. #3 |
 | 006 | `006-resumen-incidencia-ia` | **Asistente IA** que resume la incidencia (contrato IA, fallback "no inventa", minimización de PII) + **eval** en `/evals` | 002a, 004, 005 | Func. #5, Principio VIII |
-| 007 | `NNN-evidencia-subida` | **Gestión de evidencia (subida binaria)** — carve-out de #004 (XV): subida real de la foto (multipart), almacenamiento de objetos, **URLs firmadas ≤300 s**, minimización de PII del binario. Materializa el *transporte* de "adjuntar ≥1 foto" que #004 valida **por referencia**. **BL-068.** | 004 | Func. #2 (transporte de evidencia) |
+| 007 | `NNN-evidencia-subida` | **Gestión de evidencia (subida binaria)** — carve-out de #004 (XV): subida real de la foto (multipart), almacenamiento de objetos, **URLs firmadas ≤300 s**, minimización de PII del binario (incl. at-rest de `OrderEvidence.object_ref`). Materializa el *transporte* de "adjuntar ≥1 foto" que #004 valida **por referencia**. **BL-068.** | 004 | Func. #2 (transporte de evidencia) |
 | 008 | `NNN-endurecimiento-write-side` | **Endurecimiento write-side (robustez)** — carve-out de #003/#004/#005 (XV): concurrencia optimista `If-Match`→409; paridad de latencia/cabeceras del 404 y del 422; mapeo fino de errores de BD (503 vs 500). **BL-001/061/062/063/064/066.** | 003/004/005 | "rápido/seguro"; Princ. IV |
 | 009 | `NNN-auditoria-accesos-denegados` | **Auditoría forense de accesos denegados** (401/403/404: actor/endpoint/recurso) — reconcilia la tensión de gobernanza de Constitution XI. **BL-002/067.** | 001/002b | Principio XI (ampliado) |
+
+> **Deuda trazada de 005 (registro-ejecución)**: **BL-069** — cifrado en reposo + purga/retención de
+> `OrderExecutionNotes.notes` (Constitution IX; distinto de BL-051/055, que son de `OrderAudit.reason`). La
+> **separación estructural** (notas fuera de la auditoría, XI) se hace **ya** en 005; el cifrado/purga
+> automatizada se difiere a BL-069 (obligatorio antes del merge, sin vía de escape). El at-rest de
+> `OrderEvidence.object_ref` es **#007** (BL-068), no BL-069.
 
 > **Regla de atomización (XV)**: todo cluster que se **saca** de una feature para no sobredimensionarla se
 > registra **aquí como feature propia** (#007–#009, no sólo en backlog) y se **lanza cuando toque** — nunca se

@@ -290,4 +290,19 @@
   feature** — NO se cae del brief, se planifica aparte para no sobredimensionar 005 (lección de 004). Debe
   entrar en el roadmap antes de considerar "registro de ejecución" 100% cerrado de cara al usuario final.
 
+### Gate 005 (registro-ejecución) — diferidos (no bloquean; trazados obligatoriamente antes del merge)
+
+- **BL-069** (005 · IX · MEDIA) — **Cifrado en reposo + purga/retención de `OrderExecutionNotes.notes`**
+  (T028, spec 005 Assumption S-001, Constitution IX). La feature 005 fija **ya** la **separación estructural**
+  no excepcionable (XI): las notas del técnico se persisten en la tabla **`OrderExecutionNotes`** (mutable/
+  purgable, sin trigger append-only), **fuera** de `OrderAudit.reason` (que recibe sólo el marcador opaco
+  `"execution_registered"`). Queda diferido el **cifrado en reposo automatizado** y la **purga/anonimización por
+  retención** de la columna `notes` (payload PII). **Distinto de BL-051/055**, que están scoped a
+  `OrderAudit.reason` (columna de 002b); este ítem es propio de la tabla nueva `OrderExecutionNotes`. Además,
+  cuando exista lectura (roadmap #005/#007) debe restringirse por RBAC (supervisor en función de auditoría;
+  nunca un technician de otra orden, XI/M8).
+- **(K-102) `OrderEvidence.object_ref` at-rest NO entra aquí**: el tratamiento en reposo/minimización de PII de
+  la referencia de evidencia (y del binario) pertenece a **#007** (BL-068), no a BL-069. La unicidad global de
+  `object_ref` entre órdenes queda fuera de alcance (identificador opaco; #007).
+
 <!-- Nuevos ítems se añaden abajo a medida que analyze/gates los generen. -->

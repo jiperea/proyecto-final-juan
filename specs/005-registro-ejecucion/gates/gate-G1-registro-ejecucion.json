@@ -1,0 +1,79 @@
+{
+  "gate": "G1",
+  "fase": "after_clarify",
+  "feature": "005-registro-ejecucion",
+  "fecha": "2026-07-13",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad"],
+  "artefacto_revisado": "specs/005-registro-ejecucion/spec.md",
+  "veredicto_global": "PASS_TRAS_REMEDIACION",
+  "bloqueantes": 0,
+  "resolucion": {
+    "ronda_1": "2 bloqueantes iniciales (B1 precedencia 404-vs-422 + IDOR; B2 PII de notas en OrderAudit.reason) resueltos vía /speckit-specify.",
+    "ronda_2": "re-validación detectó 1 bloqueante nuevo introducido por B2 (ciclo de FKs reason<->audit_id) → roto con enlace unidireccional (reason = marcador opaco constante sin id; auditoria primero, notas con audit_id). ALTA cerradas: M5 verificado en transition-table.ts; M7 concurrencia resuelta por el UPDATE condicional atomico de 002b (version+guard en WHERE); S-001 re-citado a item de backlog propio para OrderExecutionNotes.",
+    "ronda_3": "verificacion final: 0 bloqueantes. Cerradas 2 ALTA de consistencia de las ediciones (atomicidad incluye OrderExecutionNotes en FR-006/SC-006/Edge; expectedVersion derivado server-side, sin cambio de contrato) y 2 MEDIA (orden de validacion evidencia-antes-que-notas; invariante de attempt sincronizado evidencia/notas para #005).",
+    "verificado_contra_codigo": ["backend/src/domain/order/transition-table.ts (transiciones legales)", "backend/src/infra/repositories/order-write-side-repository.ts (UPDATE condicional atomico, TOCTOU)"]
+  },
+  "huecos": [
+    {
+      "id": "B1",
+      "severidad": "BLOQUEANTE",
+      "categoria": "INCONSISTENCIA / SEGURIDAD (no-enumeracion)",
+      "fuentes": ["revisor-cinico H-001", "auditor-spec-theater T-001", "revisor-rbac-seguridad S-002", "revisor-rbac-seguridad S-003"],
+      "elemento": "SC-003 vs US1-AC3 / US2-AC6 vs FR-003; precedencia de checks",
+      "descripcion": "SC-003 fija 'orden ajena/inexistente/no operable -> 404 generico' (mete el estado no operable en 404), pero US1-AC3 y US2-AC6 dicen '404/422 segun visibilidad' sin criterio. La constitution IV (lineas 119-129) es determinista: recurso ajeno -> 404 (no filtrar existencia); orden PROPIA en estado de origen invalido -> 422. Ademas no se fija el orden de evaluacion: si el chequeo de estado se ejecuta antes que el de pertenencia, un actor puede recibir 422 sobre orden ajena (IDOR/enumeracion via codigo de error). Igual falta la precedencia RBAC-antes-que-payload (401->403->404->422 estado->422 payload) para que un no autorizado no reciba errores de validacion de negocio.",
+      "correccion_requerida": "Alinear la spec con constitution IV/XI: (a) ajena/inexistente/no visible -> 404; (b) propia + estado de origen no legal -> 422; (c) precedencia explicita y unica: 401 -> 403 (rol) -> 404 (pertenencia) -> 422 (estado) -> 422 (payload evidencia/notas). Reescribir SC-003 y AC3/AC6 sin el 'segun visibilidad'."
+    },
+    {
+      "id": "B2",
+      "severidad": "BLOQUEANTE",
+      "categoria": "FUGA_DATOS / PII (principio no excepcionable)",
+      "fuentes": ["revisor-rbac-seguridad S-001"],
+      "elemento": "FR-002 / FR-005 / Key Entities OrderAudit.reason vs Constitution XI",
+      "descripcion": "FR-002 escribe las notas del tecnico como 'reason' de OrderAudit (append-only inmutable). FR-005 solo sanea FORMA (vacio/whitespace/longitud). Constitution XI (lineas 198-200) exige que los campos de texto libre de auditoria NO almacenen PII cruda (identificadores opacos / texto saneado). Meter notas potencialmente con PII de cliente en un registro inmutable sin plazo de purga contradice XI (no excepcionable). Las Assumptions tratan la PII de notas como 'residual heredado' diferido a BL-051/055, pero eso es retencion de payload (IX), no la restriccion del campo de auditoria (XI).",
+      "correccion_requerida": "Resolver la tension XI: opcion A = las notas NO van crudas a OrderAudit.reason; reason recibe un identificador opaco / referencia y las notas se guardan en el payload retenible (sujeto a IX); opcion B = redaccion/minimizacion de PII de las notas (no solo saneo de forma) antes de escribir reason. Elegir una y fijarla en FR-002/FR-005 + Assumptions."
+    },
+    {
+      "id": "A1",
+      "severidad": "ALTA",
+      "categoria": "REQUISITO_FALTANTE (base-ready)",
+      "fuentes": ["revisor-cinico H-004"],
+      "elemento": "OrderEvidence vs Constitution XI ('evidencia versionada por intento') y ciclo rechazo->reintento (#005)",
+      "descripcion": "OrderEvidence no tiene marcador de ronda/intento. Constitution XI (linea 196) pide 'evidencia versionada por intento'. La spec lo declara stretch (#009) y OrderEvidence es aditiva. Mitigado, pero anadir ahora una columna nullable base-ready (p.ej. attempt/round) evita un cambio no aditivo al llegar #005.",
+      "correccion_sugerida": "Evaluar columna nullable base-ready en OrderEvidence, o dejar constancia explicita de que la version-por-intento es aditiva y no rompe el esquema (ya parcialmente en Scope)."
+    },
+    {
+      "id": "A2",
+      "severidad": "ALTA",
+      "categoria": "ASUNCION_OCULTA (aceptada)",
+      "fuentes": ["revisor-cinico H-002"],
+      "elemento": "FR-004 validacion sintactica sin garantia de foto real",
+      "descripcion": "La validacion por referencia no garantiza que exista una foto real; un object_ref bien formado pasa. Es el diseno XV deliberado (transporte binario = #007). Aceptado y documentado, pero conviene explicitar en Assumptions que 'evidencia valida' en el MVP = 'referencia bien formada', comunicado a #005/#006.",
+      "correccion_sugerida": "Nota explicita en Assumptions sobre el limite de la garantia en el MVP."
+    },
+    {
+      "id": "M1", "severidad": "MEDIA", "fuentes": ["H-003"], "elemento": "Unicidad de object_ref dentro del array (evita inflar el conteo repitiendo la misma ref)."
+    },
+    {
+      "id": "M2", "severidad": "MEDIA", "fuentes": ["H-006", "S-001"], "elemento": "Quien/donde sanea las notas (esta feature vs aguas arriba) — clarificar en FR-005/Assumptions."
+    },
+    {
+      "id": "M3", "severidad": "MEDIA", "fuentes": ["H-008"], "elemento": "SC-004 no enumera content_type/size_bytes como casos medibles (solo FR-004 los cita)."
+    },
+    {
+      "id": "M4", "severidad": "MEDIA", "fuentes": ["H-009"], "elemento": "Longitud maxima de notas vs tamano real de la columna reason de OrderAudit (002b) — verificar compatibilidad para no truncar/500."
+    },
+    {
+      "id": "M5", "severidad": "MEDIA", "fuentes": ["H-010"], "elemento": "Verificar contra el codigo/data-model real de 002b que assigned->in_progress e in_progress->pending_review ya son legales con guard de pertenencia (no solo asumido)."
+    },
+    {
+      "id": "M6", "severidad": "MEDIA", "fuentes": ["T-002"], "elemento": "Declarar explicitamente que longitud max de notas y patron/longitud de object_ref se fijan en plan (como ya se hace con allowlist/size/MAX)."
+    },
+    {
+      "id": "M7", "severidad": "MEDIA", "fuentes": ["H-007"], "elemento": "Concurrencia sin If-Match: confirmar que applyTransition (002b) aisla (FOR UPDATE/serializable) para no duplicar auditoria — o dejar constancia de que es garantia de #008."
+    },
+    {
+      "id": "M8", "severidad": "MEDIA", "fuentes": ["S-004", "S-005"], "elemento": "Retencion de object_ref (IX) y RBAC de lectura futura de OrderEvidence/OrderAudit (XI) — dejar constancia aunque no haya endpoint de lectura en el MVP."
+    }
+  ],
+  "resumen": "G1 FAIL con 2 bloqueantes convergentes del panel. B1: contradiccion 404-vs-422 + falta de precedencia determinista (pertenencia-antes-que-estado, RBAC-antes-que-payload) que la constitution IV resuelve y cuya ausencia abre IDOR/enumeracion. B2: notas potencialmente con PII cruda escritas en OrderAudit.reason (append-only), en contra de la constitution XI (no excepcionable). Ambos se corrigen en spec (reescribir SC-003/AC3/AC6 y FR-002/FR-005). Los ALTA (version-por-intento base-ready; limite de garantia de evidencia) se explicitan, no se difieren en silencio."
+}

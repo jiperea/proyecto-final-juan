@@ -20,6 +20,10 @@ import { probeHandler } from './rbac/probe';
 import { jsonErrorHandler } from './error-mapper';
 import { listOrdersHandler } from './orders/list';
 import { reassignOrderHandler, type ReassignHandlerDeps } from './orders/reassign';
+import { startOrderWorkHandler } from './orders/start';
+import type { StartOrderWorkDeps } from '../domain/order/write-side/start-order-work';
+import { submitOrderExecutionHandler } from './orders/execution';
+import type { SubmitExecutionDeps } from '../domain/order/write-side/submit-execution';
 import { authenticate } from './middleware/authenticate';
 import { authorizeProbe } from './middleware/authorize';
 import { csrf, type SessionValidityPort } from './middleware/csrf';
@@ -44,6 +48,10 @@ export interface AppDeps {
   readonly orderTransition: OrderTransitionPort;
   // 004 — reasignación (write-side): visibilidad + lookup de técnico + puerto atómico de reasignación.
   readonly reassignDeps: ReassignHandlerDeps;
+  // 005 — inicio de trabajo (write-side propio de 005).
+  readonly startDeps: StartOrderWorkDeps;
+  // 005 — registro de ejecución (write-side propio de 005).
+  readonly executionDeps: SubmitExecutionDeps;
   readonly cookie: CookieOptions;
 }
 
@@ -88,6 +96,24 @@ export function buildApp(deps: AppDeps): Express {
     '/v1/orders/:orderId/reassignments',
     authenticate(deps.tokens, deps.sessionState),
     reassignOrderHandler(deps.reassignDeps),
+  );
+
+  // Orders write-side (/v1) — inicio de trabajo (005, US1). 401 (authenticate) → 403 (requireRole) →
+  // 404 (pertenencia/uuid) → 422 (estado), en el handler delgado.
+  app.post(
+    '/v1/orders/:orderId/start',
+    authenticate(deps.tokens, deps.sessionState),
+    requireRole('technician'),
+    startOrderWorkHandler(deps.startDeps),
+  );
+
+  // Orders write-side (/v1) — registro de ejecución (005, US2). 401 → 403 → 422 (payload) → 404 (pertenencia)
+  // → 422 (estado), en el handler delgado.
+  app.post(
+    '/v1/orders/:orderId/execution',
+    authenticate(deps.tokens, deps.sessionState),
+    requireRole('technician'),
+    submitOrderExecutionHandler(deps.executionDeps),
   );
 
   app.use(jsonErrorHandler);

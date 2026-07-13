@@ -30,3 +30,25 @@ export const reassignRequestSchema = z
   .strict();
 
 export type ReassignRequestDto = z.infer<typeof reassignRequestSchema>;
+
+// 005 — cuerpo del registro de ejecución. `.strict()` → additionalProperties:false (rechaza un `actor`/campo
+// extra en el body; el actor sale del token, FR-007). La validación ESTRUCTURAL vive aquí (tipos + forma);
+// las reglas CODIFICADAS con precedencia propia (evidencia antes que notas; EVIDENCE_REQUIRED vs
+// INVALID_EVIDENCE vs VALIDATION_ERROR) viven en el DOMINIO (evidence.ts / submit-execution.ts), porque Zod
+// sólo emite un VALIDATION_ERROR genérico y no garantiza el orden evidencia→notas exigido por FR-003/005.
+const evidenceRefSchema = z
+  .object({
+    object_ref: z.string(),
+    content_type: z.string(),
+    size_bytes: z.number().int(),
+  })
+  .strict();
+
+export const executionRequestSchema = z
+  .object({
+    notes: z.string(),
+    evidence: z.array(evidenceRefSchema),
+  })
+  .strict();
+
+export type ExecutionRequestDto = z.infer<typeof executionRequestSchema>;
