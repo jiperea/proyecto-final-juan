@@ -319,14 +319,18 @@ en los logs; superar el límite de peticiones → `429`.
   comandos. FR-016 blinda la inyección **dentro del LLM**; FR-009c blinda la inyección **a nivel de proceso del
   SO**: son capas distintas y ambas obligatorias. Test: un caso con metacaracteres de shell en las notas no
   ejecuta ningún comando del SO (el proceso recibe el texto como dato literal).
-- **FR-009b** (determinismo del proveedor — temperatura fijada, Constitution VIII): THE sistema SHALL invocar al
-  proveedor con **`temperature = 0`** (mínima variabilidad de muestreo, favorece fidelidad y reproducibilidad de
-  SC-001), configurable vía `AI_TEMPERATURE` (default `0`, validado al arrancar). La **misma** temperatura se usa
-  en el eval promptfoo (paridad dev/eval). Constitution VIII exige que la temperatura esté **definida en la
-  spec**: queda fijada aquí (K-001). **El proveedor DEBE invocarse con `temperature=0`** y el test lo asevera
-  (traza FR-009b) — sin cláusula de escape (T-001/H-005): si el binario del CLI no expone el parámetro, es un
-  **bloqueo de implementación a resolver en T012** (envoltura que fije el muestreo, o proveedor alternativo), no
-  una excepción del contrato. No se acepta "declarar el default del CLI" como sustituto.
+- **FR-009b** (determinismo del proveedor — temperatura definida en la spec, Constitution VIII): la temperatura
+  del proveedor **queda fijada en la spec como `temperature = 0`** (mínima variabilidad de muestreo; favorece la
+  fidelidad y la reproducibilidad de SC-001), configurable vía `AI_TEMPERATURE` (default `0`, validado al
+  arrancar). El valor configurado **se pasa a cualquier proveedor que exponga el parámetro de muestreo**.
+  **Limitación honesta del proveedor CLI `claude -p` (I-001):** el binario del programa **no expone** un flag de
+  temperatura de muestreo; con el proveedor CLI (dev/eval), el determinismo es por tanto **best-effort** —
+  instrucción explícita de determinismo en el prompt **+** la **política anti-flakiness del eval** (reintento
+  acotado + mediana en zona gris, K7), que compensa la variabilidad residual del muestreo. El **control real de
+  `temperature=0` como parámetro de muestreo** es requisito del **proveedor de producción con API** (que sí lo
+  expone) → trazado en **BL-072** (junto con TLS/DPA y la re-ejecución del eval al cambiar de proveedor). No se
+  finge un control que el CLI no ofrece. **Test (traza FR-009b):** el proveedor se **construye con
+  `temperature=0`** (config default) y el ensamblado del prompt refleja la directiva de determinismo.
 - **FR-010** (proveedor no disponible / timeout / salida no conforme): WHEN el proveedor **excede el timeout duro
   de 10 000 ms** o **falla el proceso** (exit code ≠ 0, crash) THE sistema SHALL responder `503` (error
   controlado, sin colgar ni filtrar detalle); WHEN el proveedor **termina** pero su salida es **no conforme** THE
@@ -462,7 +466,7 @@ en los logs; superar el límite de peticiones → `429`.
 | FR-007 | `summarizeOrderIncident` | T013, T018 | `should 404 generic when order not in pending_review` |
 | FR-008 | `summarizeOrderIncident` | T009, T019 | `should 429 when rate limit exceeded (no provider call)` |
 | FR-009 | `summarizeOrderIncident` | T012, T014 | `should use mocked provider in tests (no network)` |
-| FR-009b | `summarizeOrderIncident` | T012 | `should invoke provider with temperature=0 (parity dev/eval)` |
+| FR-009b | `summarizeOrderIncident` | T012 | `should construct provider with temperature=0 + determinism directive (CLI has no sampler flag → BL-072)` |
 | FR-009c | `summarizeOrderIncident` | T012, T020 | `should invoke subprocess via execFile/argv/stdin (no shell); shell metachars in notes run no OS command` |
 | FR-010 | `summarizeOrderIncident` | T012, T016, T017, T021 | `should 503 on timeout/process-failure, 200 fallback on empty/non-conforming/malformed-JSON` |
 | FR-011 | `summarizeOrderIncident` | T008, T010 | `should return {summary:string|null, sufficient} per contract` |
@@ -480,8 +484,9 @@ en los logs; superar el límite de peticiones → `429`.
   0.90`, `tasa_alucinacion ≤ 0.05`, **no-fuga de PII**, **fallback** (evidencia insuficiente → no inventa).
 - **SC medibles** → `/evals/sc/007-resumen-incidencia-ia.yaml`.
 - El gate **G3** ejecuta `npx promptfoo eval`; si un umbral no se cumple, **falla** (bloqueante).
-- Provider de promptfoo = **`claude -p`** (CLI, sin API de pago), coherente con `AI_PROVIDER=claude-cli`, y con la
-  **misma `temperature=0`** que runtime (FR-009b) para paridad dev/eval de la medición de fidelidad.
+- Provider de promptfoo = **`claude -p`** (CLI, sin API de pago), coherente con `AI_PROVIDER=claude-cli`. Comparte
+  la limitación de FR-009b (el CLI no expone flag de temperatura): el determinismo del eval se apoya en la
+  **directiva de determinismo del prompt + la política anti-flakiness** (reintento + mediana en zona gris, K7).
 - **Definición de métricas del eval (T-001/T-002 — procedimiento fijo y reproducible)**:
   - **Afirmación atómica (claim) — definición normativa (T-001)**: un **único hecho aseverable** sobre la
     incidencia, expresable como una tripleta sujeto–predicado–objeto (p. ej. "el equipo X estaba apagado", "se

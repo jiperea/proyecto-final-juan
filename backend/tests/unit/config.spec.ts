@@ -26,6 +26,14 @@ describe('config fail-fast (FR-016)', () => {
     expect(cfg.jwtSecret).toHaveLength(40);
   });
 
+  it('007: defaults IA (FR-009b/FR-015) — temperature=0, umbrales 30/1, rate 10/60s', () => {
+    const cfg = loadConfig(base); // sin AI_* → defaults normativos
+    expect(cfg.aiTemperature).toBe(0); // FR-009b: temperatura fijada en la spec (config default)
+    expect(cfg.aiMinNotesChars).toBe(30);
+    expect(cfg.aiMinEvidence).toBe(1);
+    expect(cfg.aiProvider).toBe('claude-cli');
+  });
+
   it('aborta nombrando la variable que falta', () => {
     const withoutJwt: Record<string, string> = { ...base };
     delete withoutJwt.JWT_SECRET;

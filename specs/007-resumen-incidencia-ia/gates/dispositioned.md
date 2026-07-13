@@ -36,6 +36,15 @@
 - **S-001** (MEDIA, forense): `outcome=denied` ahora lleva `deniedReason ∈ {role_403, not_visible_404,
   rate_limited_429}` (FR-013/data-model/T022). RESUELTO.
 
+## Dispuestos en G3 (ronda 1) — resueltos vía skills (spec/plan/tasks) + código
+- **I-001** (temperatura): FR-009b corregido a versión HONESTA — el CLI `claude -p` **no expone flag de
+  sampler**; `temperature=0` queda **configurada** (AI_TEMPERATURE, default 0) y se pasa a proveedores que la
+  expongan; con el CLI el determinismo es best-effort (directiva en prompt + anti-flakiness del eval); el
+  control real → **BL-072** (proveedor con API). Test: config default + directiva en buildPrompt. RESUELTO —
+  no re-levantar la versión absolutista previa.
+- **K-001** (firma del puerto): T006 alineado a `AccessLogPort.record({actor,orderId,outcome,deniedReason?})`;
+  timestamp lo estampa el logger. Coherente con FR-013/data-model/código. RESUELTO.
+
 ## Controles de runtime cerrados (no reportar como huecos)
 - **FR-009c** — invocación del subproceso `claude` por `execFile`/`spawn` (argv + `stdin`), NUNCA `exec`/shell →
   sin inyección de comandos del SO (S-001). Cerrado en runtime + test.

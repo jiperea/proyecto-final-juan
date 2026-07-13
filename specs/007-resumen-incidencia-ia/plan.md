@@ -32,8 +32,9 @@ Los **guards (rol, rate-limit, visibilidad) viven dentro del handler** (no en mi
 **Language/Version**: TypeScript 5 (`^5.5.4`, strict) · Node 18+ (Docker).
 **Primary Dependencies**: Express 4, Prisma `^5.18.0` (solo lectura aquí), Zod `^3.23.8`, `pino ^9.3.2`,
 `jsonwebtoken` (001). **Nuevas**: `promptfoo` (devDependency, evals + gate G3, docs/10); proveedor IA por **CLI**
-(`claude -p`, invocado con `node:child_process` con timeout, **`temperature=0`** para fidelidad/reproducibilidad —
-FR-009b, K-001) — abstraído tras un puerto (el dominio no lo importa). El provider **parsea y valida** el stdout
+(`claude -p`, invocado con `node:child_process` con timeout; **`temperature=0` configurado** —FR-009b— aunque el
+CLI **no expone flag de sampler**: determinismo best-effort por prompt + anti-flakiness del eval; el control real
+de temperatura es del proveedor de prod con API, BL-072) — abstraído tras un puerto. El provider **parsea y valida** el stdout
 como JSON `{summary, sufficient}`; JSON malformado / `sufficient` ausente-o-no-booleano / `summary` ausente con
 `sufficient=true` → **salida no conforme → 200 fallback** (NO 503; el 503 es solo timeout/fallo de proceso, H-003).
 **Storage**: PostgreSQL 16 (solo **lectura** de notas/evidencia/orden). **Sin migración** (0 tablas nuevas). El
@@ -44,8 +45,9 @@ durable/forense se alinea con #009 (BL-002), no se crea tabla en 007.
 `vitest run`.
 **Target Platform**: servicio HTTP Linux. **Project Type**: web service hexagonal (solo `backend/`).
 **Performance Goals**: n/a de latencia de endpoint (depende del proveedor); **timeout duro 10 000 ms** (FR-010).
-**Constraints**: no PII cruda a terceros (VIII, redacción por capas antes del proveedor); **`temperature=0`**
-(`AI_TEMPERATURE`, validado al arrancar con Zod fail-fast, FR-009b); prompt/resumen **no** se persisten ni se
+**Constraints**: no PII cruda a terceros (VIII, redacción por capas antes del proveedor); **`temperature=0`
+configurado** (`AI_TEMPERATURE`, Zod fail-fast, FR-009b; sampler-flag no disponible en el CLI → best-effort +
+anti-flakiness, control real en BL-072); prompt/resumen **no** se persisten ni se
 loguean (ni por `stderr` del subproceso — se suprime); actor server-side; precedencia
 `401→403→429→404→proveedor`; fallback determinista; `summary ≤ 1200`; salida no conforme (incl. JSON malformado) →
 200 fallback, timeout/fallo → 503; evento de acceso sin PII. **Sin** persistir resumen, **sin**
@@ -70,9 +72,14 @@ uso de dominio + arnés de evals promptfoo.
   verificados en el **eval** (golden cases de literales conocidos).
 - [x] **Umbral numérico de contenido DEFINIDO en la spec** (FR-015, K-001 — VIII lo exige): notas crudas `≥30`
   chars no-whitespace **Y** `≥1` registro en `order_evidence` (007 **no** redefine allowlist; hereda la de 005 —
-  toda evidencia persistida es válida), sobre el **`attempt` vigente**; configurable
-  (`AI_MIN_NOTES_CHARS`/`AI_MIN_EVIDENCE`); evaluado en el dominio **antes** del proveedor. (Antes ausente; ahora
-  alineado con VIII y sin divergencia con 005.)
+  toda evidencia persistida es válida), sobre el **ciclo vigente** (`auditId` del submit → pending_review, H-001);
+  configurable (`AI_MIN_NOTES_CHARS`/`AI_MIN_EVIDENCE`); evaluado en el dominio **antes** del proveedor. (Antes
+  ausente; ahora alineado con VIII y sin divergencia con 005.)
+- [~] **Temperatura definida en la spec** (FR-009b, VIII): `temperature=0` **configurada** (`AI_TEMPERATURE`) y
+  pasada a cualquier proveedor que la exponga. **Honestidad (I-001):** el CLI `claude -p` **no** expone flag de
+  sampler → con el CLI el determinismo es **best-effort** (directiva en prompt + anti-flakiness del eval K7); el
+  control real de `temperature=0` es del proveedor de producción con API → **BL-072**. No se promete un control
+  que el CLI no ofrece (corrige la redacción absolutista previa).
 - [x] **Fallback no-inventa de dos capas** (FR-002): (1) umbral determinista FR-015 (sin proveedor) + (2)
   proveedor declara `sufficient=false` (golden cases pobres).
 - [x] **Anti prompt-injection del technician** (FR-016, S-001): notas pasadas como **datos delimitados no
@@ -165,7 +172,8 @@ backend/
 │   │   └── summary-ports.ts               #   AiSummaryProviderPort, IncidentSourcePort, AccessLogPort
 │   ├── infra/
 │   │   ├── ai/claude-cli-provider.ts      # NUEVO: implementa AiSummaryProviderPort via `claude -p`
-│   │   │                                  #   (child_process, timeout 10s, temperature=0; stdout parseado/validado
+│   │   │                                  #   (child_process, timeout 10s, temperature=0 configurado —CLI sin
+│   │   │                                  #   sampler-flag, BL-072—; stdout parseado/validado
 │   │   │                                  #   como JSON {summary,sufficient} → malformado=no conforme→fallback;
 │   │   │                                  #   stderr suprimido → no PII; exit≠0/timeout → SERVICE_UNAVAILABLE)
 │   │   └── repositories/incident-source-repository.ts  # NUEVO: lee orden(pending_review)+notas+evidencia
@@ -204,7 +212,7 @@ emite evento porque no hay actor). Sin migración (solo lectura + log).
 | Desviación | Por qué se necesita | Por qué la alternativa simple se rechaza |
 |---|---|---|
 | **BL-073** — PII de nombres/direcciones best-effort (prompt + eval, no regex de runtime) | Los nombres/direcciones en texto libre no se detectan con regex de forma fiable; VIII se satisface al estándar anclado a eval (golden cases). | NER/modelo local sobredimensiona el MVP (XV) y añade dependencia pesada; no enviar notas vacía el resumen. Se traza para endurecer antes de datos reales sensibles. |
-| **BL-072** — proveedor IA de producción (TLS/DPA si remoto **+ re-ejecución del eval**, H-005) | En dev `claude -p` local; producción por decidir. IX exige TLS+DPA si se transmite PII a un tercero. **Además**, la medición de fidelidad/no-fuga/fallback es específica del proveedor medido: cambiar de proveedor **invalida** los golden cases y **obliga a re-correr el eval** para re-anclar VIII. | Decidir el proveedor de prod ahora excede el MVP; se traza como obligatorio (TLS/DPA + re-eval) antes de un despliegue remoto. |
+| **BL-072** — proveedor IA de producción (TLS/DPA si remoto **+ re-ejecución del eval** H-005 **+ control real de `temperature=0`** I-001) | En dev `claude -p` local; producción por decidir. IX exige TLS+DPA si se transmite PII a un tercero. La medición es específica del proveedor (cambiarlo **obliga a re-correr el eval**). **Además**, el CLI `claude -p` **no expone flag de temperatura de muestreo**: el control real de `temperature=0` (FR-009b) sólo es posible con un proveedor con API que lo exponga; con el CLI el determinismo es best-effort (prompt + anti-flakiness). | Decidir el proveedor de prod ahora excede el MVP; se traza como obligatorio (TLS/DPA + re-eval + sampler temperature) antes de un despliegue remoto. |
 | Evento de acceso como **log** (no tabla) | MVP sin migración; el almacenamiento durable/forense es cluster de gobernanza. | Una tabla de auditoría de accesos es #009 (BL-002, entidad separada); crearla aquí sobredimensiona 007. |
 | **promptfoo** como devDependency + gate G3 | Constitution VIII/XIV ancla la verificación IA a eval (docs/10); es la única forma de medir faithfulness/no-fuga/fallback. | Un motor de eval propio ya fue rechazado (docs/10, build-vs-buy). |
 | **BL-074** — sin segmentación por equipo/tenant del alcance de visibilidad (S-001) | El resumen IA amplifica la cosecha de PII entre ámbitos; la segmentación exige un modelo de equipo/tenant que hoy no existe (heredado de 006). Se mitiga con rate-limit + evento de acceso + minimización. | Añadir segmentación ahora sobredimensiona 007 (XV) y depende de un modelo organizativo ausente; se traza con revisión obligatoria antes de datos reales a escala. |

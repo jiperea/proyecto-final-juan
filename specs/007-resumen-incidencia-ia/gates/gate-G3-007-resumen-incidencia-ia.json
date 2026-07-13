@@ -1,0 +1,71 @@
+{
+  "phase": "G3",
+  "feature": "007-resumen-incidencia-ia",
+  "bloqueantes": 1,
+  "altas": 1,
+  "total": 5,
+  "veredicto": "BLOQUEADA",
+  "huecos": [
+    {
+      "id": "I-001",
+      "categoria": "SEGURIDAD_NO_APLICADA",
+      "elemento_afectado": "FR-009b | backend/src/infra/ai/claude-cli-provider.ts:37-38,63-81 · evals/promptfooconfig.yaml:9-13",
+      "evidencia": "El adaptador invoca `execFile(bin, ['-p','--output-format','json'], ...)` — NO pasa ningún parámetro de muestreo. `this.cfg.temperature` sólo se interpola como PROSA en `buildPrompt` (\"Usa temperatura 0\", claude-cli-provider.ts:71) y en evals/prompts/summarize.txt:2. El provider del eval (`exec:claude -p --output-format json`) tampoco fija temperatura (su `config:` sólo tiene `transformResponse`). No existe ningún test que asevere la invocación con temperature=0 (claude-cli-provider.spec.ts sólo prueba binario inexistente, parseo y nonce).",
+      "descripcion": "FR-009b exige invocar al proveedor con `temperature=0` como parámetro real de muestreo, 'sin cláusula de escape' y declarando explícitamente que 'NO se acepta declarar el default del CLI' ni un sustituto; si el binario no expone el flag es un bloqueo de implementación a resolver en T012. La implementación (runtime y eval) sustituye el parámetro por una instrucción en lenguaje natural, que no controla el sampler del modelo. La aserción de test declarada en la trazabilidad (`should invoke provider with temperature=0`) no está.",
+      "pregunta_critica": "Pasar `temperature=0` como parámetro efectivo de muestreo (flag/argv del CLI o envoltura que fije el sampling) tanto en runtime como en el provider de promptfoo, y añadir el test que asevera la invocación; si `claude -p` no expone el flag, tratarlo como bloqueo (proveedor/envoltura), no como prosa.",
+      "riesgo_si_no_se_corrige": "Sin fijar el muestreo, el resumen no es determinista/reproducible: SC-001 (faithfulness) medida con paridad dev/eval deja de estar anclada y la garantía VIII 'temperatura definida en la spec y aplicada' no se cumple; la medición del gate G3 puede oscilar entre ejecuciones.",
+      "severidad": "BLOQUEANTE",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "I-002",
+      "categoria": "TEST_INSUFICIENTE",
+      "elemento_afectado": "FR-016 | evals/prompts/summarize.txt:9-11 vs backend/src/infra/ai/claude-cli-provider.ts:64-67",
+      "evidencia": "El runtime delimita las notas con un NONCE aleatorio por petición + neutralización de colisiones (buildPrompt: `<<NOTES_${nonce}>>`). El prompt del eval usa un delimitador FIJO literal `<<NOTES>>`/`<</NOTES>>`. El golden case adversarial de prompt-injection (golden-cases.yaml #5, cobertura de FR-016 en G3) corre contra ese literal fijo.",
+      "descripcion": "La cobertura adversarial de FR-016/H-004 que el gate G3 usa para anclar la robustez anti prompt-injection NO ejercita el mecanismo realmente desplegado (nonce impredecible): prueba un delimitador literal que un technician podría escribir en sus notas para 'cerrar' el bloque. Divergencia entre lo verificado y lo que corre en producción.",
+      "pregunta_critica": "Alinear la serialización del prompt del eval con la del runtime (nonce por caso + neutralización), de modo que los golden cases adversariales prueben el control efectivo y no un delimitador adivinable.",
+      "riesgo_si_no_se_corrige": "Un fallo del nonce en producción (o una regresión que lo elimine) pasaría el eval verde; la 'cobertura anclada a golden cases' de FR-016 da falsa confianza.",
+      "severidad": "MEDIA",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "I-003",
+      "categoria": "TEST_INSUFICIENTE",
+      "elemento_afectado": "FR-009c | backend/tests/unit/claude-cli-provider.spec.ts · backend/tests/integration/ai-summary-pii.spec.ts",
+      "evidencia": "El control está APLICADO en código (execFile con argv + prompt por stdin, sin shell; claude-cli-provider.ts:40-56). Pero ni el unit ni el integration de PII contienen la aserción declarada en tasks/trazabilidad (`shell metachars in notes run no OS command` / que se invoca vía execFile/argv/stdin sin shell). El test de PII (ai-summary-pii.spec.ts) sólo comprueba `[REDACTED]` y prompt-injection-como-dato; no incluye el caso de metacaracteres de shell ni el grep-negativo de notas/`object_ref`/resumen en logs/`stderr` que exige T020/FR-005.",
+      "descripcion": "El residual dispuesto afirma que FR-009c está 'cerrado en runtime + test', pero la parte de test no existe: no hay evidencia automatizada de que metacaracteres de shell en las notas no ejecuten ningún comando del SO ni de la no-fuga por logs/stderr (FR-005).",
+      "pregunta_critica": "Añadir un test que inyecte `$(...)`/backticks/`;`/`|` en las notas y verifique que no se ejecuta comando del SO (dato literal), y un grep-negativo de notas/object_ref/resumen sobre logs y stderr capturados.",
+      "riesgo_si_no_se_corrige": "Una regresión que reintroduzca `exec`/`sh -c`/interpolación o que loguee el prompt no sería detectada; el control de FR-009c/FR-005 queda sin red de seguridad de CI pese a estar hoy bien implementado.",
+      "severidad": "MEDIA",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "K-001",
+      "categoria": "CONFLICTO",
+      "elemento_afectado": "tasks.md T006 (AccessLogPort.record) vs FR-013 / tasks.md T022",
+      "artefactos_en_conflicto": [
+        "tasks.md",
+        "spec.md"
+      ],
+      "descripcion": "T006 fija la firma del puerto como `AccessLogPort.record({actor,orderId,outcome})`, pero FR-013 define el evento como `{actor, orderId, timestamp, outcome, deniedReason?}` y T022 exige aseverar el `deniedReason` correcto (role_403 / rate_limited_429 / not_visible_404) en 403/429/404. La firma del puerto tal como está en T006 no tiene canal para `deniedReason` (ni `timestamp`), que es justamente el campo forense añadido para cerrar S-001.",
+      "pregunta_critica": "¿Se reconcilia la firma de `AccessLogPort.record` en T006 para incluir `deniedReason?` (y, si no lo aporta el logger, `timestamp`), alineándola con FR-013 y con lo que T022 verifica?",
+      "riesgo_si_no_se_corrige": "Se implementa un puerto de acceso sin `deniedReason`, T022 falla o se cablea el campo fuera del contrato del puerto, y se pierde la granularidad forense (role_403 vs 404/429) que S-001 exigía como resuelta.",
+      "severidad": "ALTA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-002",
+      "categoria": "DERIVA_TERMINOLOGICA",
+      "elemento_afectado": "Key Entities «Evento de acceso» y SC-007 vs FR-013",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "spec.md"
+      ],
+      "descripcion": "El esquema canónico del evento de acceso quedó fijado en FR-013 como `{actor, orderId, timestamp, outcome, deniedReason?}` (S-001, ronda 2/3), pero tanto la entidad «Evento de acceso» en Key Entities como SC-007 siguen describiéndolo como `{actor, orderId, timestamp, outcome}`, sin `deniedReason`. La disposición de S-001 sólo reconcilió FR-013/data-model/T022, no estas dos ubicaciones.",
+      "pregunta_critica": "¿Se actualizan Key Entities y SC-007 para reflejar el campo `deniedReason` (y su ausencia de PII) de modo que el esquema del evento sea único en toda la spec?",
+      "riesgo_si_no_se_corrige": "Dos definiciones divergentes del mismo evento dentro de la spec; SC-007 podría validarse contra el esquema viejo y dar por cubierto el evento sin comprobar `deniedReason`, dejando la granularidad de S-001 sin criterio de éxito medible.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    }
+  ]
+}
