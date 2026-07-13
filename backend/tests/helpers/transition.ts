@@ -30,7 +30,13 @@ export async function makeOrder(
 // si withEvidence, `evidenceCount` filas de OrderEvidence enlazadas. `assignedTo`/`uploadedBy` = un technician.
 export async function makePendingReviewOrder(
   prisma: PrismaClient,
-  opts: { assignedTo: string; withEvidence?: boolean; evidenceCount?: number; version?: number },
+  opts: {
+    assignedTo: string;
+    withEvidence?: boolean;
+    evidenceCount?: number;
+    version?: number;
+    notes?: string; // 007: permite notas ≥30 chars para superar el umbral FR-015 (o texto con PII para tests)
+  },
 ): Promise<{ id: string; version: number }> {
   const o = await prisma.order.create({
     data: {
@@ -70,7 +76,13 @@ export async function makePendingReviewOrder(
   }
   // Notas de ejecución (payload PII de 005), enlazadas a la misma auditoría — para tests de conservación.
   await prisma.orderExecutionNotes.create({
-    data: { id: uuidv7(), orderId: o.id, auditId, notes: 'notas del técnico', createdBy: opts.assignedTo },
+    data: {
+      id: uuidv7(),
+      orderId: o.id,
+      auditId,
+      notes: opts.notes ?? 'notas del técnico',
+      createdBy: opts.assignedTo,
+    },
   });
   return { id: o.id, version: o.version };
 }

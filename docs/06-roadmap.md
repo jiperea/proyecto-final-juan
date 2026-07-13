@@ -70,6 +70,17 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > write-side"**. No bloqueante; afecta a #008 (la concurrencia `If-Match`/409 deberá reforzarse en cada ruta
 > write-side, no sólo en `applyTransition`). Detectado en el gate G2 de 006.
 
+> **Deuda trazada de 007 (resumen-incidencia-ia · Brief Func #5 · físicamente `007-…`)** — residuales del
+> gate G2 (ver `specs/007-…/spec.md §Modelo de amenaza` y `gates/dispositioned.md`):
+> **BL-072** proveedor IA de producción: TLS/DPA si remoto **+ re-ejecutar el eval** al cambiar de proveedor
+> (la medición es específica del proveedor, H-005). **BL-073** PII de nombres/direcciones en texto libre
+> (best-effort prompt+eval; sin regex de runtime). **BL-074** segmentación por equipo/tenant del alcance de
+> visibilidad (el resumen IA amplifica la cosecha de PII; hoy mitigado por rate-limit + evento + minimización).
+> **BL-075** juez de fidelidad en runtime (hoy anclado-a-eval offline, VIII). **BL-076** robustez avanzada
+> anti prompt-injection (FR-016 mitiga; problema abierto en LLMs). **BL-077** juez del eval de familia distinta
+> (errores correlacionados). **BL-078** rate-limit con store compartido (Redis) para multi-réplica (hoy asume
+> instancia única). Todos con condición de revisión **antes de datos reales/escala**; ninguno bloquea el MVP.
+
 > **Regla de atomización (XV)**: todo cluster que se **saca** de una feature para no sobredimensionarla se
 > registra **aquí como feature propia** (#007–#009, no sólo en backlog) y se **lanza cuando toque** — nunca se
 > deja como scope difuso/olvidado (lección de #003/#004). Trazan al brief: #007 = "foto de evidencia" (Func #2);

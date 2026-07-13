@@ -1,0 +1,35 @@
+# Eval de objetivos IA — 007 resumen de incidencia (Constitution VIII/XIV; gate G3).
+# Provider = `claude -p` (CLI, SIN API de pago), misma temperature=0 que runtime (FR-009b, paridad dev/eval).
+# Se ejecuta en la sesión dev autenticada (K7): `cd backend && npm run eval`. La automatización en CI se
+# difiere a la fase DevOps (no bloquea el G3 local que ancla VIII).
+description: "007 — resumen de incidencia por IA: fidelidad, no-fuga de PII, fallback no-inventa"
+
+providers:
+  # Invocación por CLI (argv, sin shell — coherente con FR-009c). El prompt del caso va como argumento -p.
+  - id: "exec:claude -p --output-format json"
+    label: claude-cli
+    config:
+      # temperature=0 (FR-009b). Si el binario no expone el flag, es bloqueo de implementación (T-001), no excepción.
+      transformResponse: "JSON.parse(JSON.parse(output).result ?? output)"
+
+prompts:
+  - file://prompts/summarize.txt
+
+tests: file://ia-resumen/golden-cases.yaml
+
+# Umbrales duros del gate (SC-001). Política anti-flakiness del juez (K7): reintento acotado + margen de diseño.
+defaultTest:
+  options:
+    # Objetivo de diseño ≥0.92 sobre el umbral duro 0.90 para absorber el ruido del juez (±0.02).
+    provider: "exec:claude -p --output-format json"
+  assert:
+    # Rúbrica del juez (T-001/T-002): unidad = afirmación atómica (por hecho, no por oración); veredicto
+    # binario anclada/no-anclada; faithfulness = ancladas/total por caso; PASS del set ⇔ media ≥0.90.
+    - type: llm-rubric
+      value: >
+        Descompón el `summary` en afirmaciones atómicas (un hecho aseverable cada una; por predicado, no por
+        oración). Marca cada afirmación como ANCLADA si está soportada por las notas/metadatos del caso, o
+        NO_ANCLADA si no. Devuelve faithfulness = ancladas/total (0 claims sobre caso con contenido suficiente
+        = 0). APRUEBA sólo si faithfulness >= 0.90 y no hay PII de cliente (nombre completo/dirección) en el
+        resumen.
+      threshold: 0.90

@@ -189,3 +189,32 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > Ciclo cruzado 006↔005 (US2 AC3): `integration/review-reject-resubmit-cycle`.
 > Deuda trazada: **BL-070** (#010 read-side + enmienda XI), **BL-071** (reconciliar 003 FR-006), **BL-051**
 > (cifrado at-rest de `reason`), **#008** (If-Match/409), **#009** (accesos denegados).
+
+## 007 — Resumen de incidencia por IA (`summarizeOrderIncident`) — G1 PASS / G2 PASS / implementado
+
+| RF | Qué garantiza | Dónde | Test(s) |
+| ---- | ------------- | ----- | ------- |
+| FR-001 | resumen fiel (200 sufficient=true) sobre contenido suficiente | summarize-order-incident + handler | `integration/ai-summary-ok`, `unit/summarize-incident` |
+| FR-002 | fallback no-inventa (umbral FR-015 sin proveedor **o** provider sufficient=false) | summarize-order-incident | `unit/summarize-incident`, `integration/ai-summary-fallback` |
+| FR-003 | minimización PII por capas ANTES del proveedor (allowlist + redacción) | pii-redactor + use case | `unit/pii-redactor`, `unit/summarize-incident`, `integration/ai-summary-pii` |
+| FR-004(a) | detector estructural en salida → blocked_pii → fallback | pii-redactor + use case | `unit/summarize-incident`, `integration/ai-summary-fallback` |
+| FR-004(b) | nombres/direcciones (best-effort): golden cases de no-fuga | eval promptfoo | `evals/` (gate G3) |
+| FR-005 | no persistir/loguear prompt/resumen (incl. stderr) | logger REDACT + provider | `unit/claude-cli-provider` (stderr), `integration/ai-summary-pii` |
+| FR-006 | RBAC supervisor → 403 (dentro del handler, K5) | handler | `integration/ai-summary-authz`, `contract/ai-summary` |
+| FR-007 | no-enumeración → 404 genérico (no visible/malformado) | handler + repo | `integration/ai-summary-authz`, `contract/ai-summary` |
+| FR-008 | rate-limit 10/60s por usuario → 429 + Retry-After | handler + InMemoryRateLimit | `integration/ai-summary-ratelimit` |
+| FR-009 | proveedor por CLI en dev, mock en tests | container + mock-provider | (todos los tests usan mock) |
+| FR-009b | temperature=0 (determinismo) | config + claude-cli-provider | `unit/claude-cli-provider` (buildPrompt), config default |
+| FR-009c | invocación segura del proceso (execFile/argv/stdin, sin shell) — Constitution IX | claude-cli-provider | `unit/claude-cli-provider` (no-fuga; nonce) |
+| FR-010 | timeout/fallo → 503; no conforme (incl. JSON malformado) → 200 fallback | use case + provider + handler | `integration/ai-summary-provider-failure`, `integration/ai-summary-fallback`, `unit/*` |
+| FR-011 | contrato de salida `{summary,sufficient}` | DTO + handler | `contract/ai-summary`, `integration/ai-summary-ok` |
+| FR-012 | precedencia 401→403→429→404→proveedor | handler | `integration/ai-summary-authz`, `integration/ai-summary-access-event` |
+| FR-013 | evento de acceso sin PII en cada salida (incl. denied + deniedReason) | handler + access-logger | `integration/ai-summary-access-event` |
+| FR-014 | cota `summary` ≤ 1200 → fallback | use case | `unit/summarize-incident` |
+| FR-015 | umbral mínimo (≥30 chars no-ws Y ≥1 evidencia) determinista — Constitution VIII | use case + repo | `unit/summarize-incident`, `integration/ai-summary-fallback` |
+| FR-016 | notas como datos no confiables (nonce-delimitado, anti prompt-injection) | claude-cli-provider (buildPrompt) | `unit/claude-cli-provider`, `integration/ai-summary-pii` |
+
+> Fidelidad/no-fuga/fallback semánticos (SC-001..003) se anclan a **promptfoo** (gate G3, provider `claude -p`,
+> sesión dev autenticada). Deuda trazada: **BL-072..078** (proveedor prod+re-eval, PII texto libre, segmentación
+> por ámbito, juez runtime, robustez anti-injection, juez de familia distinta, rate-limit multi-réplica) — ver
+> `spec.md §Modelo de amenaza` y `gates/dispositioned.md`.
