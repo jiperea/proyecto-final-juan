@@ -1,5 +1,5 @@
 import { csrfHeaders } from './csrf';
-import { notifyRoleChange, setAccessToken } from './session-store';
+import { currentEpoch, notifyRoleChange, setAccessToken } from './session-store';
 import type { Role } from './types';
 
 export interface RefreshResult {
@@ -11,6 +11,7 @@ export interface RefreshResult {
 let inFlight: Promise<RefreshResult | null> | null = null;
 
 async function doRefresh(): Promise<RefreshResult | null> {
+  const startEpoch = currentEpoch();
   try {
     const res = await fetch('/v1/auth/refresh', {
       method: 'POST',
@@ -19,6 +20,9 @@ async function doRefresh(): Promise<RefreshResult | null> {
     if (!res.ok) return null;
     const body = (await res.json()) as { access_token?: string; user?: { role?: Role } };
     if (!body.access_token) return null;
+    // S-003: si la sesión cambió mientras el refresh estaba en vuelo (p. ej. logout o un login de otra
+    // cuenta), NO aplicar el token/rol de la sesión vieja — se descarta (evita fuga entre cuentas).
+    if (currentEpoch() !== startEpoch) return null;
     setAccessToken(body.access_token);
     // FR-029: el contrato relee el rol de BD al rotar; si cambió, notifica para re-montar el shell.
     if (body.user?.role) notifyRoleChange(body.user.role);

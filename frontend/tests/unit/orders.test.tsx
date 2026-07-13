@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { server } from '../../mocks/server';
 import { renderApp } from '../test-utils';
@@ -105,6 +105,23 @@ describe('US2/US3 · RBAC espejo y layout (F-002)', () => {
     expect(await screen.findByRole('heading', { name: 'Orden A' })).toBeInTheDocument();
     // …y la lista NO simultánea (single column): sin toolbar «Actualizar» del listado.
     expect(screen.queryByRole('button', { name: 'Actualizar' })).not.toBeInTheDocument();
+  });
+
+  it('F-006: deep-link a /orders/:id enfoca el panel de detalle, no el h1 de sección', async () => {
+    setViewportWide(true);
+    bootAs('dispatcher');
+    server.use(
+      http.get('/v1/orders', () => HttpResponse.json({ orders: [order('o1', 'Orden A')] })),
+      http.get('/v1/orders/o1', () => HttpResponse.json({ order: order('o1', 'Orden A') })),
+    );
+    renderApp(<AppRoutes />, '/orders/o1');
+    const detailHeading = await screen.findByRole('heading', { name: 'Orden A' });
+    // El foco NO debe estar en el h1 «Mis órdenes»; debe estar en/dentro del panel de detalle.
+    await waitFor(() => {
+      const active = document.activeElement;
+      expect(active?.textContent).not.toBe('Mis órdenes');
+      expect(active?.contains(detailHeading) || active === detailHeading).toBe(true);
+    });
   });
 
   it('FR-019: dispatcher a ≥1024px usa master-detail (lista + detalle simultáneos)', async () => {

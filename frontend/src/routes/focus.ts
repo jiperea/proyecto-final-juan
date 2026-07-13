@@ -1,23 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
-const topSegment = (pathname: string): string => pathname.split('/')[1] ?? '';
+// Ruta de detalle de orden (/orders/:id): el foco lo gobierna MasterDetail (panel de detalle).
+const isDetailRoute = (pathname: string): boolean => /^\/orders\/[^/]+$/.test(pathname);
 
-// FR-024: al cambiar de SECCIÓN (p. ej. /login ↔ /orders) mueve el foco al <h1> de la vista.
-// Dentro de una sección (p. ej. /orders ↔ /orders/:id) NO refoca el h1, para no pisar el foco que
-// MasterDetail mueve al panel de detalle al seleccionar (FR-025). Evita el conflicto de foco (G3 F-001).
+// FR-024: al entrar en una vista mueve el foco a su <h1> (para lector de pantalla). EXCEPTO en rutas de
+// detalle, donde MasterDetail mueve el foco al panel de detalle (FR-025) — así evitamos el conflicto de
+// foco padre↔hijo tanto al navegar como en deep-link/montaje inicial (G3 F-001/F-006).
 export function useRouteFocus(): void {
   const { pathname } = useLocation();
-  const prev = useRef<string | null>(null);
   useEffect(() => {
-    const seg = topSegment(pathname);
-    if (prev.current !== seg) {
-      prev.current = seg;
-      const h1 = document.querySelector<HTMLElement>('main h1');
-      if (h1) {
-        h1.setAttribute('tabindex', '-1');
-        h1.focus();
-      }
+    if (isDetailRoute(pathname)) return;
+    const h1 = document.querySelector<HTMLElement>('main h1');
+    if (h1) {
+      h1.setAttribute('tabindex', '-1');
+      h1.focus();
     }
   }, [pathname]);
 }
