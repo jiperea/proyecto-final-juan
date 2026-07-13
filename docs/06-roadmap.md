@@ -68,9 +68,12 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > deja como scope difuso/olvidado (lección de #003/#004). Trazan al brief: #007 = "foto de evidencia" (Func #2);
 > #008 = "rápido y seguro"; #009 = Principio XI. **No** amplían el alcance del brief; sólo lo completan/endurecen.
 
-> Nota de numeración: `002a`/`002b` son dos features (spec + rama + gates propios). El número secuencial físico
-> (`NNN-…`) lo asigna la extensión git al lanzar `/speckit-specify`; aquí fijan alcance y orden lógico. Físicos
-> ya asignados: 003 (roadmap #003 reasignación = rama `004-orden-reasignacion`), #004 ejecución = `005-…`.
+> Nota de numeración: la columna **Rama** muestra el *slug lógico* del roadmap; el número secuencial **físico**
+> (`NNN-…`) lo asigna la extensión git al lanzar `/speckit-specify` y **va desfasado +1** desde la reasignación.
+> Equivalencias físicas ya asignadas: roadmap #002a = `002-order-entity-listado`; #002b = `003-order-fsm-audit`;
+> #003 reasignación = `004-orden-reasignacion`; #004 ejecución = `005-registro-ejecucion`; **#005 revisión =
+> `006-revision-supervisor`**; #006 IA → previsiblemente `007-…`. (`002a`/`002b` son dos features con spec + rama
+> + gates propios.)
 
 ## Fase Front (FE) — completa el "front+back juntos" del enunciado
 
@@ -91,6 +94,17 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > componentes base, patrón responsive campo↔oficina, accesibilidad **WCAG 2.1 AA** (Constitution, Convenciones).
 > Referencia de partida: exploración de vistas mínimas (login · lista · detalle por rol · registro de ejecución
 > con evidencia; móvil + escritorio master-detail).
+>
+> **Deuda trazada → feature #010 — Detalle de orden (read-side, prerequisito de FE-1/FE-4)**: las specs 004–006
+> son *write-side* y **no** exponen la lectura del detalle (notas de ejecución + metadatos de evidencia + motivo
+> del rechazo). El "detalle solo-lectura" de FE-1 necesita un **backend read-side** que la sirva. Detectado como
+> BLOQUEANTE en el **gate G1 de 006** y resuelto difiriéndolo aquí (Constitution XV: 006 no se sobredimensiona).
+> **Dueño y secuencia**: feature **#010 `NNN-order-detalle-read`**, depende de 002a/005/006, se lanza **antes de
+> FE-1** (bloquea FE-1/FE-2/FE-4). **Precondición dura**: **enmienda de Constitution XI** para que el
+> **technician** pueda leer el motivo de *su propio* rechazo (`OrderAudit.reason`; hoy la lectura de auditoría se
+> restringe a supervisor/auditor) — la enmienda se aplica **al entrar en #010**, no antes. Sin #010, el ciclo de
+> calidad del brief (el técnico corrige tras el rechazo) es inoperable para el usuario final aunque 006 pase sus
+> gates. **BL-070.**
 
 ## Fase DevOps (DO) — transversal (ADR-0004) · Reto M12
 
