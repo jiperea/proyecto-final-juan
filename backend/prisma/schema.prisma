@@ -33,6 +33,8 @@ model User {
   auditsAsActor OrderAudit[] @relation("OrderAuditActor")
   auditsAsFrom  OrderAudit[] @relation("OrderAuditFromAssignee")
   auditsAsTo    OrderAudit[] @relation("OrderAuditToAssignee")
+  evidenceUploads OrderEvidence[]        // 005: evidencias subidas por este usuario (uploaded_by)
+  notesCreated    OrderExecutionNotes[]  // 005: notas de ejecución creadas por este usuario (created_by)
 
   @@map("users")
 }
@@ -104,6 +106,8 @@ model Order {
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   audits      OrderAudit[]
+  evidence       OrderEvidence[]       // 005
+  executionNotes OrderExecutionNotes[] // 005
 
   @@index([status, assignedTo])
   @@index([createdAt])
@@ -135,7 +139,52 @@ model OrderAudit {
   toUser       User?               @relation("OrderAuditToAssignee", fields: [toAssignee], references: [id], onDelete: Restrict)
   reason       String?             @db.Text // pre-saneado por el llamador; NUNCA en logs/errores (FR-009)
   at           DateTime            @default(now()) @db.Timestamptz(3)
+  evidence       OrderEvidence[]       // 005: evidencias originadas por este evento de auditoría (XI)
+  executionNotes OrderExecutionNotes[] // 005: notas de ejecución enlazadas a este evento (unidireccional)
 
   @@index([orderId])
   @@map("order_audit")
+}
+
+// Feature 005 — OrderEvidence (append-only inmutable, trigger de BD). Referencia/metadato de evidencia;
+// el binario NO se almacena aquí (transporte = feature #007). Cada fila enlaza al evento de auditoría que
+// la originó (`audit_id`, Constitution XI). `attempt` NULL base-ready (#005 futura). FKs onDelete Restrict.
+model OrderEvidence {
+  id          String     @id @db.Uuid
+  orderId     String     @map("order_id") @db.Uuid
+  order       Order      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  auditId     String     @map("audit_id") @db.Uuid
+  audit       OrderAudit @relation(fields: [auditId], references: [id], onDelete: Restrict)
+  objectRef   String     @map("object_ref") @db.Text
+  contentType String     @map("content_type")
+  sizeBytes   Int        @map("size_bytes")
+  uploadedBy  String     @map("uploaded_by") @db.Uuid
+  uploader    User       @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+  attempt     Int?
+  at          DateTime   @default(now()) @db.Timestamptz(3)
+
+  @@index([orderId])
+  @@index([auditId])
+  @@map("order_evidence")
+}
+
+// Feature 005 — OrderExecutionNotes (payload PII, MUTABLE/purgable — NO append-only, Constitution IX).
+// Notas del técnico separadas de la auditoría (XI): `OrderAudit.reason` recibe sólo un marcador opaco.
+// Enlace unidireccional `audit_id → OrderAudit` (la auditoría se inserta antes → sin ciclo de FKs).
+// `attempt` NULL base-ready (#005 futura). FKs onDelete Restrict.
+model OrderExecutionNotes {
+  id        String     @id @db.Uuid
+  orderId   String     @map("order_id") @db.Uuid
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  auditId   String     @map("audit_id") @db.Uuid
+  audit     OrderAudit @relation(fields: [auditId], references: [id], onDelete: Restrict)
+  notes     String     @db.Text
+  attempt   Int?
+  createdBy String     @map("created_by") @db.Uuid
+  creator   User       @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+  at        DateTime   @default(now()) @db.Timestamptz(3)
+
+  @@index([orderId])
+  @@index([auditId])
+  @@map("order_execution_notes")
 }

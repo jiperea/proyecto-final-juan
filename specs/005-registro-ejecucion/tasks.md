@@ -27,8 +27,8 @@ T010b) para el 404-vs-422; son independientes entre sí.
 
 ## Phase 1: Setup
 
-- [ ] T001 Verificar rama `005-registro-ejecucion`, BD de test arriba (`docker compose up -d db-test`, puerto 5433) y `npm run test` de 001/002/004 en verde (baseline de no-regresión).
-- [ ] T002 Confirmar que `contracts/orders.openapi.yaml` incluye `startOrderWork` y `submitOrderExecution` (200/401/403/404/422/500) + schemas `ExecutionRequest`/`EvidenceRef`, y que `tsc`/`npm run build` compilan.
+- [X] T001 Verificar rama `005-registro-ejecucion`, BD de test arriba (`docker compose up -d db-test`, puerto 5433) y `npm run test` de 001/002/004 en verde (baseline de no-regresión).
+- [X] T002 Confirmar que `contracts/orders.openapi.yaml` incluye `startOrderWork` y `submitOrderExecution` (200/401/403/404/422/500) + schemas `ExecutionRequest`/`EvidenceRef`, y que `tsc`/`npm run build` compilan.
 
 ---
 
