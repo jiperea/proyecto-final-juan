@@ -37,6 +37,11 @@ señal de "demasiado grande" en clarify/gates; regla de no-rollback → implemen
 retro de la feature 001 (sobredimensionada); 001 queda grandfathered. Plantilla `spec-template` ✅.
 v1.7.1 (PATCH): Governance — regla de **enmiendas aisladas** (constitution/fundación en rama/tarea
 dedicada, no en ramas de feature; ADR-0004).
+v1.8.0 (MINOR): IX ampliado — **invocación segura de herramientas/procesos externos** (entrada no confiable
+a subproceso/CLI incl. proveedor de IA vía argv/`stdin`, nunca shell; `stderr` suprimido → anti inyección de
+comandos del SO y anti fuga del prompt). Sube FR-009c de la feature 007 a garantía de plataforma. Enmienda
+aislada en rama dedicada (ADR-0004). Plantillas dependientes revisadas (sin cambios: ninguna enumera la
+lista de verificaciones de IX).
 
 Principios (15):
   I.    Spec-Driven, spec-first
@@ -173,10 +178,20 @@ autorización por-orden (URLs firmadas con **TTL máximo ≤ 300 s**);
 purga/anonimización al vencer el plazo.
 Inventario explícito de campos PII. La retención aplica al **payload PII** (fotos/notas), no al registro
 de auditoría (ver XI).
+**Invocación segura de herramientas/procesos externos:** cuando se pasa **entrada no confiable** (p. ej.
+notas de usuario) a un **subproceso o CLI** (incluido el **proveedor de IA**), se invoca con **argumentos
+por array** (`execFile`/`spawn`) y/o por **`stdin`**, **NUNCA** mediante shell (`exec`/`sh -c`) ni
+interpolación de strings — se previene la **inyección de comandos del SO**. El `stderr` del subproceso se
+**captura/suprime** para no filtrar el prompt (canal indirecto de PII). Aplica a cualquier feature que lance
+procesos, no a una sola.
 - **Verificación:** test de que las fotos no son accesibles por URL directa sin autorización y de que
   la URL firmada expira dentro del TTL; test/estándar de cifrado en reposo; grep de que los logs no
-  emiten PII; **test de expiración/purga** de PII tras el plazo; documento de inventario PII + retención.
-- **Rationale:** manejamos datos de clientes; una fuga es el peor fallo posible.
+  emiten PII; **test de expiración/purga** de PII tras el plazo; documento de inventario PII + retención;
+  **test de que un subproceso recibe entrada con metacaracteres de shell (`$(...)`, backticks, `;`, `|`)
+  como dato literal (no ejecuta comando del SO) y de que el prompt no se filtra por `stderr`.**
+- **Rationale:** manejamos datos de clientes; una fuga es el peor fallo posible. La entrada de usuario que
+  alcanza un proceso externo es, además, una superficie de inyección de comandos: en un programa cuyo
+  componente de IA se invoca por CLI, la invocación segura es una garantía de **plataforma**, no de feature.
 
 ### X. Robustez operacional
 Contrato de errores `{ code, message, details, agent_action }` con HTTP correcto (404/409/410/422/503).
@@ -383,4 +398,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.7.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-11
+**Version**: 1.8.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-13
