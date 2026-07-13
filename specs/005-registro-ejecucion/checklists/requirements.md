@@ -33,5 +33,15 @@
 - **Dimensionado XV (lección de 004)**: MVP magro = 2 transiciones + evidencia **por referencia validada**. El
   transporte binario se aísla en la feature **#007** del roadmap (BL-068), no se embebe. Nada del brief se cae
   (Func #2 = "adjuntar ≥1 foto"; la regla de negocio se cumple aquí, el transporte llega en #007).
-- Pendiente de `/speckit-clarify` (specifics no bloqueantes): valores concretos de allowlist de `content_type`,
-  `size_bytes` máx y longitud máx de notas.
+- **Remediación gate G1 (2026-07-13)**: resueltos 2 bloqueantes — B1 (precedencia determinista
+  `401→403→404 pertenencia→422 estado→422 payload`, Constitution IV) y B2 (notas fuera de `OrderAudit.reason`,
+  entidad `OrderExecutionNotes`, Constitution XI). Más A1 (`attempt` base-ready), A2 (límite de garantía de
+  evidencia), M1 (duplicados de `object_ref`) y constancia de M5/M6/M7/M8. Ver `gates/gate-G1-*-propuestas.md`.
+- **2ª ronda de remediación (re-validación G1)**: cerrado 1 bloqueante nuevo introducido por B2 — ciclo de FKs
+  `reason↔audit_id` → enlace **unidireccional** (`reason` = marcador opaco constante sin id; auditoría primero,
+  notas con `audit_id`). ALTA degradadas por diseño/código: M5 verificado en `transition-table.ts`; M7
+  (concurrencia) resuelto por el UPDATE condicional atómico de 002b; S-001 (cifrado/purga de
+  `OrderExecutionNotes`) re-citado a ítem de backlog propio. Cerradas MEDIA: `orderId` malformado→404, "no
+  visible"≡inexistente/ajena, igualdad exacta de duplicados, `attempt` también en notas.
+- Specifics no bloqueantes diferidos a **plan.md** (consolidados en Assumptions, M6): allowlist de `content_type`,
+  `size_bytes` máx, longitud máx de notas, MAX de evidencias, patrón/longitud de `object_ref`.
