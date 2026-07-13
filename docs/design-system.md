@@ -143,6 +143,7 @@ Componentes propios (sin librería pesada). Cada uno documenta su API de props y
 | `Toast` / `InlineError` | `role="status"`/`role="alert"` según urgencia | Todas |
 | `EmptyState` / `Spinner` | texto, no solo icono; `aria-busy` | Estados de carga/vacío |
 | `Modal` (confirmación rechazo con motivo) | foco atrapado, `Esc` cierra, restaura foco | Revisión — FE-4 |
+| `SkipLink` («Saltar al contenido») | visualmente oculto salvo con foco de teclado; usa `--color-focus-ring`/`--space-*`; salta a `<main>` (WCAG 2.4.1) | Shell (todas) |
 
 **Estados obligatorios de toda vista de datos:** *cargando · vacío · error · sin-permiso*. Un endpoint que
 puede devolver 404/409/503 tiene su estado de UI definido; nada se queda colgado.
@@ -185,9 +186,14 @@ Gate de a11y (verificable, no subjetivo — lo exige `auditor-spec-theater` y lo
 | `VALIDATION_ERROR` / 422 | «Revisa los campos marcados.» (detalle por campo desde `details`) |
 | `RATE_LIMITED` / 429 | «Demasiadas solicitudes. Espera unos segundos.» |
 | `SERVICE_UNAVAILABLE` / 503 | «Servicio no disponible temporalmente. Reinténtalo.» |
+| `INTERNAL` / 500 · **fallback** (code ausente de esta tabla o respuesta sin `code`) | «Ha ocurrido un error. Reinténtalo.» |
+| *(sin respuesta HTTP: offline / timeout de fetch)* | «Sin conexión. Reinténtalo.» |
 
 > El contrato uniforma 404 sin 403 en lectura (getOrderDetail, #010): la UI usa el mismo mensaje de
 > «no disponible» para no filtrar existencia entre roles.
+>
+> **Fallback obligatorio (gate G1 FE-1):** el mensaje genérico «Ha ocurrido un error. Reinténtalo.» cubre
+> cualquier `code` no mapeado; la UI **nunca** improvisa texto fuera de esta tabla ni deja la vista colgada.
 
 ---
 
