@@ -65,6 +65,19 @@ así que el técnico necesita ver **por qué** para corregir y reenviar.
   (multi-tenant fuera, YAGNI); cualquier supervisor/dispatcher ve datos de su alcance de estado en toda la org.
   Residual **aceptado y trazado (BL-074)** — no un defecto de #010; la segmentación por equipo/tenant es backlog.
 
+### Session 2026-07-13 — remediación gate G1 (ronda 3): resolver el motivo en #010 (B endurecida)
+
+- Q: **(atado al ciclo con B)** motivo (última transición de rechazo) vs notas (último submit) divergen tras
+  reenviar. → A: mostrar el motivo **solo si hay rechazo SIN atender** = última transición de rechazo **posterior**
+  al último `submitOrderExecution`; tras reenviar (`pending_review`) se omite → motivo y notas del **mismo ciclo**.
+- Q: **(PII histórica con B)** leer `OrderAudit.reason` directo lee filas históricas no saneadas. → A: **sanear al
+  leer** con el `pii-redactor` compartido de 007 (defensa en profundidad); eso **define "PII cruda"** de SC-004.
+  No hace falta feature #011 aparte.
+- Q: **(dispatcher)** → A: **mínimo privilegio** — sin notas ni metadatos de evidencia (solo campos de la orden).
+- Q: **(reasignación)** → A: el motivo lo ve el **dueño actual** (debe corregir la orden; el motivo va saneado).
+- Q: **(alcance técnico / `draft`)** → A: "activas" del técnico = assigned/in_progress/pending_review de SUS
+  órdenes; **`draft`** fuera de alcance de todo rol → `404` (pre-asignación, no es fuga).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - El técnico ve el detalle de su orden y por qué se la rechazaron (Priority: P1)
@@ -132,19 +145,28 @@ alcance → `404`. Igual para dispatcher con su alcance.
   `description`, `status`, `assigned_to`, `version`, `created_at`, `updated_at` (ISO-8601 UTC). **`evidence`
   SIEMPRE está presente** (`{count:0, content_types:[]}` si no hay ciclo); **`notes` y `last_rejection_reason`
   son opcionales y se OMITEN** del JSON cuando no aplican (convención uniforme, no `null`).
-- **FR-002** (notas + metadatos de evidencia del ciclo vigente): THE detalle SHALL incluir las **notas de
-  ejecución** y los **metadatos de evidencia** `{ count, content_types }` (donde `content_types` es la **lista**
-  de `content_type` por evidencia del ciclo, duplicados posibles) del **ciclo vigente** (el `auditId` del último
-  `submitOrderExecution`, aunque ese submit haya sido rechazado — es lo que el técnico debe ver para corregir);
-  **nunca** el `object_ref` crudo ni el binario.
+- **FR-002** (notas + metadatos de evidencia del ciclo vigente — mínimo privilegio): THE detalle SHALL incluir
+  las **notas de ejecución** y los **metadatos de evidencia** `{ count, content_types }` (donde `content_types`
+  es la **lista** de `content_type` por evidencia del ciclo, duplicados posibles) del **ciclo vigente** (el
+  `auditId` del último `submitOrderExecution`) **solo para el technician dueño y el supervisor** (quienes
+  ejecutan/revisan el trabajo). El **dispatcher NO** recibe notas ni metadatos de evidencia (su función es
+  asignar/reasignar, no necesita el trabajo del técnico ni datos de cliente — mínimo privilegio): su detalle se
+  limita a los campos de la orden. **Nunca** el `object_ref` crudo ni el binario.
 - **FR-003** (motivo del último rechazo — lectura acotada, opción B): WHEN el **technician dueño** pide el detalle
-  de SU orden y ésta tiene un rechazo THE sistema SHALL incluir el **motivo del último rechazo** leído de
-  **`OrderAudit.reason` de la última transición de rechazo de esa orden**, habilitado por la **excepción de
-  mínimo privilegio de Constitution XI (≥ v1.9.0)**: solo el `motivo`, solo la **última transición de rechazo**,
-  solo de una **orden asignada al propio actor**. El motivo ya está **saneado** (garantía de escritura de XI). El
-  campo se **omite** del JSON cuando no hay rechazo. **No** se abre el resto del registro de auditoría (otras
-  transiciones/accesos denegados/otras órdenes) — sigue restringido a supervisor/auditor. Sin columna
-  denormalizada, sin tocar 004/005/006, sin migración.
+  de SU orden y ésta tiene un **rechazo SIN atender** THE sistema SHALL incluir el **motivo del último rechazo**
+  leído de **`OrderAudit.reason` de la última transición de rechazo de esa orden**, habilitado por la **excepción
+  de mínimo privilegio de Constitution XI (≥ v1.9.0)** (solo el `motivo`, solo la última transición de rechazo,
+  solo de una orden asignada al propio actor; no abre el resto del registro).
+  - **Regla de "rechazo sin atender" (atado al ciclo, resuelve la mezcla de ciclos):** el motivo se incluye **si y
+    solo si** la última transición de rechazo es **posterior** al último `submitOrderExecution` de la orden (i.e.
+    la orden está en `in_progress` tras un rechazo y **aún no** se ha reenviado). Tras el reenvío (→
+    `pending_review`) el motivo se **omite**. Así las notas/evidencia (del último submit) y el motivo pertenecen
+    **siempre al mismo ciclo**; nunca se mezcla el motivo del ciclo N-1 con notas del ciclo N.
+  - **Saneo al leer (defensa en profundidad, resuelve la PII histórica):** el motivo se pasa por el **detector/
+    redactor de PII estructurada compartido** (`domain/ai/pii-redactor`, de 007) **antes** de servirlo — así, aun
+    si un motivo histórico se guardó sin sanear, no se filtra PII estructurada al técnico. Esto **define** el
+    criterio de "PII cruda" verificable de SC-004.
+  - Sin columna denormalizada, sin tocar 004/005/006, sin migración.
 - **FR-004** (RBAC + no-enumeración): WHEN el usuario no está autenticado THE sistema SHALL responder `401`;
   WHEN un usuario autenticado pide una orden **no visible** para su rol (inexistente, ajena, `orderId`
   malformado, o fuera de su alcance de estado) THE sistema SHALL responder **`404` genérico e indistinguible**,
@@ -152,13 +174,18 @@ alcance → `404`. Igual para dispatcher con su alcance.
   autenticados; la **visibilidad filtra a `404`** — **no se usa `403`** en este endpoint (un `403` sobre un
   `orderId` concreto rompería la no-enumeración). `closed` no está en el alcance de ningún rol → `404` (detalle
   de cerradas fuera de #010).
-- **FR-005** (quién ve el motivo — mínimo privilegio): **SOLO el technician dueño** (la orden asignada a él) ve
-  `last_rejection_reason` en el detalle, para corregir su orden rechazada. **Supervisor y dispatcher NO** reciben
-  el motivo en el detalle (el supervisor ya lo conoció al escribirlo; su alcance —`pending_review`— ni siquiera
-  contiene órdenes rechazadas). El technician **nunca** ve el motivo de otra orden ni ningún otro registro de
-  auditoría. El campo se **omite** del JSON para todo rol distinto del técnico dueño.
+- **FR-005** (quién ve el motivo — mínimo privilegio): **SOLO el technician dueño ACTUAL** (`assigned_to` = el
+  actor) ve el motivo, para corregir su orden con rechazo sin atender. **Supervisor y dispatcher NO** lo reciben
+  (el supervisor ya lo conoció al escribirlo; su alcance —`pending_review`— no contiene rechazos sin atender). El
+  technician **nunca** ve el motivo de otra orden ni ningún otro registro de auditoría. **Reasignación:** si una
+  orden con rechazo sin atender se reasigna a otro técnico, el **nuevo dueño** ve el motivo — es correcto: ahora
+  es **su** responsabilidad corregirla, y el motivo (saneado, FR-003) describe el trabajo a rehacer, no datos
+  personales del técnico anterior. El campo se **omite** para todo rol/actor que no sea el dueño actual.
 - **FR-006** (no-fuga de PII): THE respuesta y los logs SHALL **no** contener `object_ref` crudo, uuids internos
-  innecesarios ni PII cruda; solo `id`/metadatos (conteo, `content_type`) + el motivo saneado.
+  innecesarios ni **PII estructurada**; solo `id`/metadatos (conteo, `content_type`) + el motivo **saneado**.
+  **Definición verificable de "PII cruda"** = lo que detecta el **detector estructural compartido**
+  (`domain/ai/pii-redactor` de 007: email/teléfono/DNI-NIF/NIE/matrícula/IBAN/tarjeta); el motivo servido pasa
+  por él y la respuesta no contiene ninguno de esos patrones (aserción de test, no juicio subjetivo).
 - **FR-007** (read-only): THE endpoint SHALL ser de **lectura pura** (GET), sin mutar estado ni versión, sin
   efectos secundarios, y **sin** servir el binario de evidencia (eso es #007-subida).
 - **FR-008** (contrato): THE respuesta `200` SHALL ajustarse a un `OrderDetailResponse` versionado en
@@ -172,8 +199,9 @@ alcance → `404`. Igual para dispatcher con su alcance.
   propia orden del técnico (excepción XI ≥ v1.9.0). No se expone el resto del registro.
 - **OrderExecutionNotes / OrderEvidence** (005): **fuente** de notas + metadatos del ciclo vigente; se **leen**;
   nunca `object_ref` crudo.
-- **Motivo del último rechazo** (operativo): el texto saneado del rechazo del ciclo vigente (de 006), servido
-  como **dato operativo** de la orden — no como entrada del registro de auditoría forense.
+- **Motivo del último rechazo**: `OrderAudit.reason` de la última transición de rechazo de la orden, **leído
+  acotadamente** (excepción XI ≥ v1.9.0) y **saneado al leer** (pii-redactor de 007) antes de servirlo; se muestra
+  solo si el rechazo está **sin atender** (FR-003) y solo al **técnico dueño** (FR-005).
 - **OrderDetailResponse** (efímera): DTO de lectura `{ order, notes?, evidence:{count,content_types}, last_rejection_reason? }`
   (forma exacta en `/plan`). Sin PII cruda.
 
@@ -181,14 +209,17 @@ alcance → `404`. Igual para dispatcher con su alcance.
 
 - **SC-001** (detalle visible): el 100% de las peticiones de una orden **visible para el rol** devuelven `200`
   con el detalle correcto (estado + notas/metadatos del ciclo vigente).
-- **SC-002** (motivo al técnico): el 100% de las órdenes propias rechazadas muestran al technician el **motivo
-  del último rechazo**; el 100% de las órdenes **no propias** ocultan el motivo y devuelven `404`.
+- **SC-002** (motivo al técnico): el 100% de las órdenes propias con **rechazo SIN atender** (última transición
+  de rechazo posterior al último `submitOrderExecution`) muestran al technician dueño el **motivo saneado**; el
+  100% de las órdenes **ya reenviadas** (en `pending_review`) o **no propias** **omiten** el motivo. (Criterio
+  medible: el estado "rechazo sin atender" está definido por comparación de timestamps, FR-003.)
 - **SC-003** (RBAC + no-enumeración): el 100% de las peticiones sin autenticar son `401` y el 100% de las
   peticiones fuera del alcance del rol son `404` genérico (**sin 403** en este endpoint); **0** fugas de
   existencia entre roles.
 - **SC-004** (no-fuga de PII): **0** apariciones de `object_ref` crudo ni PII cruda en la respuesta o los logs.
-- **SC-005** (XI intacta): el technician **no** puede leer el registro de auditoría (transiciones, accesos
-  denegados, motivos de otras órdenes); solo el motivo operativo de su propia orden (verificado por test).
+- **SC-005** (excepción XI de mínimo privilegio respetada): el technician **solo** puede leer el motivo de la
+  última transición de rechazo de **su propia** orden; **no** puede leer el de otra orden, ni otras transiciones,
+  ni accesos denegados, ni el resto del registro de auditoría (verificado por test: 403/404 en esos casos).
 
 ## Contrato (OpenAPI) *(obligatorio — Constitution II)*
 
@@ -232,3 +263,9 @@ alcance → `404`. Igual para dispatcher con su alcance.
 - **`closed` fuera de alcance**: el detalle de órdenes cerradas no se expone en #010 (necesidad futura, no del brief).
 - **Read-only puro**: #010 no muta nada (ni añade campos); el binario de evidencia (descarga) es #007-subida,
   fuera de alcance.
+- **Alcance del técnico** = sus órdenes en `assigned`/`in_progress`/`pending_review` (reutiliza `orderScopeFor`
+  de 002a), de modo que ve su orden **tras reenviar** (pending_review) y **tras rechazo** (in_progress).
+- **`draft` fuera de alcance**: ningún rol lee el detalle de una orden `draft` (pre-asignación, fuera del flujo
+  del brief) → `404`. Igual que `closed`. Documentado (no es fuga; es alcance intencional).
+- **Saneo del motivo al leer**: reúso del `pii-redactor` compartido de 007 (`domain/ai/pii-redactor`) sobre el
+  motivo antes de servirlo → independiente de si 006 saneó históricamente; define "PII cruda" verificable (SC-004).
