@@ -1,236 +1,77 @@
 {
   "phase": "G1",
   "feature": "008-order-detalle-read",
-  "bloqueantes": 2,
-  "altas": 10,
-  "total": 22,
-  "veredicto": "BLOQUEADA",
-  "huecos": [
+  "ronda": 7,
+  "bloqueantes": 0,
+  "altas": 0,
+  "medias": 6,
+  "total": 6,
+  "veredicto": "PASS",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad"],
+  "nota_avance": "0 BLOQUEANTES en DOS rondas consecutivas (6 y 7) por los tres revisores → se cumple el criterio de avance (Constitution XIII). Convergencia alcanzada. Trail de remediación: R2 (opción B, 404 sin 403), R3 (B endurecida: atado al ciclo, saneo al leer, dispatcher mínimo privilegio), R4 (evidence opcional, PII texto-libre=BL-073), R5 (H-001 evidence en DTO/esquema resuelto; H-002/403 falso positivo), R6 (BLOQUEANTE notes/SC-004 acotado + fail-closed; FR-009 auditoría XI; evidence vs 005; reasignación/autoría; transición única + reason obligatorio; snapshot con guard; precedencia 401→404), R7 (FR-009 recurso saneado + fallo best-effort; efecto compuesto notes+BL-074 documentado; rol-no-reconocido→404; BL-075→BL-080; desambiguación 'saneo').",
+  "altas_cerradas_en_este_gate": [
+    "notes/SC-004 (BLOQUEANTE R6) — SC-004/FR-006 acotados a object_ref+motivo; notes=residual IX documentado",
+    "S-001 fail-closed del pii-redactor",
+    "S-002/XI auditoría de accesos denegados (nuevo FR-009) reconciliada con FR-007",
+    "C-001 evidence {count:0} vs 005 (1..MAX) reformulado",
+    "C-002/C-003 reasignación (mínimo privilegio + autoría del ciclo + BL-080)",
+    "FR-009 recurso saneado anti-inyección de PII (R7 cinico H-001)",
+    "efecto compuesto notes+BL-074 documentado como residual con dueño (R7 cinico H-003)"
+  ],
+  "residuales_no_bloqueantes": [
     {
-      "id": "H-001",
-      "categoria": "INCONSISTENCIA",
-      "elemento_afectado": "FR-003 vs FR-002 / Assumption 'Ciclo vigente' / last_rejection_reason",
-      "descripcion": "FR-002 ata las notas/evidencia al 'ciclo vigente' (auditId del último submitOrderExecution), pero FR-003 sirve el motivo desde una columna denormalizada 'último rechazo' en Order que NO tiene ninguna vinculación a auditId ni a ciclo. FR-003 dice 'WHEN la orden fue rechazada en su ciclo vigente', pero la columna no puede distinguir si el motivo pertenece al ciclo vigente o a uno anterior del bucle de 006.",
-      "pregunta_critica": "Si una orden se rechaza (motivo A), el técnico reenvía (nuevo submit → nuevo ciclo vigente) y queda en pending_review, ¿el detalle debe seguir mostrando el motivo A (que es de un ciclo YA superado) junto a las notas del ciclo nuevo? ¿Cómo garantiza el sistema que last_rejection_reason corresponde al ciclo vigente si la columna no guarda auditId ni se limpia al reenviar?",
-      "riesgo_si_no_se_corrige": "El detalle mezcla el motivo de un ciclo antiguo con las notas del ciclo vigente; el técnico corrige contra feedback obsoleto o ve un motivo 'fantasma' de un rechazo ya resuelto. Se rompe la coherencia de 'ciclo vigente' que la spec proclama respetar (H-001 de 007).",
-      "severidad": "BLOQUEANTE",
-      "agente": "revisor-cinico"
+      "id": "R-001",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-006 / SC-004 (efecto compuesto notes + BL-074)",
+      "descripcion": "`notes` sin redactor (payload IX) + visibilidad org-wide de supervisores (BL-074) → PII estructural en notes visible al pool de supervisores. Residual PREEXISTENTE (005/006), no escalada nueva de #010 (read-side). Cierre: 005 D4 (cifrado/purga) + backlog multi-tenant.",
+      "severidad": "ALTA-preexistente-no-bloqueante",
+      "dueño": "005-D4 + backlog multi-tenant",
+      "agente": "revisor-rbac-seguridad"
     },
     {
-      "id": "H-002",
-      "categoria": "REQUISITO_FALTANTE",
-      "elemento_afectado": "FR-003 / Assumptions (migración de 006) / US1 Acceptance",
-      "descripcion": "El motivo se sirve desde una columna nueva que 006 escribirá 'de ahora en adelante'. No hay ningún requisito de backfill para las órdenes ya rechazadas ANTES de la migración: quedarán con last_rejection_reason=NULL aunque fueron rechazadas. US1 asume 'orden propia rechazada (motivo registrado en 006)'.",
-      "pregunta_critica": "Para las órdenes rechazadas antes de que exista la columna (datos ya persistidos), ¿de dónde sale el motivo? Si no hay backfill, esos técnicos ven una orden rechazada SIN motivo y no pueden corregir — ¿es aceptable o se requiere migración de datos desde OrderAudit (lo que reabriría el debate de XI)?",
-      "riesgo_si_no_se_corrige": "Un subconjunto de órdenes rechazadas queda permanentemente sin motivo visible; el bucle corregir→reenviar del brief no funciona para ellas y SC-002 ('100% de órdenes propias rechazadas muestran el motivo') es falso desde el día 1.",
-      "severidad": "ALTA",
-      "agente": "revisor-cinico"
-    },
-    {
-      "id": "H-003",
-      "categoria": "EDGE_CASE",
-      "elemento_afectado": "FR-001 (alcance por rol) / Key Entities Order / brief 'el usuario puede ver sus órdenes'",
-      "descripcion": "Los alcances definidos son: technician=órdenes activas, supervisor=pending_review, dispatcher=assigned/in_progress. NINGÚN rol tiene en su alcance el estado 'closed'. Una orden cerrada se vuelve invisible para todos en el detalle.",
-      "pregunta_critica": "Cuando una orden pasa a 'closed', ¿quién puede leer su detalle? Si la respuesta es 'nadie', ¿no contradice eso el brief ('el usuario puede ver sus órdenes') y deja al técnico/supervisor sin poder consultar el resultado de una orden ya finalizada?",
-      "riesgo_si_no_se_corrige": "Las órdenes cerradas se vuelven un agujero negro: el técnico que la ejecutó ya no puede consultarla; se pierde trazabilidad operativa post-cierre y se incumple el brief.",
-      "severidad": "ALTA",
-      "agente": "revisor-cinico"
-    },
-    {
-      "id": "H-004",
-      "categoria": "INCONSISTENCIA",
-      "elemento_afectado": "FR-004 (RBAC + no-enumeración)",
-      "descripcion": "FR-004 proclama '404 genérico e indistinguible, sin revelar existencia' pero cierra con 'El rol sin alcance de lectura del detalle recibe 403/404 según la política reutilizada'. 403 y 404 son mutuamente excluyentes para la no-enumeración: un 403 revela que el recurso/endpoint existe pero está prohibido, un 404 no.",
-      "pregunta_critica": "¿Es 403 o 404? Si en algún caso se devuelve 403 (p. ej. rol sin ningún alcance de lectura), eso distingue 'existe pero prohibido' de 'no existe' y rompe la no-enumeración que SC-003 exige (0 fugas de existencia). ¿Cuál es exactamente la regla determinista 401 vs 403 vs 404 por rol y estado?",
-      "riesgo_si_no_se_corrige": "Implementación ambigua: se elige 403 en algunos casos y se filtra la existencia de órdenes entre roles, violando SC-003 y la coherencia con 002a/006.",
-      "severidad": "ALTA",
-      "agente": "revisor-cinico"
-    },
-    {
-      "id": "H-005",
-      "categoria": "ASUNCION_OCULTA",
-      "elemento_afectado": "Assumptions (006 añade escritura + migración) / FR-003",
-      "descripcion": "Se asume que 006 —una feature ya especificada/mergeada— puede modificarse retroactivamente para añadir un write 'sin cambiar su contrato ni su comportamiento observable'. Escribir un campo nuevo en la misma transacción SÍ es un cambio de comportamiento observable (nueva escritura, posible fallo de la transacción de reject si la migración/campo no está).",
-      "pregunta_critica": "¿Quién y en qué rama implementa el cambio en 006 y su gate? ¿Qué pasa si la transacción de reject de 006 ahora falla por el nuevo write (p. ej. texto que excede la columna)? ¿Se considera esto una enmienda a 006 con su propio ciclo SDD/gate, o se cuela como 'aditivo' sin revisión?",
-      "riesgo_si_no_se_corrige": "Un cambio no gobernado en el camino crítico de 006 (reject) puede romper una feature ya cerrada; el reject podría fallar por un efecto colateral de una feature de solo-lectura.",
-      "severidad": "ALTA",
-      "agente": "revisor-cinico"
-    },
-    {
-      "id": "H-006",
-      "categoria": "EDGE_CASE",
-      "elemento_afectado": "Assumption 'Ciclo vigente' / Edge Cases / FR-002",
-      "descripcion": "Tras un rechazo la orden vuelve a in_progress SIN que el técnico haya reenviado. En ese estado el 'último submitOrderExecution' es el que fue rechazado. No está explícito si el 'ciclo vigente' que se muestra son las notas/evidencia de ESE submit rechazado (lo lógico para corregir) o si se considera 'sin ciclo vigente'.",
-      "pregunta_critica": "Cuando la orden está en in_progress post-rechazo y el técnico aún no reenvió, ¿el detalle muestra las notas y evidencia del submit que fue rechazado (para que corrija sobre lo anterior) o las trata como ciclo cerrado y devuelve notas/evidencia vacías?",
-      "riesgo_si_no_se_corrige": "Si se interpreta como 'sin ciclo vigente', el técnico ve el motivo del rechazo pero NO ve sus propias notas/evidencia rechazadas para corregirlas; empieza de cero y el bucle de 006 se degrada.",
-      "severidad": "ALTA",
-      "agente": "revisor-cinico"
-    },
-    {
-      "id": "H-007",
-      "categoria": "EDGE_CASE",
-      "elemento_afectado": "FR-001 (supervisor = pending_review)",
-      "descripcion": "El supervisor solo ve órdenes en pending_review. En el instante en que aprueba (→closed) o rechaza (→in_progress) la orden abandona pending_review y desaparece de su alcance de lectura.",
-      "pregunta_critica": "Justo después de que el supervisor aprueba o rechaza, ¿puede volver a abrir el detalle de esa orden para verificar su propia decisión? Si no, ¿es aceptable que no pueda consultar ninguna orden sobre la que acaba de actuar?",
-      "riesgo_si_no_se_corrige": "El supervisor pierde visibilidad inmediata de sus propias decisiones; no puede auditar ni corregir un error recién cometido, lo que dificulta la revisión real.",
-      "severidad": "MEDIA",
-      "agente": "revisor-cinico"
-    },
-    {
-      "id": "H-008",
-      "categoria": "ASUNCION_OCULTA",
-      "elemento_afectado": "Edge Cases 'Motivo con datos sensibles' / FR-006 / Assumption 'motivo saneado'",
-      "descripcion": "Se asume que el motivo 'ya está saneado / sin PII cruda (XI)' y se sirve 'tal cual'. Pero el saneado de 006 se hizo para el contexto de AUDITORÍA, no necesariamente para exponerlo a un technician. El nivel de saneo puede diferir según el destinatario.",
-      "pregunta_critica": "¿El saneo que aplica 006 al guardar el motivo es suficiente y equivalente al nivel exigido para exponerlo directamente a un technician a través de un endpoint de lectura, o se está reutilizando un saneo pensado para otro propósito?",
-      "riesgo_si_no_se_corrige": "Se sirve al técnico un texto saneado 'para auditoría' que aún contiene datos que no debería ver en el detalle operativo; fuga de datos por asumir equivalencia de saneos.",
-      "severidad": "MEDIA",
-      "agente": "revisor-cinico"
-    },
-    {
-      "id": "H-009",
+      "id": "R-002",
       "categoria": "TRAZABILIDAD",
-      "elemento_afectado": "SC-005 / FR-003 ('audit untouched')",
-      "descripcion": "SC-005 afirma que 'el technician no puede leer el registro de auditoría... verificado por test'. Pero este feature no expone ningún acceso a OrderAudit, así que el criterio verifica la AUSENCIA de una funcionalidad no ofrecida — es un criterio circular/no accionable como test positivo.",
-      "pregunta_critica": "¿Cómo se convierte SC-005 en un test concreto y falsable? ¿Se testea que la consulta del detalle no ejecuta ninguna query contra la tabla OrderAudit (test de implementación), o es una afirmación de diseño no verificable por comportamiento?",
-      "riesgo_si_no_se_corrige": "SC-005 se marca 'verde' sin un test real; una futura implementación podría leer OrderAudit para obtener el motivo (en vez de la columna) sin que ningún test lo detecte, rompiendo la premisa 'XI intacta' que justifica todo el diseño.",
+      "elemento_afectado": "BL-080 (contexto cruzado entre supervisores) y residual de timing (SC-003)",
+      "descripcion": "BL-080 se cita en la spec pero aún NO está creado en docs/06-roadmap.md; el residual de canal lateral de tiempos (SC-003) también debe registrarse. Ambos son altas de backlog/fundación → van por RAMA DE FUNDACIÓN (regla de enmiendas aisladas, no esta rama de feature). ACCIÓN DE SEGUIMIENTO antes/tras merge: registrar BL-080 y el residual de timing en el roadmap.",
       "severidad": "MEDIA",
+      "dueño": "rama de fundación (docs/06-roadmap.md)",
+      "agente": "revisor-cinico + revisor-rbac-seguridad"
+    },
+    {
+      "id": "R-003",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-006 (BL-073, PII de texto libre en el motivo)",
+      "descripcion": "El redactor estructural no capta PII de texto libre (nombres/direcciones) en el motivo; residual best-effort ya trazado (BL-073), mitigado por rol de confianza (supervisor). Endurecimiento (NER / disciplina de escritura en 006) = BL-073.",
+      "severidad": "MEDIA",
+      "dueño": "BL-073 (006)",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "R-004",
+      "categoria": "EDGE_CASE",
+      "elemento_afectado": "FR-003 (desempate uuid v7 vs at)",
+      "descripcion": "El desempate submit-vs-reject por uuid v7 monótono asume misma fuente de reloj/orden monótono. Mecanismo exacto (fuente única monótona) se fija en /plan; a nivel spec el criterio observable está acotado.",
+      "severidad": "MEDIA",
+      "dueño": "/plan",
       "agente": "revisor-cinico"
     },
     {
-      "id": "H-010",
-      "categoria": "INCONSISTENCIA",
-      "elemento_afectado": "FR-002 ('content_type' singular) vs Key Entities/OrderDetailResponse ('content_types' plural)",
-      "descripcion": "FR-002 habla de 'metadatos de evidencia (conteo + content_type)' en singular, mientras el DTO OrderDetailResponse expone 'evidence:{count, content_types}' en plural (lista). No queda claro si es un único content_type o un conjunto por cada evidencia.",
-      "pregunta_critica": "¿La evidencia del ciclo tiene un único content_type o varios (una foto png + un pdf, etc.)? Si son varios, ¿se devuelve la lista de content_types distintos, un content_type por cada evidencia, o un conteo por tipo?",
-      "riesgo_si_no_se_corrige": "El contrato del DTO se define de forma ambigua; consumidores de la Front (FE) asumen una forma y el backend implementa otra, rompiendo la integración read-side que es el objetivo del feature.",
+      "id": "R-005",
+      "categoria": "SEGURIDAD",
+      "elemento_afectado": "SC-003 (canal lateral de tiempos)",
+      "descripcion": "No hay comparación constant-time entre ramas de 404; oráculo de temporización teórico. Fuera de alcance MVP, documentado en SC-003; seguimiento en roadmap (ver R-002).",
       "severidad": "MEDIA",
+      "dueño": "backlog seguridad (roadmap)",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "R-006",
+      "categoria": "REQUISITO_FALTANTE",
+      "elemento_afectado": "FR-009 (modo de fallo)",
+      "descripcion": "Fallo de escritura de auditoría = best-effort no bloqueante; se loguea con recurso saneado. Detalle transaccional exacto → /plan.",
+      "severidad": "MEDIA",
+      "dueño": "/plan",
       "agente": "revisor-cinico"
-    },
-    {
-      "id": "H-011",
-      "categoria": "ASUNCION_OCULTA",
-      "elemento_afectado": "FR-001 / FR-005 ('technician = sus órdenes activas')",
-      "descripcion": "Se reutiliza 'órdenes activas' de 002a como si su alcance estuviera cerrado, pero 'activas' no se define aquí (¿incluye pending_review propia? ¿in_progress? ¿excluye closed?). FR-005 dice que el técnico ve 'la asignada a él', que puede no coincidir con 'activas'.",
-      "pregunta_critica": "¿Qué estados exactos comprende 'órdenes activas del technician' para efectos del detalle? ¿Puede el técnico ver el detalle de su propia orden mientras está en pending_review (esperando revisión) o solo cuando está en assigned/in_progress?",
-      "riesgo_si_no_se_corrige": "Ambigüedad de alcance: se implementa una interpretación de 'activas' distinta a la de 002a y el técnico pierde (o gana) visibilidad de estados no previstos, con impacto en RBAC y en la coherencia con el resto de specs.",
-      "severidad": "MEDIA",
-      "agente": "revisor-cinico"
-    },
-    {
-      "id": "T-001",
-      "categoria": "MULTIPLE_INTERPRETACION",
-      "elemento_afectado": "FR-004",
-      "test_fallado": "PASS_FAIL",
-      "descripcion": "La última frase de FR-004 dice: 'El rol sin alcance de lectura del detalle recibe `403`/`404` según la política reutilizada.' Se ofrecen dos códigos alternativos sin fijar cuál aplica ni bajo qué condición binaria. Lectura A: un rol sin alcance de estado recibe 404 (indistinguible de no-existencia). Lectura B: recibe 403 (revela que la orden existe pero no tiene permiso). El propio texto entra en tensión con la primera parte de FR-004 (todo lo no visible → 404 genérico) y con FR-008/Contrato que lista 200/401/403/404. No hay valor concreto que decida qué status devolver.",
-      "pregunta_critica": "FR-004 falla el Test pass/fail: para el caso 'rol autenticado sin alcance de lectura', ¿la respuesta esperada es exactamente 403 o exactamente 404? Enunciar la condición binaria (p. ej. 'siempre 404 salvo <condición X> → 403') para poder escribir un test con status esperado único.",
-      "riesgo_si_no_se_corrige": "Un dev devuelve 404 (no-enumeración) y otro 403 (feedback de permiso); el contract test de FR-008 no tiene status esperado y la no-enumeración de SC-003 queda sin verificar de forma determinista.",
-      "severidad": "BLOQUEANTE",
-      "agente": "auditor-spec-theater"
-    },
-    {
-      "id": "T-002",
-      "categoria": "SIN_CRITERIO_PASS_FAIL",
-      "elemento_afectado": "FR-001",
-      "test_fallado": "PASS_FAIL",
-      "descripcion": "FR-001 enumera el payload de 200 como '`id`, `title`, `description`, `status`, `assigned_to`, `version`, fechas'. Todos los campos están nombrados excepto 'fechas', término no atómico que no identifica qué claves concretas devuelve el 200 (¿`created_at`? ¿`updated_at`? ¿`assigned_at`? ¿nombres exactos y formato?).",
-      "pregunta_critica": "FR-001 falla el Test pass/fail: ¿qué campos de fecha exactos (nombre de clave + formato, p. ej. ISO-8601) forman parte del 200? Sin la lista cerrada no se puede aseverar la forma de la respuesta en el contract test.",
-      "riesgo_si_no_se_corrige": "Cada dev incluye un subconjunto distinto de fechas con nombres/formato propios; el schema OpenAPI de OrderDetailResponse y su contract test quedan indefinidos para esos campos.",
-      "severidad": "ALTA",
-      "agente": "auditor-spec-theater"
-    },
-    {
-      "id": "T-003",
-      "categoria": "MULTIPLE_INTERPRETACION",
-      "elemento_afectado": "US1-AS3 / FR-003 / FR-005 / Edge 'sin ciclo'",
-      "test_fallado": "2_IMPLEMENTACIONES",
-      "descripcion": "La ausencia de valor se describe de forma no uniforme y con disyunción: US1 escenario 3 dice '**sin** campo de motivo (o motivo nulo/omitido)'; FR-005 dice 'el campo se **omite**'; el edge 'orden sin ciclo' dice notas/evidencia 'vacías/omitidas'; el DTO marca `notes?` y `last_rejection_reason?` como opcionales. Dos implementaciones válidas y distintas: (A) clave ausente del JSON; (B) clave presente con `null` (o arreglo vacío). Ambas cumplen el texto literal, pero un contract test estricto solo puede pasar con una.",
-      "pregunta_critica": "Falla el Test de las 2 implementaciones: para motivo-no-visible/no-existente, notas y evidencia-vacía, ¿la clave se OMITE del cuerpo o se emite con valor `null`/`[]`/`{count:0}`? Fijar una sola convención (misma para los tres) verificable en el schema.",
-      "riesgo_si_no_se_corrige": "El front (FE) y el contract test asumen una forma distinta a la del backend; el mismo endpoint pasa en un test y falla en otro según se lea 'omitido' como ausente o como null.",
-      "severidad": "ALTA",
-      "agente": "auditor-spec-theater"
-    },
-    {
-      "id": "T-004",
-      "categoria": "MULTIPLE_INTERPRETACION",
-      "elemento_afectado": "FR-002 / FR-006 / OrderDetailResponse",
-      "test_fallado": "2_IMPLEMENTACIONES",
-      "descripcion": "FR-002 y FR-006 describen los metadatos de evidencia como 'conteo + `content_type`' (singular), mientras el DTO en Key Entities usa `evidence:{count,content_types}` (plural). Divergencia con dos implementaciones válidas: (A) un único `content_type` representativo/global de la evidencia del ciclo; (B) una colección `content_types` (¿lista de tipos distintos, o un tipo por cada fichero, con posibles duplicados?). No se fija ni el nombre de clave ni la cardinalidad/semántica.",
-      "pregunta_critica": "Falla el Test de las 2 implementaciones: ¿la clave es `content_type` (uno) o `content_types` (colección)? Si es colección, ¿es el conjunto de tipos DISTINTOS o un tipo por evidencia? Definir clave + cardinalidad para que el test aserte una estructura única.",
-      "riesgo_si_no_se_corrige": "Backend emite `content_types:[...]` y el test/front esperan `content_type:'...'` (o viceversa); el metadato de evidencia queda inconsistente entre spec, contrato y código.",
-      "severidad": "ALTA",
-      "agente": "auditor-spec-theater"
-    },
-    {
-      "id": "T-005",
-      "categoria": "SIN_CRITERIO_PASS_FAIL",
-      "elemento_afectado": "FR-006",
-      "test_fallado": "PASS_FAIL",
-      "descripcion": "FR-006 prohíbe exponer 'uuids internos **innecesarios**' en respuesta y logs. 'Innecesarios' es un criterio subjetivo sin regla que separe uuids permitidos de prohibidos: FR-001 sí expone `id` (uuid) y `assigned_to` (uuid). No hay lista blanca/negra que determine, para un uuid dado, si su presencia es PASS o FAIL.",
-      "pregunta_critica": "FR-006 falla el Test pass/fail: ¿qué identificadores concretos están PERMITIDOS en el cuerpo (p. ej. `id`, `assigned_to`) y cuáles PROHIBIDOS (p. ej. `auditId`, `evidenceId`, `object_ref`)? Sin la lista binaria no se puede escribir el aserto 'no aparece X'.",
-      "riesgo_si_no_se_corrige": "Cada dev decide qué uuid es 'necesario'; el test de no-fuga (FR-006/SC-004) no puede afirmar la ausencia de un campo concreto y la cobertura de la fuga queda a criterio.",
-      "severidad": "MEDIA",
-      "agente": "auditor-spec-theater"
-    },
-    {
-      "id": "T-006",
-      "categoria": "SIN_CRITERIO_PASS_FAIL",
-      "elemento_afectado": "SC-001",
-      "test_fallado": "PASS_FAIL",
-      "descripcion": "SC-001 exige '200 con el detalle **correcto**'. 'Correcto' no es medible por sí mismo; se apoya en FR-001/FR-002, que quedan indeterminados en los campos de fecha (T-002) y en la forma del metadato de evidencia (T-004). Mientras esos campos no tengan forma cerrada, no existe un valor concreto que haga PASS/FAIL la aserción de 'detalle correcto'.",
-      "pregunta_critica": "SC-001 falla el Test pass/fail: 'correcto' respecto a ¿qué schema exacto? Debe apuntar a la forma cerrada de OrderDetailResponse (una vez fijados T-002 y T-004) para ser una condición binaria verificable.",
-      "riesgo_si_no_se_corrige": "El criterio de éxito se declara verde con validaciones parciales distintas por dev; '100% correcto' no significa lo mismo entre implementaciones.",
-      "severidad": "MEDIA",
-      "agente": "auditor-spec-theater"
-    },
-    {
-      "id": "S-001",
-      "categoria": "AUTENTICACION",
-      "elemento_afectado": "FR-004",
-      "descripcion": "FR-004 se contradice: primero exige 404 genérico e indistinguible para toda orden no visible (no-enumeración), pero cierra con 'El rol sin alcance de lectura del detalle recibe 403/404 según la política reutilizada'. Un 403 sobre un orderId concreto confirma que la orden existe y que el rol está autenticado, rompiendo la no-enumeración que el resto de la spec promete.",
-      "pregunta_critica": "¿Cuándo exactamente se responde 403 y cuándo 404? Si un rol autenticado sin alcance para ese orderId recibe 403, se filtra la existencia de la orden: ¿por qué no unificar en 404 genérico salvo el 401 de no autenticado, como en 002a/006?",
-      "riesgo_si_no_se_corrige": "Enumeración: un atacante autenticado distingue 403 (existe, sin permiso) de 404 (no existe) y mapea qué órdenes existen fuera de su alcance, filtrando información entre roles.",
-      "severidad": "ALTA",
-      "agente": "revisor-rbac-seguridad"
-    },
-    {
-      "id": "S-002",
-      "categoria": "ESCALADA_PRIVILEGIOS",
-      "elemento_afectado": "FR-005 vs FR-001",
-      "descripcion": "FR-001 fija el alcance del supervisor en órdenes `pending_review`, pero FR-005 dice que el supervisor ve el motivo 'en cualquier orden visible'. El motivo de rechazo solo existe sobre órdenes que 006 devolvió a `in_progress` (rechazadas), estado que NO está en el alcance del supervisor. Es incoherente: o el supervisor nunca ve un motivo (columna siempre vacía en su alcance) o el implementador amplía su alcance a `in_progress` para 'que tenga sentido'.",
-      "pregunta_critica": "¿Sobre qué estados exactos puede el supervisor leer el detalle y el motivo? Si su alcance es solo `pending_review`, nunca verá un motivo de rechazo (esas órdenes están en `in_progress`): ¿se amplía su visibilidad a `in_progress`? Si es así, ¿de qué órdenes —cualquiera o solo las que él rechazó?",
-      "riesgo_si_no_se_corrige": "Ampliar tácitamente el alcance del supervisor a `in_progress` para justificar FR-005 le da lectura de órdenes en ejecución de técnicos ajenos (fuga entre roles), escalando su visibilidad más allá de lo definido en 002a/006.",
-      "severidad": "ALTA",
-      "agente": "revisor-rbac-seguridad"
-    },
-    {
-      "id": "S-003",
-      "categoria": "FUGA_DATOS",
-      "elemento_afectado": "FR-002 / FR-006",
-      "descripcion": "FR-002 sirve las notas de ejecución del técnico verbatim al supervisor (y el detalle base al dispatcher). FR-006 solo prohíbe `object_ref` crudo, uuids internos y 'PII cruda', pero solo el motivo de rechazo se declara explícitamente saneado. Las notas de ejecución son texto libre del técnico y pueden contener PII del cliente (nombre, dirección, teléfono) sin sanear.",
-      "pregunta_critica": "¿Las notas de ejecución (texto libre) pasan por el mismo saneo/minimización de PII que el motivo antes de servirse a supervisor/dispatcher, o se devuelven tal cual? ¿Qué garantiza que un técnico no filtre PII de cliente vía notas al resto de roles?",
-      "riesgo_si_no_se_corrige": "PII de cliente introducida en notas de ejecución se expone a supervisor y dispatcher (y potencialmente a logs), sin cifrado ni minimización, contradiciendo la política PII de la constitution.",
-      "severidad": "MEDIA",
-      "agente": "revisor-rbac-seguridad"
-    },
-    {
-      "id": "S-004",
-      "categoria": "FUGA_DATOS",
-      "elemento_afectado": "FR-003 / Key Entities (last_rejection_reason)",
-      "descripcion": "`last_rejection_reason` es una columna denormalizada en `Order` sin vínculo al ciclo. FR-003 la sirve 'cuando la orden fue rechazada en su ciclo vigente', pero la columna solo guarda el último motivo, no en qué ciclo/estado sigue vigente. Tras reenviar (bucle 006) y ser aprobada/cerrada, la columna conserva el motivo antiguo.",
-      "pregunta_critica": "¿Cómo distingue el read-side que el motivo pertenece al ciclo vigente y no a un rechazo ya superado? Sobre una orden reenviada y ahora en `pending_review`/`closed`, ¿se sigue exponiendo el motivo de un rechazo anterior a supervisor/técnico?",
-      "riesgo_si_no_se_corrige": "Se expone un motivo de rechazo obsoleto en estados donde FR-003 no aplica, filtrando información de auditoría de ciclos pasados fuera del contexto que la spec autoriza.",
-      "severidad": "MEDIA",
-      "agente": "revisor-rbac-seguridad"
-    },
-    {
-      "id": "S-005",
-      "categoria": "FUGA_DATOS",
-      "elemento_afectado": "Assumptions (visibilidad reutilizada 002a) / FR-001",
-      "descripcion": "La spec reutiliza `orderScopeFor` de 002a y no reafirma si hay aislamiento por equipo/región/tenant. Para el supervisor, 'órdenes en `pending_review`' podría significar TODAS las del sistema, no solo las de su ámbito.",
-      "pregunta_critica": "¿El alcance del supervisor está acotado por equipo/región/tenant, o cualquier supervisor puede leer el detalle (y el motivo) de cualquier orden en `pending_review` del sistema? ¿002a garantiza ese aislamiento?",
-      "riesgo_si_no_se_corrige": "Sin aislamiento de ámbito, un supervisor lee detalles y motivos de órdenes de equipos/clientes ajenos, fuga de datos entre ámbitos.",
-      "severidad": "MEDIA",
-      "agente": "revisor-rbac-seguridad"
     }
   ]
 }
