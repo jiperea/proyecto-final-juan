@@ -412,7 +412,45 @@ OK; `USER` final = `101` (SC-005); smoke-test `/` y asset → **HTTP 200** (SC-0
 parcheada → **0 CRITICAL/HIGH corregibles** (SC-001, confirmado por JSON). **Pendiente:** confirmación en
 Actions amd64 (SC-001..006) al empujar la rama → PR de front. Informes: `specs/012-frontend-pipeline-hardening/gates/`.
 
-<!-- Próximas entradas: confirmación del gate de front en verde tras el push; configuración Render+Neon (DO-7). -->
+## Feature 013 · PR Gate agregador (raíz del deadlock de required checks) — 2026-07-14
+
+**Contexto (hereda de 012):** al mergear 012 (front) el PR quedó atascado: la protección de `develop` exigía
+checks *required* que, por su filtro `paths:`, no se disparan en un PR de front (los de back) → quedaban en
+**"Expected — Waiting for status"** y **bloqueaban el merge**. La "nota" previa de `branch-protection.md`
+("required que no corre = skipped→neutral") era **falsa** para protección clásica. Además había un check
+**huérfano** (`Lint (pull_request)`, que ningún *job* emite). Fix puntual en 012: bajar required a los
+universales — pero G1 de 013 demostró que ese recorte **o pierde el gate de calidad** (un PR de back mergearía
+con Trivy CRITICAL/HIGH) **o deja el deadlock**. La constancia de 012 (commit `05875bf`) no llegó a develop
+(el #4 se mergeó antes); **013 la supersede**.
+
+**Fix raíz (patrón agregador, decidido en G1 tras 4 rondas):** consolidar `pr-validation-back.yml` +
+`pr-validation-front.yml` en un único **`pr-gate.yml`** sin `paths:` (corre en todo PR). Un job `changes`
+(`dorny/paths-filter`, SHA-pin) enruta por componente vía `if:` de job (mismo efecto que `paths:`, pero el
+check del gate se produce siempre). Gobernanza (guardián ×2, code-review) corre **siempre**; back/front solo
+si su componente (o `contracts`/`.github/workflows` — fail-safe "correr todo") cambió. Un job final **`PR
+Gate`** agrega (`needs` de los 10 jobs + `if: always()`): **falla** si algún job ∈ {failure, cancelled},
+**pasa** si todos ∈ {success, skipped}. Un job `gate-selfcheck` verifica en CI que el `needs` cubre todos los
+jobs (sin bypass silencioso). **Required = `{PR Gate, gitleaks}`** → sin deadlock (ambos corren siempre) y con
+calidad preservada (el agregador bloquea si un job de componente falla, FR-P09/XIII).
+
+**El gate ganó su sueldo (4 BLOQUEANTES cazados en G1, 4 rondas):** (1) el recorte perdía el gate de calidad;
+(2) el agregador podía tener bypass si el `needs` estaba incompleto; (3) el filtro de paths como punto único
+de fallo (skip silencioso) → fail-safe "correr todo"; (4) la migración reintroducía el deadlock → migración
+**"Settings primero"** (retirar los required `paths:`-dependientes ANTES de tocar workflows). Riesgos
+residuales (ventana de gating reducido durante la migración) documentados como intrínsecos a un cambio manual
+de Settings.
+
+**Enmiendas de doc:** `pipeline-spec.md` (FR-P01 reformulado + enmienda 013; FR-P21 guardián-agente reporta
+*success* no *skipped*; NFR-P01 un solo workflow); `branch-protection.md` (required = {PR Gate, gitleaks},
+migración "Settings primero", lección del deadlock corregida, huérfano retirado — supersede `05875bf` de 012).
+
+**Verificado estático/local:** YAML válido; 0 acciones por tag (AC-6); `gate-selfcheck` (needs completo) en 0;
+guardián determinista pasa con `pr-gate.yml` (solo faltaba el informe G3, creado en este paso). **Pendiente
+(usuario):** migración "Settings primero" (Paso 1→3) + PR → SC-001..006 en Actions real. Informes:
+`specs/013-universal-governance-checks/gates/`.
+
+<!-- Próximas entradas: migración Settings + PR Gate verde en Actions; configuración Render+Neon (DO-7). -->
+
 
 
 

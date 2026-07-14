@@ -35,8 +35,20 @@
 ## Requisitos funcionales (EARS)
 
 ### Gates de PR (M9) — DO-3 (back) / DO-6 (front)
-- **FR-P01**: WHEN se abre/actualiza un PR que toca `backend/**` o `contracts/**` THE pipeline SHALL
-  ejecutar el workflow de back (y NO el de front); y viceversa para `frontend/**` (filtros `paths:`).
+- **FR-P01** *(reformulado por feature 013)*: WHEN se abre/actualiza un PR THE pipeline SHALL correr **un
+  único workflow `pr-gate.yml`** (sin `paths:`, en todo PR) que **acota por componente vía `if:` de job**
+  (detección `dorny/paths-filter`): los jobs de **back** corren si el PR toca `backend/**`/`contracts/**`, los
+  de **front** si toca `frontend/**`/`contracts/**` (el resto se **skip**). El filtrado por ruta se
+  **preserva** (mismo efecto que `paths:`), pero movido al `if:` interno para que el check *required* del gate
+  se produzca en **todo** PR (evita el deadlock "required + `paths:`" de protección clásica, feature 013).
+  Los checks de **gobernanza** (FR-P07/P08/P21/P22) son **transversales** (corren siempre, sin `if:`).
+
+> **ENMIENDA 013 (PR Gate agregador):** los antiguos `pr-validation-back.yml`/`pr-validation-front.yml` se
+> **consolidan** en `pr-gate.yml`, con un job final **`PR Gate`** que agrega el resultado de todos los jobs
+> (`needs` + `if: always()`; skip=OK, failure/cancelled=bloquea). **Required en branch protection = `{PR Gate,
+> gitleaks}`** (ambos corren en todo PR → sin deadlock; el agregador preserva el bloqueo por calidad, FR-P09).
+> Las menciones a "el PR-gate (de back/front)" en FR-P02..P08/P21/P22 se entienden ahora como "el job
+> correspondiente dentro de `pr-gate.yml`". Detalle en `specs/013-universal-governance-checks/`.
 - **FR-P02**: WHEN corre el PR-gate de back THE pipeline SHALL ejecutar `lint` + `typecheck` + `test`
   (Vitest con Postgres de servicio) y **fallar el check** si alguno no pasa.
 - **FR-P03**: WHEN el PR toca `contracts/**` THE pipeline SHALL ejecutar **Spectral** (lint del OpenAPI) y
@@ -120,16 +132,20 @@
 - **FR-P21 (guardián-agente, opt-in)**: WHEN existe `secrets.ANTHROPIC_API_KEY` THE PR-gate SHALL ejecutar
   el job `guardian-agent` (`scripts/constitution-agent-review.sh`, patrón M9: `claude -p … --output-format
   json`) que revisa la coherencia de los artefactos SDD contra la constitución y **bloquea el merge** si
-  `aprobado=false`; WHILE no exista el secret THE job SHALL omitirse (skipped, coste 0). Es el "Claude Code
-  Action" del reto; complementa (no sustituye) al guardián determinista FR-P07. Única excepción a NFR-P03.
+  `aprobado=false`; WHILE no exista el secret THE job **corre igual y reporta `success`** (el *step* de la
+  revisión se salta por `if:`, sin llamar a la API; no es un job "skipped" — aclaración de feature 013,
+  coste ~0). Es el "Claude Code Action" del reto; complementa (no sustituye) al guardián determinista FR-P07.
+  Única excepción a NFR-P03.
 - **FR-P22 (code-review registrado)**: WHEN corre cualquier PR-gate THE pipeline SHALL ejecutar el job
   `code-review-gate` que **certifica** el paso de revisión (marcador en el summary, exit 0) y es un **check
   requerido** por branch protection. Stage de certificación (dummy) por diseño del reto §4; no re-implementa
   otro gate ni sustituye la revisión humana.
 
 ## NFR
-- **NFR-P01 (rendimiento)**: cada workflow de PR (back o front) completa en **< 10 minutos** (P95) — con
-  caché de dependencias (`actions/setup-node` cache / `cache: npm`) y Postgres como *service container*.
+- **NFR-P01 (rendimiento)** *(reformulado por 013)*: el **PR Gate** (`pr-gate.yml`, jobs en paralelo)
+  completa en **< 10 minutos** (P95) — cada job con su `timeout-minutes`, caché de dependencias
+  (`actions/setup-node` cache / `cache: npm`) y Postgres como *service container*. (Ya no "workflow back o
+  front": es un único workflow con jobs concurrentes acotados por `if:` de componente.)
 - **NFR-P02 (paridad)**: la imagen de CI y `docker-compose` usan **la misma base** (Node 18+, Postgres 16)
   que dev/prod (Constitution §Stack).
 - **NFR-P03 (API-free / token-free — coste)**: el CI **NUNCA por defecto** llama a la API de pago de Claude
