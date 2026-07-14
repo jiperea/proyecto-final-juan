@@ -118,6 +118,8 @@ jobs:
         run: npm run prisma:generate
       - name: Migraciones (Postgres de servicio)
         run: npm run prisma:migrate
+      - name: Seed (usuarios/órdenes semilla — los tests referencian sus IDs, FK)
+        run: npm run seed
       - name: Lint (eslint)
         run: npm run lint
       - name: Typecheck (tsc --noEmit)
@@ -130,6 +132,9 @@ jobs:
     name: Contratos (Spectral + oasdiff)
     runs-on: ubuntu-latest
     timeout-minutes: 10 # NFR-P01
+    permissions:
+      contents: read
+      checks: write # elevación mínima SOLO en este job (FR-P14): spectral-action publica anotaciones
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -137,14 +142,15 @@ jobs:
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: '20'
-      - name: Spectral lint (OpenAPI válido — falla solo en severidad error)
-        run: |
-          set -euo pipefail
-          for f in contracts/*.yaml; do
-            echo "· spectral $f"
-            npx -y @stoplight/spectral-cli@6.14.2 lint "$f" \
-              --ruleset .spectral.yaml --fail-severity error
-          done
+      # Spectral vía Docker action oficial (011 FR-002): el `npx spectral-cli@6.14.2` crasheaba con
+      # ReferenceError ESM en @asyncapi/specs. La action trae un Spectral funcional y usa `.spectral.yaml`.
+      - name: Spectral lint (OpenAPI — falla en severidad error)
+        uses: stoplightio/spectral-action@6416fd018ae38e60136775066eb3e98172143141 # v0.8.13
+        with:
+          file_glob: 'contracts/*.yaml'
+          spectral_ruleset: .spectral.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: oasdiff — cambios incompatibles vs base (falla si hay breaking no versionado)
         env:
           OASDIFF_VERSION: 1.23.0
@@ -190,3 +196,4 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true # solo vulnerabilidades con fix disponible (FR-P05: "corregibles")
           vuln-type: 'os,library'
+          skip-dirs: 'usr/local/lib/node_modules/npm' # npm del base image; runtime sin npm/npx (011 FR-003a/b)

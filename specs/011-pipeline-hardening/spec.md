@@ -66,14 +66,21 @@ gates siguen funcionando (guardián, gitleaks, code-review).
 - **FR-002 (Spectral fiable · conformidad FR-P03)**: WHEN el gate de contratos lint-a el OpenAPI THE pipeline
   SHALL ejecutar Spectral mediante un mecanismo que **arranque sin error de tooling** (la Docker action
   oficial `stoplightio/spectral-action` **fijada por SHA de 40 chars**, coherente con FR-P13), usando el
-  ruleset `.spectral.yaml`, y SHALL fallar solo ante violaciones de severidad `error` del contrato. El
-  `npx @stoplight/spectral-cli@6.14.2` queda descartado por bug ESM en dep transitiva.
-- **FR-003 (política de Trivy · ENMIENDA FR-P05)**: WHEN el gate de imagen escanea con Trivy THE pipeline
-  SHALL fallar ante vulnerabilidades `CRITICAL/HIGH` **corregibles** de las **dependencias de la app**, y
-  SHALL **excluir** de la evaluación de bloqueo las dependencias internas del **npm empaquetado del base
-  image** (`/usr/local/lib/node_modules/npm`), por ser tooling del contenedor y no la superficie de ejecución
-  (runtime = `node dist/main.js`, sin invocar npm). El residuo (vulns del npm del base image) se **documenta
-  como aceptado** con su motivo; no se oculta (siguen visibles en el reporte de Trivy).
+  ruleset `.spectral.yaml`, y SHALL fallar solo ante violaciones de severidad `error`. El job `contracts`
+  declara la **elevación mínima de permisos** que la action necesite (`checks: write` si publica
+  anotaciones; documentado, FR-P14). El `npx @stoplight/spectral-cli@6.14.2` queda descartado por bug ESM.
+  *(Umbral fail=error y permisos exactos = verificados en la ejecución real en Actions — D-002/D-005.)*
+- **FR-003a (runtime sin npm/npx · prerrequisito de FR-003b — resuelve BLOQUEANTE D-001)**: THE imagen de
+  backend SHALL **NO invocar `npm`/`npx` en runtime**. El `CMD` pasa de `npx prisma migrate deploy && node
+  dist/main.js` a **`node node_modules/prisma/build/index.js migrate deploy && node dist/main.js`** (prisma
+  vía `node` directo). Solo así es cierto que el npm del base image no es superficie de ejecución.
+- **FR-003b (política de Trivy · ENMIENDA FR-P05)**: WHEN el gate de imagen de **backend** escanea con Trivy
+  THE pipeline SHALL fallar ante `CRITICAL/HIGH` **corregibles** de las **dependencias de la app**
+  (`/app/node_modules`), y SHALL **excluir** las deps internas del **npm empaquetado del base image**
+  (`usr/local/lib/node_modules/npm`) — legítimo **solo tras FR-003a** (ya no se invoca npm/npx en runtime).
+  El residuo (vulns del npm del base image) se **documenta como aceptado** con motivo y **fecha de revisión**
+  (al cambiar/parchear el base image); siguen **visibles** en el reporte. **No aplica al front** (nginx, sin
+  npm — D-004). *(Verificación del formato exacto de `skip-dirs` = ejecución real en Actions.)*
 
 ### Key Entities
 - **Entorno de test de CI**: BD Postgres de servicio + esquema (migraciones) + **datos semilla** (nuevo).

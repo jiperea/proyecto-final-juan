@@ -71,6 +71,9 @@ jobs:
       - name: Migraciones (Postgres de servicio)
         working-directory: backend
         run: npm run prisma:migrate
+      - name: Seed (usuarios/órdenes semilla — los tests referencian sus IDs, FK) (011 FR-001)
+        working-directory: backend
+        run: npm run seed
       - name: Lint
         working-directory: backend
         run: npm run lint
@@ -101,6 +104,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           vuln-type: 'os,library'
+          skip-dirs: 'usr/local/lib/node_modules/npm' # npm del base image; runtime sin npm/npx (011 FR-003a/b)
       - name: Serializar la imagen para pasarla al job de push (no-rebuild)
         run: docker save fieldops-backend:ci | gzip > image.tar.gz
       - name: Subir la imagen como artifact (efímero, solo entre jobs)

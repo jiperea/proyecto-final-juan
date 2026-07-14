@@ -339,6 +339,31 @@ Vitest+Supertest del backend con Postgres real) — es un verificador *distinto*
 pero **no verificable sin el remoto** (requiere la config manual del manual). Pendiente de ejecución real en
 Actions + configuración del usuario (GitHub Environments/Render/Neon/rulesets).
 
-<!-- Próximas entradas: ejecución real en Actions tras la configuración manual. -->
+## Feature 011 · Endurecimiento del pipeline (hallazgos de la 1ª ejecución real) — 2026-07-14
+
+**Contexto:** al ejecutar por fin los workflows en Actions (fork público `jiperea/proyecto-final-juan`,
+tras el muro de billing de la org), fallaron 3 jobs por causas **reales no detectables sin remoto**. Se
+corrigen **por SDD** (spec `011-pipeline-hardening`, no hot-patch): specify→plan→tasks→gate(panel reducido)→
+implement, con G2/G3 consolidados/excepcionados (gate-exceptions) y **G3 = la propia ejecución real**.
+
+**Los 3 hallazgos y sus fixes:**
+1. **Tests en rojo (FK `orders_assigned_to_fkey`)**: el CI migraba pero **no sembraba** la BD → los helpers
+   creaban órdenes con `assigned_to` de usuarios inexistentes. **Fix:** paso `npm run seed` tras migrar en
+   `pr-validation-back`, `ci-develop-back`, `ci-main-back` (FR-001).
+2. **Spectral crasheaba** (`ReferenceError: module is not defined in ES module scope` en `@asyncapi/specs`,
+   bug de `npx @stoplight/spectral-cli@6.14.2`): **Fix:** Docker action `stoplightio/spectral-action@6416fd0…`
+   (v0.8.13, SHA-pin) + `checks: write` mínimo en el job (FR-002).
+3. **Trivy rojo por vulns del npm del base image**: **el gate hizo su trabajo.** El panel adversarial cazó
+   un **BLOQUEANTE**: la justificación "runtime sin npm" era **falsa** (el `CMD` usaba `npx`). **Fix en dos
+   partes:** (a) FR-003a — `CMD` sin npx (`node …/prisma/build/index.js migrate deploy`); (b) FR-003b —
+   `skip-dirs` del npm del base image **solo en back** (front es nginx), ahora honesto. **ENMIENDA FR-P05**
+   documentada. Residuo aceptado con revisión al parchear el base image.
+
+**Verificado estático:** 9 YAML válidos; AC-6 (0 acciones por tag); 7 SHAs, spectral-action verificado;
+guardián + acceptance exit 0. **Pendiente (SC-001/002/003):** confirmar los 3 jobs en **verde** al empujar
+al fork (lo hace el usuario). Informe: `specs/011-pipeline-hardening/gates/gate-G1-*.json`.
+
+<!-- Próximas entradas: confirmación de los 3 jobs en verde tras el push al fork. -->
+
 
 

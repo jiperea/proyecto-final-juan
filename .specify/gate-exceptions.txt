@@ -10,3 +10,8 @@
 #      materializado como gates/gate-G3-*. Hueco de trazabilidad documental (no de
 #      proceso: el gate G3 sí se ejecutó). Pendiente de re-materializar el informe.
 005-registro-ejecucion G3 2026-07-14 jiperea   # re-materializar informe G3 heredado
+# 011: endurecimiento acotado de 010 (3 fixes) con gate CONSOLIDADO en G1 (panel reducido, decisión
+#      documentada en spec/plan). G2 (consistencia) cubierta en el G1 consolidado; G3 = verificación real
+#      en Actions (los 3 jobs en verde), intrínseca a esta feature.
+011-pipeline-hardening G2 2026-07-14 jiperea   # consolidado en el G1 (panel reducido, alcance 3 fixes)
+011-pipeline-hardening G3 2026-07-14 jiperea   # G3 = ejecución real en Actions (fork) — no verificable en local

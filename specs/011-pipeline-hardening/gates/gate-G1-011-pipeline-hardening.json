@@ -1,0 +1,25 @@
+{
+  "gate": "G1 (consolidado · panel reducido por alcance)",
+  "feature": "011-pipeline-hardening",
+  "fecha": "2026-07-14",
+  "artefactos": ["spec.md", "plan.md", "tasks.md"],
+  "panel": ["revisor-devops"],
+  "nota_panel": "Endurecimiento acotado de 010 (3 fixes) + deadline → panel reducido a revisor-devops (dominio), decisión documentada en spec/plan. G2 (consistencia) y G3 (implementación) se consolidan aquí + verificación real en Actions.",
+  "veredicto_global": "PASS (tras remediar 1 BLOQUEANTE)",
+  "ronda_1": {
+    "veredicto": "REQUIERE_CAMBIOS",
+    "bloqueantes": 1,
+    "huecos": [
+      {"id": "D-001", "sev": "BLOQUEANTE", "desc": "Justificación de la enmienda FR-P05 FALSA: el CMD usaba `npx prisma migrate deploy` → npm SÍ se invoca en runtime, contradiciendo 'runtime sin npm' que sustentaba el skip de Trivy.", "resolucion": "FR-003a nuevo: CMD → `node node_modules/prisma/build/index.js migrate deploy && node dist/main.js` (sin npx). backend/Dockerfile:36 cambiado. Ahora el skip de npm es honesto."},
+      {"id": "D-002", "sev": "ALTA", "desc": "spectral-action puede requerir checks:write (anotaciones), no solo contents:read.", "resolucion": "job `contracts` declara `permissions: contents:read + checks:write` (elevación mínima documentada, FR-P14). Verificación final = ejecución real."},
+      {"id": "D-003", "sev": "ALTA", "desc": "Formato de `skip-dirs` (con/sin barra inicial) no verificado.", "resolucion": "Usado `usr/local/lib/node_modules/npm` (convención de path de imagen en trivy-action); marcado en spec como verificable en la ejecución real."},
+      {"id": "D-004", "sev": "MEDIA", "desc": "T005 aplicaba skip a front (nginx, sin npm) = no-op confuso.", "resolucion": "Skip aplicado SOLO a los 3 jobs de back; front excluido. Spec FR-003b lo aclara."},
+      {"id": "D-005", "sev": "MEDIA", "desc": "Umbral fail=error de la action no confirmado equivalente a --fail-severity error.", "resolucion": "La action falla ante error por defecto usando el ruleset; marcado como verificable en la ejecución real."},
+      {"id": "D-006", "sev": "MEDIA", "desc": "Residuo Trivy sin fecha de revisión.", "resolucion": "FR-P05 enmendado incluye 'revisión al parchear/cambiar el base image'."},
+      {"id": "D-007", "sev": "MEDIA", "desc": "011 reutiliza la rama de 010 sin declararlo.", "resolucion": "Aceptado: endurecimiento de 010 en la misma rama transversal (ADR-0004); documentado."}
+    ]
+  },
+  "verificacion_estatica": "9 YAML válidos; AC-6 (0 acciones por tag); 7 SHAs únicos, spectral-action verificado (6416fd0…=v0.8.13); CMD sin npx; acceptance-check exit 0.",
+  "verificacion_real_pendiente": "SC-001/002/003 (los 3 jobs en verde) se confirman al empujar al fork público (Actions gratis) — es la razón de existir de 011 (fallos no detectables sin remoto).",
+  "resumen": "El gate cazó un BLOQUEANTE real (justificación de seguridad falsa: npx en runtime) → corregido cambiando el CMD del Dockerfile, lo que hace honesto el skip de Trivy. ALTAS/MEDIAS resueltas o marcadas como verificables en la ejecución real (D-002/003/005), que es intrínseca a esta feature. Estático en verde."
+}
