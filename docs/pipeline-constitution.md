@@ -74,8 +74,15 @@ mecánicamente. Ambos deben estar en verde para mergear.
 - **(a) Ramas**: `feature/* → develop → main` (formalizado, §1).
 - **(b) Ubicación de la gobernanza**: principio XVI en la constitución **+** este documento (detalle).
 - **(c) CD**: **en alcance (DO-7, desde 2026-07-14)**. Target: **Render** (consume la imagen de GHCR vía
-  deploy-hook, no-rebuild §4) + **Neon** (Postgres gestionada), **gratis** y con URL pública. Entornos
-  **dev (`develop`, auto)** y **prod (`main`)**. La **aprobación manual a prod** vía *GitHub Environment*
-  (required reviewers) topa con el muro de repo privado Free (M9 J2) → **sustituida por `workflow_dispatch`
-  manual** (`cd-prod.yml`). **Limitación residual asumida:** ese disparo manual lo hace el mismo actor con
-  push access (no es una segunda aprobación independiente); freno anti-fat-finger, no control de 2 personas.
+  deploy-hook, no-rebuild §4) + **Neon** (Postgres gestionada, **una BD/branch por entorno**), **gratis** y
+  con URL pública. **Tres entornos** (reto M12): **dev (`develop`, auto)**, **pre (`main`, auto)** y
+  **prod (manual)**. La **aprobación manual a prod** vía *GitHub Environment* (required reviewers) topa con
+  el muro de repo privado Free (M9 J2) → **sustituida por `workflow_dispatch` manual + confirmación**
+  (`cd-prod.yml`). **Limitación residual asumida:** ese disparo manual lo hace el mismo actor con push
+  access (no es una segunda aprobación independiente); freno anti-fat-finger, no control de 2 personas.
+- **(d) Guardián de Constitución — dos modos**: por defecto **determinista** (`validate-constitution.sh`,
+  0 coste, cumple "sin API de pago"). El reto pide además la **Claude Code Action** (API del agente): se deja
+  **preparada y opt-in** (job `guardian-agent`, skipped salvo `secrets.ANTHROPIC_API_KEY`) — **única
+  excepción documentada a NFR-P03**. La activa el operador a conciencia. Formalización SDD de esta fase:
+  `specs/010-devops-pipeline/` (retroactiva; el "spec-antes-que-YAML" del reto se ancla a `pipeline-spec.md`,
+  commit anterior a todo `.yml`).

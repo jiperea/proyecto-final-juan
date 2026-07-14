@@ -79,7 +79,10 @@
 > (`develop`)** y **prod (`main`)**; se valida **dev primero**.
 - **FR-P16 (deploy dev automático)**: WHEN el CI de `develop` publica las imágenes a GHCR THE pipeline
   SHALL desplegar automáticamente el entorno **dev** en Render (deploy-hook), que **consume la imagen**
-  publicada sin reconstruir (coherente con FR-P12).
+  publicada (tag móvil `:develop`) sin reconstruir (coherente con FR-P12).
+- **FR-P16b (deploy pre automático)**: WHEN el CI de `main` publica la release semver a GHCR THE pipeline
+  SHALL desplegar automáticamente el entorno **pre** en Render, consumiendo la imagen **`:x.y.z` de ese
+  release** (no un `:latest` desincronizable), sin reconstruir. *(Tercer entorno del reto: dev/pre/prod.)*
 - **FR-P17 (deploy prod con aprobación manual)**: WHEN hay una release semver en `main` THE pipeline SHALL
   desplegar **prod** SOLO mediante disparo **manual** (`workflow_dispatch`) — sustituto del gate de
   aprobación de *GitHub Environments* (required reviewers), no disponible en repo privado Free.
@@ -87,27 +90,40 @@
   anti-fat-finger + confirmación explícita, NO una segunda aprobación independiente de dos personas. Se
   acepta por el límite del plan Free; el endurecimiento sería repo público o plan con Environments.)*
 - **FR-P18 (secretos por entorno)**: THE pipeline SHALL tomar las credenciales de despliegue de cada
-  entorno de **GitHub Environment secrets** (`dev`/`prod`) — p. ej. `RENDER_DEPLOY_HOOK_BACKEND` /
-  `RENDER_DEPLOY_HOOK_FRONTEND`. NUNCA en el repo. La `DATABASE_URL` de Neon se configura en el **panel de
-  Render** del servicio (variable de entorno del contenedor), no en el workflow.
+  entorno de **GitHub Environment secrets** — un environment por entorno **`dev` / `pre` / `prod`**, cada
+  uno con SUS `RENDER_DEPLOY_HOOK_BACKEND` / `RENDER_DEPLOY_HOOK_FRONTEND` propios (aislamiento por entorno,
+  NFR-P02). NUNCA en el repo. La `DATABASE_URL` de Neon (una BD/branch **independiente por entorno**) se
+  configura en el **panel de Render** del servicio, no en el workflow.
 - **FR-P19 (tag móvil por entorno)**: además del tag inmutable (`x.y.z-snapshot.{sha}` en dev, semver en
   prod), THE pipeline SHALL publicar un tag **móvil** que el servicio de Render rastrea (`:develop` para
   dev, `:latest` para prod); el deploy-hook redeploya ese tag. El tag inmutable queda para auditoría/rollback.
 - **FR-P20 (migraciones al arrancar)**: THE backend SHALL aplicar `prisma migrate deploy` contra la Neon
   del entorno **al arrancar el contenedor** (ya en el CMD de la imagen, DO-2), sin paso de build en el deploy.
+- **FR-P21 (guardián-agente, opt-in)**: WHEN existe `secrets.ANTHROPIC_API_KEY` THE PR-gate SHALL ejecutar
+  el job `guardian-agent` (`scripts/constitution-agent-review.sh`, patrón M9: `claude -p … --output-format
+  json`) que revisa la coherencia de los artefactos SDD contra la constitución y **bloquea el merge** si
+  `aprobado=false`; WHILE no exista el secret THE job SHALL omitirse (skipped, coste 0). Es el "Claude Code
+  Action" del reto; complementa (no sustituye) al guardián determinista FR-P07. Única excepción a NFR-P03.
+- **FR-P22 (code-review registrado)**: WHEN corre cualquier PR-gate THE pipeline SHALL ejecutar el job
+  `code-review-gate` que **certifica** el paso de revisión (marcador en el summary, exit 0) y es un **check
+  requerido** por branch protection. Stage de certificación (dummy) por diseño del reto §4; no re-implementa
+  otro gate ni sustituye la revisión humana.
 
 ## NFR
 - **NFR-P01 (rendimiento)**: cada workflow de PR (back o front) completa en **< 10 minutos** (P95) — con
   caché de dependencias (`actions/setup-node` cache / `cache: npm`) y Postgres como *service container*.
 - **NFR-P02 (paridad)**: la imagen de CI y `docker-compose` usan **la misma base** (Node 18+, Postgres 16)
   que dev/prod (Constitution §Stack).
-- **NFR-P03 (API-free / token-free — coste)**: el CI **NUNCA** llama a la API de pago de Claude ni a ningún
-  LLM. Todos los gates son **deterministas** (lint/tsc/tests/Spectral/oasdiff/gitleaks/Trivy + scripts de
-  guardián/aceptación). Las **evals de promptfoo** (features con IA, p. ej. 007) corren **en local** sobre el
-  plan (`claude -p`), **fuera del CI** (como ya documenta el `ci.yml` actual). Los tests **mockean** el
-  proveedor de IA. Restricción del proyecto (CLAUDE.md "Sin API de pago") y del reto. **FR-P15**: WHEN corre
-  cualquier workflow THE pipeline SHALL NOT requerir claves de API de LLM ni ejecutar evals que llamen a un
-  modelo.
+- **NFR-P03 (API-free / token-free — coste)**: el CI **NUNCA por defecto** llama a la API de pago de Claude
+  ni a ningún LLM. Todos los gates son **deterministas** (lint/tsc/tests/Spectral/oasdiff/gitleaks/Trivy +
+  scripts de guardián/aceptación). Las **evals de promptfoo** corren **en local** sobre el plan (`claude -p`),
+  **fuera del CI**. Los tests **mockean** el proveedor de IA. **FR-P15**: WHEN corre cualquier workflow THE
+  pipeline SHALL NOT requerir claves de API de LLM ni ejecutar evals que llamen a un modelo — **con una única
+  excepción explícita y opt-in**: el job **`guardian-agent` (FR-P21)**, que **solo** se ejecuta si el
+  operador ha añadido `secrets.ANTHROPIC_API_KEY` a conciencia (asumiendo su coste); WHILE ese secret no
+  exista, el job se **omite** (skipped) y el CI sigue siendo API-free/token-free. Es el guardián de
+  Constitución que el reto pide como "Claude Code Action"; el modo por defecto del proyecto es el
+  **determinista** (FR-P07). Restricción base: CLAUDE.md "Sin API de pago".
 
 ## Criterios de aceptación (ACs) — verificables
 
@@ -131,7 +147,11 @@
 - **AC-9 (prod solo manual)**: `main` NO despliega prod de forma automática; prod solo se despliega vía
   `workflow_dispatch` de `cd-prod.yml` (comprobable: no hay `on: push` a prod en ese workflow).
 - **AC-10 (secretos fuera del repo)**: `grep` no encuentra deploy-hooks ni `DATABASE_URL` reales en el
-  repo; viven en GitHub Environment secrets (`dev`/`prod`) y en el panel de Render.
+  repo; viven en GitHub Environment secrets (`dev`/`pre`/`prod`) y en el panel de Render.
+- **AC-11 (deploy pre automático)**: tras publicar la release semver en `main`, el job `deploy-pre`
+  dispara el deploy-hook del entorno **pre** (verificable en Actions) consumiendo `…:x.y.z`; con
+  `RENDER_PRE_HEALTHCHECK_URL` configurado, el smoke-test espera `200` (mismo oráculo que AC-8). Simétrico
+  a AC-8 (dev). *(Resuelve D-102.)*
 
 ## Política de versionado y releases (M12)
 
