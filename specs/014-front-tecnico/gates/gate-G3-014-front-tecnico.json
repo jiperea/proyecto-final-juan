@@ -4,8 +4,8 @@
   "fecha": "2026-07-14",
   "artefactos": ["frontend/src/features/orders/*", "frontend/src/api/schemas.ts", "frontend/src/ui/*", "frontend/tests/**", "docs/traceability.md", "docs/design-system.md"],
   "panel": ["revisor-implementacion", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
-  "veredicto_global": "PASS (tras remediar 1 BLOQUEANTE + varias ALTAS/MEDIAS; verificado por 87 tests verdes)",
-  "rondas": 1,
+  "veredicto_global": "PASS (tras remediar 1 BLOQUEANTE + varias ALTAS/MEDIAS; verificado por 87 tests verdes) · re-ejecución T015 PASS (0 hallazgos)",
+  "rondas": 2,
   "ronda_1": {
     "veredicto_impl": "REQUIERE_CAMBIOS",
     "veredicto_rbac": "APROBADA_CON_COMENTARIOS",
@@ -23,6 +23,14 @@
       {"id": "BAJA-notes", "sev": "BAJA", "fuente": "impl", "desc": "/\\S/ aceptaba controles como imprimibles.", "resolucion": "Helper por code point (> 0x20, != 0x7f)."}
     ]
   },
-  "verificacion": "typecheck (tsc strict + codegen:check + aserción Zod↔contrato) OK; lint (eslint+stylelint) OK; **87 tests** (18 ficheros, FE-1+FE-2) + axe (4 estados) verdes; build OK. Sin regresión en FE-1.",
+  "ronda_2": {
+    "motivo": "Re-ejecución acumulativa (after_implement) tras añadir T015 — e2e Playwright del camino feliz (opcional). Delta: frontend/tests/e2e/fe2.spec.ts + checkbox T015.",
+    "veredicto_impl": "APROBADA_CON_COMENTARIOS",
+    "veredicto_rbac": "APROBADA_CON_COMENTARIOS",
+    "veredicto_front": "APROBADA_CON_COMENTARIOS",
+    "huecos": [],
+    "resumen": "Panel de front sobre el delta: impl confirma que el e2e cubre SC-002 de verdad (mock stateful fiel al contrato, aserción de estado real 'En revisión'), corrido de forma independiente sin flakiness; rbac confirma que no toca su superficie y no filtra PII (fileName no viaja; solo object_ref/content_type/size_bytes); front-a11y confirma localización por roles/nombres accesibles reales, cero selectores frágiles. 0 bloqueantes. promptfoo: N/A (front sin componente IA)."
+  },
+  "verificacion": "typecheck (tsc strict + codegen:check + aserción Zod↔contrato) OK; lint (eslint+stylelint) OK; **87 tests** (18 ficheros, FE-1+FE-2) + axe (4 estados) verdes; **8 e2e** (fe1 + fe2 camino feliz, desktop+mobile) verdes; build OK. Sin regresión en FE-1.",
   "resumen": "Panel de front (implementacion+rbac+front-a11y) verificó el código en ejecución real (82→87 tests). Controles críticos correctos de entrada (object_ref UUID sin PII, fileName no viaja, 422 no 409, purga por identidad, ocultación por rol, Zod↔contrato que falla tsc). Remediado 1 BLOQUEANTE (trazabilidad) + ALTAs de a11y (anuncio de éxito, error asociado a campo, axe multi-estado) y de cobertura de test (AC2.6, EVIDENCE_REQUIRED, no-log) + MEDIAs (CSS tokens, doc 409→422, purga blindada). 0 bloqueantes tras remediar; todo verde. Deuda: transporte binario #007 (FE-4 verá solo count/types)."
 }
