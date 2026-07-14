@@ -18,6 +18,15 @@ export function EmptyState({ children }: { children: ReactNode }) {
   );
 }
 
+// Aviso informativo no-error (role=status): p. ej. "la evidencia se registra como metadato" (FE-2, FR-004).
+export function Notice({ children }: { children: ReactNode }) {
+  return (
+    <div className="notice" role="status">
+      {children}
+    </div>
+  );
+}
+
 export function InlineError({ children, onRetry }: { children: ReactNode; onRetry?: () => void }) {
   return (
     <div className="state state__error" role="alert">

@@ -266,3 +266,28 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > Deuda trazada: **F-005** (Zod de `schemas.ts` hand-derived, no generado; endurecer con openapi-zod-client);
 > **axe color-contrast** no corre en jsdom (cubierto de forma determinista por el test por token T050); los
 > **workflows CI de front** son la fase DevOps **DO-6** (inerte hasta FE-1, ahora desbloqueada).
+
+## FE-2 · Front del técnico (014-front-tecnico) — write-side
+
+> Iniciar trabajo + registrar ejecución (notas + ≥1 evidencia metadato) + enviar a revisión. Consume el
+> contrato existente (start/execution), sin backend nuevo. Tests en `frontend/tests/` (no `src/`).
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001 | iniciar trabajo (startOrderWork, assigned→in_progress) | T004/T006/T007 | `unit/fe2-write-api`, `unit/fe2-integration` (SC-001) |
+| FR-002/003/005 | formulario de ejecución (notas 1..2000 imprimible) + enviar (submitOrderExecution) | T010/T011 | `unit/fe2-integration` (camino feliz), `unit/fe2-write-api` |
+| FR-004 | evidencia metadato: object_ref UUID, allowlist+fallback HEIC, rechazo al añadir, preview, eliminar, límite 10, aviso honesto | T008/T009 | `unit/fe2-evidence`, `unit/fe2-evidence-picker` |
+| FR-006 | mapeo de códigos reales (422 no 409; 403 FORBIDDEN_ROLE; 404; K-001 payload-primero) | T003/T004 | `unit/fe2-write-api` |
+| FR-007 | acciones write solo rol technician (K-004, ocultación por rol) | T007/T013 | `unit/fe2-integration` (dispatcher oculto) |
+| FR-008 | tipos del contrato + aserción Zod↔contrato | T002 | `npm run typecheck` (codegen:check + AssertAssignable) |
+| FR-009/010 | borrador de notas (sessionStorage), no persiste evidencias, purga por identidad | T012 | `unit/fe2-draft` |
+| FR-011 | estado en vuelo accesible (aria-busy), errores asociados, estados de carga | T005/T014 | `unit/fe2-integration`, `a11y/fe2` |
+| SC-002 | flujo iniciar→enviar completable; sin textos de ayuda | T014/T015 | `unit/fe2-integration`, inspección (T014) |
+| SC-003 | 100% de códigos mapeados (no crudo/pantalla rota) | T003 | `unit/fe2-write-api` |
+| SC-004 | 0 violaciones axe; teclado; nombres accesibles; tap targets ≥44px | T008/T014 | `a11y/fe2` |
+| SC-005 | object_ref valida contra el contrato antes de añadir | T002 | `unit/fe2-evidence` (evidenceRefSchema.parse) |
+| SC-006 | notas/object_ref fuera de logs/telemetría; fileName no viaja | T014 | `unit/fe2-nolog` (spy console) |
+
+> Deuda trazada: **transporte binario de evidencia = #007** (FE-2 envía metadato; el supervisor FE-4 verá
+> solo count+types hasta que exista el endpoint de subida). Borrador de notas en `sessionStorage` = residual
+> aceptado (purga por identidad; same-origin). e2e Playwright del camino feliz (T015) opcional/justificado.

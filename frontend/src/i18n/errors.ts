@@ -7,6 +7,7 @@ const MESSAGES: Record<string, string> = {
   INVALID_TRANSITION: 'La orden ha cambiado de estado. Actualiza y reinténtalo.',
   INVALID_ASSIGNEE: 'El técnico destino no es válido.',
   INVALID_EVIDENCE: 'La evidencia no cumple los requisitos (formato/tamaño).',
+  EVIDENCE_REQUIRED: 'Añade al menos una foto antes de enviar.',
   INVALID_REASON: 'Indica un motivo válido.',
   VALIDATION_ERROR: 'Revisa los campos marcados.',
   RATE_LIMITED: 'Demasiadas solicitudes. Espera unos segundos.',

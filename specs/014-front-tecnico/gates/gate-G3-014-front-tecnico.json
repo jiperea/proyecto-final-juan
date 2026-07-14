@@ -1,0 +1,28 @@
+{
+  "gate": "G3 (G1 + G2 + implementación vs spec · panel de front)",
+  "feature": "014-front-tecnico",
+  "fecha": "2026-07-14",
+  "artefactos": ["frontend/src/features/orders/*", "frontend/src/api/schemas.ts", "frontend/src/ui/*", "frontend/tests/**", "docs/traceability.md", "docs/design-system.md"],
+  "panel": ["revisor-implementacion", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
+  "veredicto_global": "PASS (tras remediar 1 BLOQUEANTE + varias ALTAS/MEDIAS; verificado por 87 tests verdes)",
+  "rondas": 1,
+  "ronda_1": {
+    "veredicto_impl": "REQUIERE_CAMBIOS",
+    "veredicto_rbac": "APROBADA_CON_COMENTARIOS",
+    "veredicto_front": "REQUIERE_CAMBIOS",
+    "huecos": [
+      {"id": "I-BLOQ-traza", "sev": "BLOQUEANTE", "fuente": "impl", "desc": "T017 marcado hecho pero docs/traceability.md no tenía sección FE-2.", "resolucion": "Añadida la matriz FR/SC→tarea→test de FE-2 a docs/traceability.md."},
+      {"id": "F-001", "sev": "ALTA", "fuente": "front", "desc": "El éxito de Iniciar/Enviar no se anunciaba (WCAG 4.1.3) y no había gestión de foco.", "resolucion": "OrderDetailView envuelve el StatusBadge en región `role=status aria-live=polite` → el cambio de estado se anuncia."},
+      {"id": "F-002", "sev": "ALTA", "fuente": "front", "desc": "VALIDATION_ERROR del backend se mostraba en alerta genérica, no asociado al campo.", "resolucion": "ExecutionForm asocia VALIDATION_ERROR al campo de notas (aria-describedby vía TextArea.error); el resto de códigos van a la alerta general."},
+      {"id": "F-003", "sev": "ALTA", "fuente": "front", "desc": "axe solo cubría el camino feliz.", "resolucion": "Añadidos casos axe para estado `assigned` (StartWorkButton) y estado de error de envío."},
+      {"id": "I-tests", "sev": "ALTA", "fuente": "impl", "desc": "Faltaban tests de AC2.6 (422 preserva datos), 401/red, y EVIDENCE_REQUIRED/INVALID_EVIDENCE del backend.", "resolucion": "Añadidos: `fe2-integration` (422 preserva notas+foto), `fe2-write-api` (EVIDENCE_REQUIRED/INVALID_EVIDENCE), `fe2-nolog` (SC-006)."},
+      {"id": "S-001", "sev": "MEDIA", "fuente": "rbac", "desc": "La purga del borrador se dispara ante cualquier evento de sesión (pierde notas en refresh-fail del mismo técnico); riesgo de regresión si se condiciona mal.", "resolucion": "Comentario que blinda la decisión (security-first; aislamiento primario por clave `sub`; no condicionar a comparación de sub)."},
+      {"id": "S-002", "sev": "MEDIA", "fuente": "rbac", "desc": "SC-006 (no fuga a consola) solo por inspección.", "resolucion": "Test `fe2-nolog` con spy de console durante el envío."},
+      {"id": "F-004", "sev": "MEDIA", "fuente": "front", "desc": "fieldset `.evidence` sin tokens (chrome nativo).", "resolucion": "CSS tokenizado para `.evidence`/legend."},
+      {"id": "F-005", "sev": "MEDIA", "fuente": "front", "desc": "docs/design-system.md §8 aún decía 409 para INVALID_TRANSITION.", "resolucion": "Corregido a 422 (start/execution) + fila EVIDENCE_REQUIRED."},
+      {"id": "BAJA-notes", "sev": "BAJA", "fuente": "impl", "desc": "/\\S/ aceptaba controles como imprimibles.", "resolucion": "Helper por code point (> 0x20, != 0x7f)."}
+    ]
+  },
+  "verificacion": "typecheck (tsc strict + codegen:check + aserción Zod↔contrato) OK; lint (eslint+stylelint) OK; **87 tests** (18 ficheros, FE-1+FE-2) + axe (4 estados) verdes; build OK. Sin regresión en FE-1.",
+  "resumen": "Panel de front (implementacion+rbac+front-a11y) verificó el código en ejecución real (82→87 tests). Controles críticos correctos de entrada (object_ref UUID sin PII, fileName no viaja, 422 no 409, purga por identidad, ocultación por rol, Zod↔contrato que falla tsc). Remediado 1 BLOQUEANTE (trazabilidad) + ALTAs de a11y (anuncio de éxito, error asociado a campo, axe multi-estado) y de cobertura de test (AC2.6, EVIDENCE_REQUIRED, no-log) + MEDIAs (CSS tokens, doc 409→422, purga blindada). 0 bloqueantes tras remediar; todo verde. Deuda: transporte binario #007 (FE-4 verá solo count/types)."
+}
