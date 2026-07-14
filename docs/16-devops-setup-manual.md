@@ -86,6 +86,33 @@ Por cada entorno (`dev`, luego `pre`, `prod`) crea **dos** servicios web *from a
 - **Tag ruleset `v*`**: restringe quién crea/empuja tags `v*` (release solo desde `main`; la guarda
   `merge-base` en los workflows ya lo refuerza en código).
 
+### ⚠️ E.bis · Marcar los *required checks* (SECUENCIA OBLIGATORIA — orden importa)
+
+**Síntoma esperado hasta hacer esto:** en `Settings → Branches → develop → Require status checks` el
+buscador sale **vacío** ("No checks have been added"). **No es un error de config:** GitHub solo lista
+checks que **han corrido y reportado en la última semana**. Con **Actions bloqueado por billing**, los jobs
+*"were not started"* y **no registran su contexto** → nada que seleccionar. Es 100% el bloqueo de billing.
+
+**Requisito previo:** GitHub Actions de la org **desbloqueado** (repo privado → depende del owner de
+`sdd-talent-devops`: subir *spending limit* / esperar reset mensual / o hacer el repo público / o fork
+personal). Sin esto, los pasos de abajo no tienen efecto.
+
+1. **Provoca 1 run REAL de cada tipo** (para que GitHub registre los contextos):
+   - **push a `develop`** → registra `gitleaks (todo el repo)` + los checks de `ci-develop-*`.
+   - **abre una PR → `develop` que toque `backend/**`** (p. ej. la PR de smoke) → registra los de
+     `pr-validation-back` (`Guardián…`, `Code review registrado`, `lint · typecheck · test (Postgres)`,
+     `Contratos (Spectral + oasdiff)`, `Imagen backend + Trivy`).
+   - **una PR que toque `frontend/**`** → registra `lint · typecheck · test · build` e `Imagen frontend + Trivy`.
+2. **Vuelve a `Settings → Branches → develop`** → ahora el buscador **sí** muestra esos nombres → márcalos
+   como *required* (lista exacta arriba en §E y en `.github/branch-protection.md`).
+   - **NO marques** `Guardián de Constitución (agente · opt-in)` salvo que hayas puesto `ANTHROPIC_API_KEY`
+     (si no, quedaría siempre sin arrancar y **bloquearía todo merge**).
+3. **Repite para `main`** (mismos checks) + activa el **tag ruleset `v*`** y la protección de
+   `environment: prod` (branches = solo `main`).
+
+> **Orden crítico:** primero **billing OK** → luego **1 run real** → luego **marcar required**. Si marcas un
+> check como *required* con Actions bloqueado, los merges quedan **atascados** ("waiting for status" eterno).
+
 ---
 
 ## Cómo ver que funciona (resumen; detalle en `specs/010-devops-pipeline/quickstart.md`)
