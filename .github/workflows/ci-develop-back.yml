@@ -1,0 +1,185 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI de integración del BACKEND en `develop` (DO-4 · pipeline-spec.md FR-P10).
+#
+# WHEN push a `develop` que toca backend/**·contracts/** THE pipeline SHALL correr el
+# CI completo y, si pasa, CONSTRUIR y PUBLICAR la imagen
+#   ghcr.io/<owner>/fieldops-backend:<x.y.z>-snapshot.<sha7>
+# en GHCR, y subir la dist como artifact (retención 90 días).
+#
+# No-rebuild REAL (FR-P12, XVI §4): la imagen se construye UNA sola vez en el job `ci`
+# (mismo checkout que pasó lint/typecheck/test), se escanea con Trivy ahí (defensa en
+# profundidad, FR-P05) y se PASA por artifact al job de push, que solo hace load+push.
+# La imagen publicada es, byte a byte, la que se probó — no un segundo build.
+#
+# Cadena de suministro: actions por SHA de 40 chars (FR-P13); `permissions:
+# contents: read` por defecto y elevación a `packages: write` SOLO en el job que
+# publica (FR-P14). Determinista y sin API de LLM (NFR-P03).
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI develop · backend
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'backend/**'
+      - 'contracts/**'
+      - '.github/workflows/ci-develop-back.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-develop-back-${{ github.ref }}
+  cancel-in-progress: false # no cancelar publicaciones a mitad
+
+jobs:
+  # ── CI completo + build+Trivy de la imagen (una sola vez) (FR-P10/P05/P12) ──
+  ci:
+    name: CI completo + imagen (build + Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine # NFR-P02
+        env:
+          POSTGRES_USER: fieldops
+          POSTGRES_PASSWORD: fieldops
+          POSTGRES_DB: fieldops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fieldops -d fieldops_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://fieldops:fieldops@localhost:5432/fieldops_test
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Instalar dependencias
+        working-directory: backend
+        run: npm ci
+      - name: Prisma generate
+        working-directory: backend
+        run: npm run prisma:generate
+      - name: Migraciones (Postgres de servicio)
+        working-directory: backend
+        run: npm run prisma:migrate
+      - name: Lint
+        working-directory: backend
+        run: npm run lint
+      - name: Typecheck
+        working-directory: backend
+        run: npm run typecheck
+      - name: Tests (Vitest · Postgres real)
+        working-directory: backend
+        run: npm test
+      - name: Build (dist de producción)
+        working-directory: backend
+        run: npm run build
+      - name: Subir dist como artifact (auditoría / futuro CD, retención 90 días)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: fieldops-backend-dist-${{ github.sha }}
+          path: backend/dist
+          retention-days: 90
+          if-no-files-found: error
+      - name: Build imagen (etapa runtime, la desplegable) — UNA sola vez
+        run: docker build --target runtime -t fieldops-backend:ci ./backend
+      - name: Trivy sobre la imagen que se publicará (FR-P05, defensa en profundidad)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fieldops-backend:ci
+          format: table
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+      - name: Serializar la imagen para pasarla al job de push (no-rebuild)
+        run: docker save fieldops-backend:ci | gzip > image.tar.gz
+      - name: Subir la imagen como artifact (efímero, solo entre jobs)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: fieldops-backend-image-${{ github.sha }}
+          path: image.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  # ── Push de la MISMA imagen a GHCR (load, no rebuild) (FR-P10 · FR-P14) ─────
+  publish-image:
+    name: Imagen snapshot → GHCR
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write # elevación mínima SOLO en este job (FR-P14)
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Descargar la imagen construida en el job ci
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: fieldops-backend-image-${{ github.sha }}
+      - name: Cargar la imagen (load, no build — no-rebuild FR-P12)
+        run: docker load < <(gunzip -c image.tar.gz)
+      - name: Calcular etiquetas (inmutable + móvil :develop)
+        id: tag
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./backend/package.json').version")
+          sha7="${GITHUB_SHA::7}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/fieldops-backend" # ghcr.io/<owner>/<repo>/... (reto §4)
+          ref="${image}:${version}-snapshot.${sha7}" # inmutable (auditoría/rollback)
+          moving="${image}:develop"                  # móvil (lo rastrea Render dev, FR-P19)
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "moving=$moving" >> "$GITHUB_OUTPUT"
+          echo "· imagen: $ref  +  $moving"
+      - name: Login en GHCR (GITHUB_TOKEN, sin secretos extra)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Etiquetar y push de la imagen ya probada+escaneada (inmutable + :develop)
+        run: |
+          set -euo pipefail
+          docker tag fieldops-backend:ci "${{ steps.tag.outputs.ref }}"
+          docker tag fieldops-backend:ci "${{ steps.tag.outputs.moving }}"
+          docker push "${{ steps.tag.outputs.ref }}"
+          docker push "${{ steps.tag.outputs.moving }}"
+
+  # ── CD dev: redeploy en Render consumiendo la imagen :develop (FR-P16) ──────
+  deploy-dev:
+    name: Deploy dev (Render)
+    needs: publish-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: dev # secretos del entorno dev (FR-P18)
+    steps:
+      - name: Disparar deploy en Render (backend dev) — no-rebuild, Render tira de GHCR
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_HOOK:-}" ]; then
+            echo "::error::Falta el secret RENDER_DEPLOY_HOOK_BACKEND en el environment 'dev'."; exit 1
+          fi
+          curl -fsS -X POST "$RENDER_HOOK" >/dev/null
+          echo "· deploy dev backend disparado (Render redeploya :develop desde GHCR)"
+        env:
+          RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
+      - name: Smoke-test opcional (espera 200 si hay healthcheck configurado) — AC-8
+        env:
+          HC: ${{ secrets.RENDER_DEV_HEALTHCHECK_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC:-}" ]; then
+            echo "· sin RENDER_DEV_HEALTHCHECK_URL → smoke-test omitido (verificación manual del 200)"; exit 0
+          fi
+          echo "· esperando 200 en $HC (redeploy asíncrono de Render)…"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$HC" || true)
+            if [ "$code" = "200" ]; then echo "· healthy (200) en el intento $i ✓"; exit 0; fi
+            sleep 10
+          done
+          echo "::error::el servicio dev no respondió 200 en ~5 min tras el deploy"; exit 1

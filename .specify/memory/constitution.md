@@ -55,8 +55,15 @@ congelados** (`contracts/*.openapi.yaml`), no como retrabajo: el contrato es la 
 como artefacto vivo del principio de Design System propio (Convenciones §Sistema de diseño), creado al llegar la
 primera UI (FE-1); los specs de UI lo consumen, no lo redefinen. Sin cambio de principios ni de stack. Enmienda
 aislada en rama dedicada (ADR-0004).
+v1.10.0 (MINOR): principio nuevo **XVI. Pipeline como gate gobernado (CI/CD)** — entrada a la fase DevOps.
+Fija la gobernanza del pipeline de forma verificable: spec-antes-que-YAML (la spec del pipeline precede en git
+al primer .yml), spec-as-gate (workflows bloquean el merge, guardián de Constitución), cadena de suministro
+(acciones fijadas por SHA, permisos mínimos, Trivy/gitleaks), **no-rebuild en CD** (se despliega la imagen de
+GHCR que pasó CI), flujos separados por componente (`paths:`), ramas feature→develop→main, NFR CI<10min. El
+detalle operativo vive en `docs/pipeline-constitution.md` + `docs/pipeline-spec.md` (DO-1), no en la
+constitución. Sin cambios a otros principios ni al stack. Enmienda aislada en rama dedicada (ADR-0004).
 
-Principios (15):
+Principios (16):
   I.    Spec-Driven, spec-first
   II.   Contract-First con OpenAPI
   III.  Arquitectura Hexagonal (puertos y adaptadores)
@@ -71,7 +78,8 @@ Principios (15):
   XII.  Simplicidad, SOLID y límites de código (reglas de lint)              [ampliado]
   XIII. Gates de revisión adversarial encadenados y acumulativos             [ampliado]
   XIV.  Objetivos evaluables por métricas (Success Criteria + eval)
-  XV.   Specs pequeñas y de alcance concreto (slice pequeño; no-rollback)      [NUEVO]
+  XV.   Specs pequeñas y de alcance concreto (slice pequeño; no-rollback)
+  XVI.  Pipeline como gate gobernado (CI/CD: spec-antes-que-YAML, SHA-pin, no-rebuild)   [NUEVO]
 
 Cambios v1.0.0 → v1.1.0:
   - VIII: umbrales concretos movidos a la spec; añadido "no filtrar PII en la salida".
@@ -284,6 +292,26 @@ una decisión **de origen** (roadmap + `/speckit-specify`).
   la **feature 001** (sobredimensionada: ~10 rondas de gate, 66 tareas); 001 queda **grandfathered** —se
   entrega por user story, no se re-parte— por esta misma regla de rollback.
 
+### XVI. Pipeline como gate gobernado (CI/CD)
+El pipeline de integración/entrega es **infraestructura gobernada por spec**, no scripts ad-hoc. Reglas
+**no negociables** (el detalle operativo vive en `docs/pipeline-constitution.md` + `docs/pipeline-spec.md`):
+- **Spec antes que YAML:** la spec del pipeline (`docs/pipeline-spec.md`) es **anterior en el historial de
+  git** al primer `.yml` de workflow (verificable por `git log`). Sin spec previa no hay workflow.
+- **Spec-as-gate:** los workflows implementan **gates que bloquean el merge** (incl. **guardián de
+  Constitución**); un check en rojo no se saltea (coherente con XIII).
+- **Cadena de suministro:** acciones **fijadas por SHA** (no por tag móvil); **permisos mínimos**
+  (`GITHUB_TOKEN` de solo lectura por defecto, elevación explícita por job); escaneo de imagen (Trivy) y
+  de secretos (gitleaks) como gate.
+- **No rebuild en CD:** la **imagen que pasó CI** (en GHCR) es la que se despliega; **nunca** se reconstruye
+  desde el fuente en el despliegue (trazabilidad e integridad del artefacto).
+- **Flujos separados por componente:** workflows independientes back/front con filtros `paths:` (un cambio
+  solo en `backend/` no dispara los de front, y viceversa).
+- **Estrategia de ramas:** `feature/*` → **`develop`** (CI + imagen `x.y.z-snapshot.{sha}` en GHCR) →
+  **`main`** (release + imagen `x.y.z` semver). NFR: **CI < 10 min**.
+- **Rationale:** el reto M12 exige demostrar (por git) que la disciplina spec-first también gobierna el
+  pipeline; la cadena de suministro (SHA-pin, permisos mínimos, no-rebuild) protege la integridad del
+  artefacto entregado. Entrada a la fase DevOps como fundación transversal (ADR-0004).
+
 ## Stack Tecnológico y Arquitectura
 
 - **Runtime / Lenguaje:** Node.js 18+ · TypeScript 5 (`strict`).
@@ -427,4 +455,4 @@ Para no exceder el mínimo del brief, los refuerzos se clasifican (auditoría ne
 - **Cumplimiento:** cada PR/revisión verifica los principios aplicables; la complejidad se justifica
   (YAGNI). Los hallazgos de `/speckit-analyze` y del panel adversarial pueden disparar enmiendas.
 
-**Version**: 1.9.1 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-13
+**Version**: 1.10.0 | **Ratified**: 2026-07-10 | **Last Amended**: 2026-07-14

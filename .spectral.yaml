@@ -1,0 +1,10 @@
+# Spectral — lint de los contratos OpenAPI 3.1 (FR-P03). Extiende el ruleset oficial
+# `spectral:oas` (no lo reemplaza). El PR-gate corre con `--fail-severity error`:
+# los `warn` informan pero no bloquean; solo un error real (OpenAPI inválido) rompe.
+extends: ['spectral:oas']
+rules:
+  # Contract-first del proyecto: contacto/licencia en info no son obligatorios aquí
+  # (los contratos están congelados y versionados por el propio pipeline, FR-P03).
+  info-contact: off
+  info-license: off
+  oas3-api-servers: off

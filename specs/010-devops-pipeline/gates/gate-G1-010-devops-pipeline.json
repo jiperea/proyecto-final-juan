@@ -1,0 +1,22 @@
+{
+  "gate": "G1",
+  "feature": "010-devops-pipeline",
+  "fecha": "2026-07-14",
+  "artefacto_evaluado": "specs/010-devops-pipeline/spec.md (+ clarifications)",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-devops"],
+  "rondas": [
+    {"ronda": 1, "veredicto": "FAIL", "bloqueantes": 6, "altas": 11, "medias": 12, "bajas": 4,
+     "bloqueantes_ids": ["T-001 SC-008 sin oráculo", "H-001 FR-001↔edge contracts", "H-002 lockstep sin FR", "H-004 no-rebuild vs 2 builds", "D-001 entorno pre sin respaldo", "D-002 FR-009 vs NFR-P03"]},
+    {"ronda": 2, "veredicto": "casi", "nota": "6 bloqueantes ronda-1 resueltos; spec-theater 2 ALTA nuevas (FR-018b/022b oráculo), devops 1 ALTA+2 MEDIA (FR-P18 pre, AC-11, docs/16), cinico 1 BLOQ nuevo (H-001 lockstep por-componente → release parcial) + 3 ALTA/MEDIA"},
+    {"ronda": 3, "veredicto": "PASS (spec)", "nota": "cinico: H-002/H-004 resueltos en código; H-005/H-006/H-007 son mismatch CÓDIGO≠SPEC (alcance G3, no G1); H-008 (re-tag inmutable) resuelto con nota de spec"}
+  ],
+  "veredicto_global": "PASS",
+  "criterio": "G1 evalúa la calidad de spec.md (ambigüedad/testeabilidad/consistencia). Tras 2 remediaciones, la spec es internamente consistente, con FR en EARS testeables y oráculos objetivos, 0 contradicciones internas. Los 6 bloqueantes de ronda-1 y las ALTAS quedaron resueltos EN LA SPEC.",
+  "diferido_a_G3": [
+    {"id": "H-005", "sev": "conformance", "desc": "ci-main-back/front.yml deben implementar la guarda simétrica de FR-013b (verificar AMBOS package.json == tag). Hoy cada uno solo verifica el suyo."},
+    {"id": "H-006", "sev": "conformance", "desc": "cd-prod.yml debe implementar FR-021: validar input version == último desplegado en pre (GitHub Deployment) en vez de desplegar :latest; input version obligatorio."},
+    {"id": "H-007", "sev": "conformance", "desc": "Falta el deploy a pre (FR-020) con registro de GitHub Deployment del entorno pre — a crear en Fase 2 (implement)."}
+  ],
+  "nota_alcance": "H-005/H-006/H-007 son mismatch implementación↔spec detectados por cinico al revisar los .yml. Por definición del gate (G1=spec.md; G3=diff+spec+tests) NO son defectos de spec sino tareas de conformidad de G3. Se registran aquí para que /speckit-tasks las incluya y G3 las verifique — NO se difieren en silencio (memoria gate-advance-policy).",
+  "resumen": "G1 PASS tras 2 rondas de remediación. La spec del pipeline es consistente, testeable e inequívoca. Los desvíos (guardián dual, prod manual, Render/Neon, 3 entornos, formalización retroactiva) están documentados y justificados. Delta implementación↔spec (H-005/006/007) escalado a G3 como tareas explícitas. Avanza a /speckit-plan."
+}

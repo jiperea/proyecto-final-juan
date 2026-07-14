@@ -1,5 +1,6 @@
-# FieldOps 001 — Postgres 16 (paridad dev=test=prod, Constitution §Stack).
-# BD dev y BD de test independientes (Constitution VII: integración con BD real).
+# FieldOps — orquestación db · backend · frontend (paridad dev=prod, Constitution §Stack; reto M12 DO-2).
+# `docker compose up` levanta las 3 capas en un comando. `docker compose up -d db` levanta solo la BD
+# (útil para el flujo dev con back/front por npm). BD dev y BD de test independientes (Constitution VII).
 services:
   db:
     image: postgres:16-alpine
@@ -34,6 +35,47 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  backend:
+    build: ./backend
+    image: fieldops-backend:local
+    container_name: fieldops-backend
+    env_file:
+      - ./backend/.env
+    environment:
+      # En la red del compose la BD es el servicio `db`, no localhost.
+      DATABASE_URL: postgresql://fieldops:fieldops@db:5432/fieldops
+      NODE_ENV: production
+      PORT: '3000'
+    ports:
+      - '3001:3000' # host 3001 → contenedor 3000 (evita chocar con el backend de dev en :3000)
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build: ./frontend
+    image: fieldops-frontend:local
+    container_name: fieldops-frontend
+    ports:
+      - '8080:8080' # UI en http://localhost:8080 ; nginx (no-root) proxya /v1 → backend
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:8080/ >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   fieldops-db-data:
