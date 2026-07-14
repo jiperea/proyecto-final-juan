@@ -146,8 +146,69 @@ Pospuesto (documentado, no bloqueante): un **fixture** que ejercite `acceptance-
 incompletas/combinadas (D-007) — la corrección ya está verificada a mano contra la matriz real; el fixture
 se valora cuando exista arnés de test de scripts.
 
-**Pendiente:** DO-4 (`ci-develop-back.yml`: imagen `x.y.z-snapshot.{sha}` → GHCR + dist artifact) → DO-5
-(`ci-main-back.yml`: imagen semver + Release) → DO-6 (workflows de front).
+**Re-revisión de convergencia (`revisor-devops`, 2.ª ronda):** **CONVERGE** — los 8 hallazgos resueltos y
+verificados, sin regresiones. Único residual **D-101 (MEDIA)**: el subagente (solo lectura, sin red) no
+podía confirmar el formato de los ficheros de checksums; **de-riskeado empíricamente** en esta sesión
+(descarga real de `gitleaks_8.21.2_checksums.txt` y `oasdiff .../checksums.txt`: formato goreleaser
+`<hash>␣␣<fichero>`, hash en minúsculas, sin asterisco → `sha256sum -c` lo acepta). Diseño **fail-closed**:
+si el hash no cuadra, el job falla; nunca hay bypass silencioso.
+
+**Pendiente:** DO-4 (`ci-develop-back.yml`) → DO-5 (`ci-main-back.yml`) → DO-6 (workflows de front).
+
+## DO-4 · CI de integración en `develop` (backend) — 2026-07-14
+
+**Hecho:** `.github/workflows/ci-develop-back.yml` (FR-P10). WHEN push a `develop` que toca
+`backend/**`·`contracts/**` → 2 jobs:
+- **ci** — `npm ci` + prisma generate/migrate + lint + typecheck + **test (Vitest, Postgres 16 de
+  servicio)** + `build`; sube la **dist como artifact** (90 d, auditoría/futuro CD); **construye la imagen
+  UNA vez** (`docker build --target runtime`), la **escanea con Trivy** (FR-P05, defensa en profundidad) y la
+  **serializa** (`docker save | gzip`) a un artifact efímero.
+- **publish-image** (`needs: ci`, `packages: write` SOLO aquí, FR-P14) — **descarga y `docker load`** esa
+  misma imagen (no rebuild, FR-P12), la etiqueta `ghcr.io/${owner}/fieldops-backend:${version}-snapshot.
+  ${sha7}` y hace push. Login GHCR con `GITHUB_TOKEN`, sin build-push-action (docker CLI, menos actions).
+
+## DO-5 · CI de release en `main` (backend) — 2026-07-14
+
+**Hecho:** `.github/workflows/ci-main-back.yml` (FR-P11). Disparador por **tag semver `vX.Y.Z`** → 3 jobs:
+- **ci** — igual que DO-4 (test + build + imagen única + Trivy + serialización) **más dos fail-fast**:
+  (1) **procedencia** `git merge-base --is-ancestor <sha> main` — el tag solo libera si su commit está en
+  `main` (pasó el PR-gate); (2) el tag semver **debe coincidir** con `backend/package.json`.
+- **publish-image** (`needs: ci`, `packages: write`) — `docker load` + push de la imagen semver **sin
+  sufijo** `ghcr.io/${owner}/fieldops-backend:${X.Y.Z}` (la misma imagen probada+escaneada, no-rebuild).
+- **release** (`needs: [ci, publish-image]`, `contents: write` SOLO aquí) — descarga la dist, la empaqueta y
+  crea/actualiza el **GitHub Release** de forma **idempotente** (`gh release view` → `upload --clobber` /
+  `create`), con nota que apunta a la imagen publicada (FR-P12).
+
+Cadena de suministro (DO-4/5): 5 actions distintas, **todas por SHA de 40 chars verificado contra su tag**
+(checkout, setup-node, upload-artifact, download-artifact, trivy); `permissions` con elevación mínima
+**por job** (`packages: write` en imagen, `contents: write` en release, resto `contents: read`).
+
+**Verificado (sin red):** YAML válido; `grep` no halla `uses: …@v[0-9]` (AC-6); los 5 SHA resuelven a su
+tag comentado (`gh api`); guardián verde cubriendo también estos 2 workflows. *(La publicación real a
+GHCR, el Release y los tiempos se comprueban al empujar a `develop` / taggear en Actions — requiere el
+remoto.)*
+
+**Revisión adversarial (`revisor-devops`, por el plan):** 1 BLOQUEANTE · 2 ALTAS · 2 MEDIAS · 2 BAJAS →
+`REQUIERE_CAMBIOS`. **Todo resuelto en la misma ronda** (bloqueante y ALTAS son obligatorios):
+- **D-001 (BLOQUEANTE, puerta trasera por tag):** un tag `vX.Y.Z` sobre cualquier commit publicaba
+  imagen+Release saltándose el PR-gate → **verificación de procedencia** `merge-base --is-ancestor` en el
+  job `ci` (aborta si el commit no está en `main`) + **tag ruleset `v*`** documentado en
+  `branch-protection.md`.
+- **D-002 (ALTA, sin Trivy/gate en integración):** Trivy no volvía a correr al publicar → **Trivy sobre la
+  imagen exacta** que se publica, en el job `ci` de DO-4 y DO-5 (defensa en profundidad).
+- **D-003 (ALTA, rebuild intra-CI):** la imagen publicada era un 2.º build independiente del `dist`
+  probado → **build único**: se construye una vez en `ci`, se pasa por artifact (`save`/`load`) al push;
+  la imagen publicada es byte a byte la probada+escaneada (no-rebuild real, FR-P12).
+- **D-004 (MEDIA, paridad Node):** la verificación del tag usaba el Node preinstalado del runner →
+  `setup-node` **antes** de esa verificación.
+- **D-005 (MEDIA, idempotencia):** `gh release create` fallaba en reintentos → flujo **idempotente**
+  (`view` → `upload --clobber` / `create`).
+- **D-006 (BAJA):** documentado que el artifact `…-dist-*` es auditoría/futuro-CD, **no** lo desplegado
+  (canónico = imagen GHCR) — en `branch-protection.md`.
+- **D-007 (BAJA):** verificado con `gh api` que **cada SHA resuelve a su tag** comentado.
+
+**Pendiente:** DO-6 (workflows de front, inertes hasta consumir `frontend/`): `pr-validation-front.yml`,
+`ci-develop-front.yml`, `ci-main-front.yml`.
 
 <!-- Próximas entradas: DO-4/5, DO-6 se añaden aquí conforme se completan. -->
 

@@ -35,7 +35,27 @@ Reglas comunes (ambas ramas):
 > que gitleaks se exige en **todos** los PRs. Al marcar checks requeridos, verifica el comportamiento de
 > "required check that didn't run" de tu configuración (Rulesets modernos lo tratan como *skipped→neutral*).
 
+## Tag ruleset: releases solo desde `main` (FR-P09 / cadena de custodia)
+
+`ci-main-back.yml` libera (imagen semver + GitHub Release) al empujar un tag `vX.Y.Z`. Para que un tag no
+sea una **puerta trasera** que se salte el PR-gate:
+
+- **Defensa en código (ya implementada):** el job `ci` verifica `git merge-base --is-ancestor <sha> main`
+  y aborta si el commit etiquetado no está en `main` (no pasó el PR-gate). Es la barrera efectiva.
+- **Defensa en configuración (aplicar a mano):** `Settings → Rules → Rulesets → New tag ruleset` para el
+  patrón `v*`, restringiendo **quién** puede crear/empujar esos tags (idealmente solo maintainers/release).
+
+## Nota sobre artefactos publicados (no confundir el canónico)
+
+- **Artefacto desplegable canónico = la imagen de GHCR** (`…-snapshot.{sha}` en develop, `x.y.z` en main).
+  Se construye **una sola vez** en el job `ci`, se escanea (Trivy) y se **pasa por artifact** al job de push
+  (load, no rebuild) — es byte a byte la que se probó (FR-P12/XVI §4).
+- El **artifact `…-dist-*`** (retención 90 d) es la dist compilada suelta, para **auditoría / futuro CD
+  (DO-7)**; NO es "lo desplegado". No lo consume ningún job hoy.
+
 ## Cómo aplicarlo (manual, hasta que haya IaC)
 
-`Settings → Branches → Add branch ruleset` para `main` y `develop`, marcando lo anterior. Verificación
-(AC-3): abrir un PR con un test roto o un secreto de prueba → el merge debe quedar **bloqueado**.
+`Settings → Branches → Add branch ruleset` para `main` y `develop`, marcando lo anterior, y el tag ruleset
+`v*`. Verificación (AC-3): abrir un PR con un test roto o un secreto de prueba → el merge debe quedar
+**bloqueado**; empujar un tag `v*` sobre un commit fuera de `main` → el release debe **abortar** en el job
+`ci` (`merge-base`).
