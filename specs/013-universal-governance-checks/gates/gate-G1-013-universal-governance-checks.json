@@ -1,0 +1,50 @@
+{
+  "gate": "G1 (panel reducido por dominio · consolida G2/G3 + verificación real)",
+  "feature": "013-universal-governance-checks",
+  "fecha": "2026-07-14",
+  "artefactos": ["spec.md"],
+  "panel": ["revisor-devops", "revisor-cinico"],
+  "nota_panel": "Endurecimiento de gobernanza del pipeline. Panel reducido al dominio (devops + cínico), como 011/012. Re-escalado en ronda 1: de 'mover gobernanza a universal' a 'PR Gate agregador' porque el primer enfoque perdía el gate de calidad o dejaba deadlock.",
+  "veredicto_global": "PASS (converge en ronda 4; 0 BLOQUEANTES). Re-escalado + 4 BLOQUEANTES y múltiples ALTAs remediados en 4 rondas.",
+  "rondas": 4,
+  "ronda_1": {
+    "veredicto": "REQUIERE_CAMBIOS (2 BLOQUEANTES)",
+    "huecos": [
+      {"id": "D-001/H-001", "sev": "BLOQUEANTE", "desc": "El recorte (gobernanza universal, componente NO required) o pierde el gate de calidad/seguridad (PR de back mergea con Trivy CRITICAL/HIGH, viola FR-P09/XIII) o deja el deadlock.", "resolucion": "RE-ESCALADO al patrón PR Gate agregador (FR-004): único required que corre siempre y agrega gobernanza + jobs del componente tocado; falla si alguno falla → calidad preservada + sin deadlock."},
+      {"id": "D-002/H-004", "sev": "ALTA", "desc": "Falta actualizar docs/pipeline-spec.md (FR-P01/P07/P08/P22) + reconciliar 'flujos por componente'.", "resolucion": "FR-008."},
+      {"id": "D-003/H-002/H-003", "sev": "ALTA", "desc": "Sin secuencia de migración ni rollback (autobloqueo del propio PR / check-context).", "resolucion": "FR-007 (reescrito en r3)."},
+      {"id": "D-004/H-006", "sev": "MEDIA", "desc": "code-review-gate no necesita permisos elevados; FR-005 inducía a sobre-provisionar.", "resolucion": "FR-006 (contents:read)."},
+      {"id": "D-006/H-005", "sev": "MEDIA/BAJA", "desc": "Confusión skipped vs success del guardián-agente (repetía el error de 012).", "resolucion": "Aclarado (corre y reporta success); FR-008 enmienda FR-P21."}
+    ]
+  },
+  "ronda_2": {
+    "veredicto": "REQUIERE_CAMBIOS (2 BLOQUEANTES nuevos del patrón agregador)",
+    "huecos": [
+      {"id": "H-001r2", "sev": "BLOQUEANTE", "desc": "Ventana de migración: al borrar workflows viejos antes de actualizar Settings, los required viejos quedan huérfanos y cuelgan otros PRs.", "resolucion": "FR-007 reescrito a 2 fases (r2) y luego a 'Settings primero' (r3)."},
+      {"id": "H-002r2", "sev": "BLOQUEANTE", "desc": "`needs` del agregador debe enumerar TODOS los jobs (incl. changes) o hay bypass silencioso.", "resolucion": "FR-004 (needs explícito, recorre needs.*.result) + SC-006."},
+      {"id": "H-003r2/D-008", "sev": "ALTA/MEDIA", "desc": "paths-filter = punto único de fallo (skip silencioso); changes fuera de needs.", "resolucion": "FR-002 fail-safe (fallo/ambigüedad → correr todo; changes en needs)."},
+      {"id": "H-004r2/D-007", "sev": "ALTA", "desc": "Bootstrap: el PR debe tocar los ficheros exactos de los paths viejos para no autobloquearse.", "resolucion": "FR-007 (Settings primero elimina la dependencia)."},
+      {"id": "H-005r2", "sev": "MEDIA", "desc": "Permisos en PRs de fork externo (checks:write no concedido).", "resolucion": "FR-006 (modelo ramas-del-fork; limitación de fork externo documentada)."},
+      {"id": "D-009", "sev": "MEDIA", "desc": "FR-P21 y NFR-P01 quedaban inconsistentes.", "resolucion": "FR-008 los enmienda."}
+    ]
+  },
+  "ronda_3": {
+    "veredicto": "REQUIERE_CAMBIOS (devops PASS; cínico 1 BLOQUEANTE)",
+    "huecos": [
+      {"id": "H-001r3/D-010", "sev": "BLOQUEANTE", "desc": "La migración en 2 fases seguía dejando ventana (Fase A→B) con required paths-dependientes colgando PRs solo-docs.", "resolucion": "FR-007 reescrito a 'Settings primero': retirar TODO required paths-dependiente ANTES de tocar workflows → sin ventana de deadlock."},
+      {"id": "H-008", "sev": "ALTA", "desc": "SC-006 debía ser job automático (no manual) + cambios a pr-gate.yml no validados por componente.", "resolucion": "FR-002 (.github/** → correr todo) + SC-006 (job automático en CI que verifica needs completo)."},
+      {"id": "H-009", "sev": "MEDIA", "desc": "ID H-007 duplicado.", "resolucion": "Desambiguado."}
+    ]
+  },
+  "ronda_4": {
+    "veredicto": "PASS (APROBADA_CON_COMENTARIOS)",
+    "bloqueantes": 0,
+    "huecos": [
+      {"id": "H-010", "sev": "ALTA", "desc": "Durante la ventana de migración el gating baja a solo gitleaks; sin control técnico que impida mergear código de riesgo.", "resolucion": "Riesgo operativo ACEPTADO y documentado (Assumptions): repo solo-mantenedor, ventana breve coordinada, orden documentado. No hay cambio de Settings atómico en GitHub → intrínseco."},
+      {"id": "H-011", "sev": "MEDIA", "desc": "El orden de pasos es procedimental; si se hace el PR antes del Paso 1, reaparece el deadlock.", "resolucion": "Cubierto por el rollback de FR-007 + orden documentado; aceptado."}
+    ],
+    "nota": "H-001/H-008/H-009 cerrados. H-010/H-011 residuales no bloqueantes → documentados como riesgo operativo aceptado (no diferidos en silencio). 0 BLOQUEANTES → converge."
+  },
+  "verificacion_real_pendiente": "SC-001..006 en Actions: PR solo-docs mergeable con PR Gate verde; PR de back/front con fallo inyectado que bloquea; jobs del otro componente skipped; self-check de needs.",
+  "resumen": "El panel forzó un re-escalado necesario (de mover-gobernanza a PR Gate agregador) y cazó 4 BLOQUEANTES reales a lo largo de 4 rondas —el gate de calidad se habría perdido; el agregador podía tener bypass por needs incompleto o filtro roto; la migración reintroducía el deadlock que la feature elimina—, todos remediados. La migración 'Settings primero' es deadlock-free; los 2 riesgos residuales (ventana de gating reducido) son intrínsecos a un cambio manual de Settings y quedan documentados/aceptados. Verificación final = ejecución real en Actions."
+}
