@@ -37,4 +37,40 @@ que quedó en backlog (docs/13) se materializa como el **guardián de Constituci
 **Pendiente:** DO-2 (contenerización) → DO-3 (PR-gate back) → DO-4/5 (CI develop/main + GHCR) → DO-6
 (workflows front).
 
-<!-- Próximas entradas: DO-2, DO-3, … se añaden aquí conforme se completan, con problemas/lecciones. -->
+## DO-2 · Contenerización (db · backend · frontend) — 2026-07-14
+
+**Hecho:** `backend/Dockerfile` (multi-stage Node 20-slim, runtime lean no-root), `frontend/Dockerfile`
+(build Vite → **nginx unprivileged** no-root) + `nginx.conf` (SPA + proxy `/v1`→backend), `.dockerignore`
+de cada uno, y `docker-compose.yml` ampliado a **db · db-test · backend · frontend** (un `docker compose up`).
+Nuevo agente de comprobación `.claude/agents/revisor-devops.md`.
+
+**Verificado (determinista, sin API):** `docker compose up` → 4 contenedores; backend *healthy*; **login
+end-to-end por `:8080`** (nginx→backend→BD) HTTP 200; imágenes backend 370MB / frontend ~50MB; nginx corre
+como uid 101 (no-root).
+
+**Problemas que destapó la contenerización (lecciones):**
+1. **`npm ci` roto**: `package-lock.json` del backend desincronizado (promptfoo añadido en 007 sin
+   actualizar el lock) → fallaría también en CI. **Fix:** re-sincronizar el lock.
+2. **promptfoo inflaba la imagen**: era devDep del backend y arrastra aws-sdk/azure/gcp. **Fix:** sacarlo de
+   `package.json`; el script `eval` lo invoca con `npx` bajo demanda (evals en local, nunca en CI/runtime).
+3. **`prisma` a dependencies**: se necesita en runtime para `migrate deploy` al arrancar.
+4. **ESM vs Node**: el proyecto es ESM+moduleResolution Bundler (para tsx/dev); `node dist/…` no resuelve
+   imports sin extensión. **Fix:** `tsconfig.build.json` que emite **CommonJS** + `dist/package.json`
+   `{"type":"commonjs"}`. (Latente: el `start` de prod nunca se había ejercitado.)
+5. **Ruta de salida**: `rootDir:"."`+include tests → `dist/src/main.js`; el build de prod usa `rootDir:src`
+   → `dist/main.js`; `start`/CMD corregidos.
+6. **Prisma en debian-slim**: faltaba **openssl** (detección de libssl) y permisos de escritura de engines
+   como no-root. **Fix:** `apt-get install openssl` + `chown -R node:node /app`.
+
+**Revisión adversarial (`revisor-devops`, por el plan):** 0 bloqueantes. D-001 (nginx front root, ALTA) →
+resuelto con imagen **unprivileged**. D-003 (front sin esperar backend *healthy* ni healthcheck, MEDIA) →
+resuelto (`depends_on: condition: service_healthy` + healthcheck). **D-002 (MEDIA, dispuesto):** las imágenes
+base van por tag (`node:20-slim`, `nginx…-alpine`, `postgres:16-alpine`), no por digest `@sha256`. El SHA-pin
+**obligatorio** del reto (FR-P13) es sobre las *actions* de los workflows (DO-3); el pin por digest de imágenes
+base es endurecimiento opcional → se valora al añadir Trivy en DO-3. Tags minor+alpine razonablemente estables.
+
+**Pendiente:** DO-3 (pr-validation-back.yml + `validate-constitution.sh` + `acceptance-check.sh`) → DO-4/5
+(CI develop/main + GHCR) → DO-6 (workflows front).
+
+<!-- Próximas entradas: DO-3, DO-4/5, DO-6 se añaden aquí conforme se completan. -->
+
