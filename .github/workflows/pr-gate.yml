@@ -319,7 +319,7 @@ jobs:
       - name: Agregar resultados (falla si algún job requerido falló o fue cancelado)
         run: |
           set -euo pipefail
-          results='${{ join(needs.*.result, ",") }}'
+          results='${{ join(needs.*.result, ',') }}'
           echo "· resultados de los needs: $results"
           bad=0
           IFS=','
