@@ -44,8 +44,13 @@
   changes no versionados.
 - **FR-P04**: WHEN corre cualquier PR-gate THE pipeline SHALL ejecutar **gitleaks** (secretos, con
   `.gitleaks.toml` para fixtures) y fallar si detecta secretos.
-- **FR-P05**: WHEN corre el PR-gate de back THE pipeline SHALL construir la imagen y ejecutar **Trivy**;
-  SHALL fallar si hay vulnerabilidades `CRITICAL`/`HIGH` corregibles.
+- **FR-P05** *(enmendado por feature 011 tras la 1ª ejecución real)*: WHEN corre el PR-gate de back THE
+  pipeline SHALL construir la imagen y ejecutar **Trivy**; SHALL fallar ante `CRITICAL`/`HIGH` **corregibles**
+  de las **dependencias de la app** (`/app/node_modules`). **Excluye** (`skip-dirs`) el **npm empaquetado del
+  base image** (`usr/local/lib/node_modules/npm`) — legítimo porque el runtime **no invoca npm/npx** (el CMD
+  usa `node …/prisma/build/index.js`, 011 FR-003a). El residuo (vulns del npm del base image) queda
+  **aceptado y documentado**, con revisión al parchear/cambiar el base image. Front (nginx) no tiene npm →
+  no aplica el skip. Detalle y motivación en `specs/011-pipeline-hardening/`.
 - **FR-P06**: WHEN corre el PR-gate de front THE pipeline SHALL ejecutar `lint` (eslint+stylelint),
   `typecheck` (incl. `codegen:check` y la aserción Zod↔contrato), `test` (Vitest+axe) y `build`.
 - **FR-P07 (guardián de Constitución, M9)**: WHEN corre cualquier PR-gate THE pipeline SHALL ejecutar

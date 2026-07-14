@@ -31,4 +31,6 @@ RUN chown -R node:node /app
 USER node
 EXPOSE 3000
 # Aplica migraciones (idempotente) y arranca. La imagen NO se reconstruye en despliegue (XVI §4).
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# Runtime sin npm/npx (FR-003a de 011): prisma se invoca por node directo, así el npm del base
+# image NO es superficie de ejecución (justifica el skip de Trivy en FR-003b).
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node dist/main.js"]
