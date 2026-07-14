@@ -377,7 +377,43 @@ sin remoto). El único job rojo restante es **CD · Deploy dev (Render)**, que f
 (`##[error]Falta el secret RENDER_DEPLOY_HOOK_BACKEND en el environment 'dev'`) — eso es DO-7/010 y depende
 de la configuración manual del usuario (Neon + Render + GitHub Environments, ver `docs/16-devops-setup-manual.md`).
 
-<!-- Próximas entradas: configuración Render+Neon (DO-7 Fase 1 dev) y CD dev en verde. -->
+## Feature 012 · Endurecimiento del pipeline de FRONT (4.º hallazgo real) — 2026-07-14
+
+**Contexto:** con la CI de back en verde (011), la 1ª ejecución del gate **`PR · frontend`** falló en
+**Trivy**: el base image `nginxinc/nginx-unprivileged:1.27-alpine` arrastraba **35 vulns corregibles del SO
+Alpine** (2 CRITICAL, 33 HIGH) — `libcrypto3`/openssl (CVE-2026-31789 CRITICAL), `libpng`, `libexpat`,
+`c-ares`… Ni npm ni app: el SO del base image. Es la **contrapartida de 011 para el front**, corregida por
+SDD (spec `012-frontend-pipeline-hardening`, rama propia — **no** se repitió el error de 011 de trabajar en
+develop).
+
+**Fix (honesto, sin esconder):** parcheo del SO en la etapa runtime del `frontend/Dockerfile`
+(`apk --no-cache upgrade`). Como `nginx-unprivileged` corre como **uid 101 no-root** y `apk` necesita root,
+la secuencia es `USER root` → `apk upgrade` → **`USER 101`** antes de servir (FR-001b) → no se degrada la
+postura no-root. **Sin `skip-dirs`/`--ignore`** del SO (a diferencia del npm del back en 011, aquí las libs
+Alpine SÍ son superficie desplegable → se parchean). Fallback si no basta: **bump del base image** en el
+mismo PR (nunca skip); residuo terminal documentado en `pipeline-spec.md` FR-P05.
+
+**El gate hizo su trabajo (2 BLOQUEANTES + ALTAs cazados pre-código):** el panel adversarial (revisor-devops
++ revisor-cinico, **3 rondas** en G1) destapó: (1) **BLOQUEANTE** — `apk upgrade` necesita root sobre imagen
+no-root → build roto o regresión silenciosa a root (mismo patrón que el D-001 de 011); (2) **BLOQUEANTE** —
+la vía de escape "residuo unfixed" era **técnicamente falsa** (`ignore-unfixed` no suprime CVEs con
+Fixed-Version). G2 (consistencia, 2 rondas) cazó que el smoke-test tocaba workflows fuera de la superficie
+autorizada. Todo remediado en cascada spec→plan→tasks: **FR-001b** (privilegios), **FR-004** (bump+escalado),
+**FR-005** (smoke-test real: `docker run --add-host backend:127.0.0.1` + `curl` a `/` y a un asset, con
+retry/cleanup — nginx.conf proxya a `backend`, que no resuelve aislado), **FR-006** (enmienda FR-P05 de front).
+
+**Smoke-test añadido a los 3 workflows de imagen de front** (`pr-validation-front`, `ci-develop-front`,
+`ci-main-front`): valida arranque + serving de estáticos **antes de publicar a GHCR** (por no-rebuild, la
+imagen que llega a Render es la gateada; y el build de develop/main difiere del de la PR por la
+no-reproducibilidad de `apk upgrade`).
+
+**Verificado local (arm64, etapa runtime aislada — el build de Vite crashea bajo QEMU, ajeno a 012):** build
+OK; `USER` final = `101` (SC-005); smoke-test `/` y asset → **HTTP 200** (SC-006); Trivy sobre la imagen
+parcheada → **0 CRITICAL/HIGH corregibles** (SC-001, confirmado por JSON). **Pendiente:** confirmación en
+Actions amd64 (SC-001..006) al empujar la rama → PR de front. Informes: `specs/012-frontend-pipeline-hardening/gates/`.
+
+<!-- Próximas entradas: confirmación del gate de front en verde tras el push; configuración Render+Neon (DO-7). -->
+
 
 
 
