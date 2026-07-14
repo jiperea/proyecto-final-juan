@@ -19,7 +19,7 @@ Feature de pipeline (US única, P1). Sin tests unitarios de app (se valida por b
 - [X] T005b [US1] (contingencia FR-004 · K-002) IF T005/T008 detecta ≥1 CRITICAL/HIGH corregible residual tras `apk upgrade`: subir el base image en el mismo PR (patch/minor Alpine o digest más nuevo) y **re-ejecutar T005** (reentrada a Phase 1); si ningún base image publicado alcanza 0, registrar la excepción terminal en `docs/pipeline-spec.md` FR-P05 (CVE + motivo + fecha de revisión). PROHIBIDO skip/ignore del SO.
 - [X] T006 Nota en `docs/15-devops-bitacora.md` (4.º hallazgo real de front: Trivy/Alpine; fixes 012; decisión de T003).
 - [X] T007 Gate G3 (panel reducido: revisor-devops/implementacion) + informe en `specs/012-frontend-pipeline-hardening/gates/`.
-- [ ] T008 (usuario) push de la rama → PR de front al fork → confirmar `Imagen frontend + Trivy` en **verde** + smoke-test (SC-001..006).
+- [X] T008 (usuario) push de la rama → PR de front al fork → confirmar `Imagen frontend + Trivy` en **verde** + smoke-test (SC-001..006).
 
 ## Dependencias
 - T001 (Dockerfile) es prerrequisito de T002/T005 (la imagen parcheada es la que se arranca/escanea).

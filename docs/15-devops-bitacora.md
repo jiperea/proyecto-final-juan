@@ -412,7 +412,24 @@ OK; `USER` final = `101` (SC-005); smoke-test `/` y asset → **HTTP 200** (SC-0
 parcheada → **0 CRITICAL/HIGH corregibles** (SC-001, confirmado por JSON). **Pendiente:** confirmación en
 Actions amd64 (SC-001..006) al empujar la rama → PR de front. Informes: `specs/012-frontend-pipeline-hardening/gates/`.
 
-<!-- Próximas entradas: confirmación del gate de front en verde tras el push; configuración Render+Neon (DO-7). -->
+**Confirmación en verde (PR #4, run `29335135272`):** el gate `PR · frontend` pasó **6/6** con el nuevo
+smoke-test corriendo de verdad en amd64: `· smoke-test OK: nginx arranca y sirve / + /assets/index-BLncyqIC.js`
+→ SC-001 (Trivy 0 corregibles), SC-005 (`docker inspect` USER=101) y SC-006 (arranque + assets 200)
+confirmados en Actions real.
+
+**Hallazgo colateral (config de branch protection, NO de 012) — required checks mal configurados:** al
+intentar mergear #4, el PR quedó atascado en *"Expected — Waiting for status to be reported"* en 4 checks
+*required*: `Lint (pull_request)` (**huérfano** — ningún *job* lo emite; los "Lint" son *steps*) y los 3
+del PR-gate de **back** (`Contratos`, `Imagen backend + Trivy`, `lint · typecheck · test (Postgres)`), que
+por `paths:` **no se disparan** en un PR de front. **Lección:** con branch protection **clásica**, un
+required check que no se ejecuta **bloquea el merge** (no es *skipped→neutral*, como asumía erróneamente
+`branch-protection.md` — corregido). **Fix aplicado:** required = solo los **4 universales** (Guardián ×2,
+Code review, gitleaks), que corren en todo `pull_request`. #4 pasó a `MERGEABLE`/`CLEAN`. **Trade-off
+aceptado (deuda):** los checks por componente dejan de ser required globalmente; fix robusto = job "gate"
+agregador por componente (posible feature 013). Detalle en `.github/branch-protection.md`.
+
+<!-- Próximas entradas: merge de #4 → ci-develop-front (smoke-test + imagen a GHCR); configuración Render+Neon (DO-7). -->
+
 
 
 

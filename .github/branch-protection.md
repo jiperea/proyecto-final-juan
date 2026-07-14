@@ -17,29 +17,40 @@ Reglas comunes (ambas ramas):
 - ✅ **Do not allow bypassing the above settings** (ni admins) — coherente con XIII (sin excepción
   automática) y FR-P09 (sin vía de excepción).
 
-### Status checks requeridos (nombres exactos de los jobs)
+### Status checks requeridos (config vigente · corregida por 012)
+
+**Solo se marcan *required* los checks UNIVERSALES** (los que corren en **todo** PR, evento `pull_request`,
+sin filtro `paths:`). Nombres exactos de los jobs:
 
 | Check (job name) | Workflow | FR |
 |---|---|---|
-| `gitleaks (todo el repo)` | `secrets-scan.yml` | FR-P04 |
 | `Guardián de Constitución + trazabilidad` | `pr-validation-back.yml` **y** `pr-validation-front.yml` | FR-P07, FR-P08 |
+| `Guardián de Constitución (agente · opt-in)` | ambos PR-gates | FR-009 |
 | `Code review registrado` | ambos PR-gates | FR-010 / FR-P22 |
-| `lint · typecheck · test (Postgres)` | `pr-validation-back.yml` | FR-P02 |
-| `Contratos (Spectral + oasdiff)` | `pr-validation-back.yml` | FR-P03 |
-| `Imagen backend + Trivy` | `pr-validation-back.yml` | FR-P05 |
-| `lint · typecheck · test · build` | `pr-validation-front.yml` | FR-P06 |
-| `Imagen frontend + Trivy` | `pr-validation-front.yml` | FR-P05 |
+| `gitleaks (todo el repo)` | `secrets-scan.yml` | FR-P04 |
 
-> **Guardián-agente (opt-in):** el check `Guardián de Constitución (agente · opt-in)` **solo** márcalo como
-> requerido **si** has activado el secret `ANTHROPIC_API_KEY` (FR-009). Sin la key, el job pasa en verde sin
-> llamar a la API; marcarlo requerido sin la key no aporta (siempre verde).
-> **Nota `paths:`** — los checks de un componente solo se exigen en PRs que lo tocan; en Rulesets modernos un
-> required check que no se dispara cuenta como *skipped→neutral* (no bloquea). Verifícalo en tu config.
->
-> **Nota sobre `paths:`** — los checks de `pr-validation-back.yml` solo se ejecutan (y por tanto solo se
-> exigen) en PRs que tocan `backend/**`/`contracts/**`. `secrets-scan.yml` **no** tiene filtro `paths:`, así
-> que gitleaks se exige en **todos** los PRs. Al marcar checks requeridos, verifica el comportamiento de
-> "required check that didn't run" de tu configuración (Rulesets modernos lo tratan como *skipped→neutral*).
+> **Los checks POR COMPONENTE NO se marcan required** (`lint · typecheck · test (Postgres)`, `Contratos
+> (Spectral + oasdiff)`, `Imagen backend + Trivy` de back; `lint · typecheck · test · build`, `Imagen
+> frontend + Trivy` de front). Corren y aparecen en su PR (rojo si fallan), pero **no** están en la lista
+> *required* de la rama. Motivo abajo.
+
+> **⚠ Lección (feature 012 · fallo real):** con branch protection **clásica** (la de este repo), un required
+> check cuyo workflow **no se dispara** por `paths:` queda en **"Expected — Waiting for status to be reported"
+> → BLOQUEA el merge para siempre** (NO es *skipped→neutral*; esa suposición previa era **falsa** para
+> protección clásica). Por eso, requerir checks **por componente** cuelga los PRs del **otro** componente
+> (un PR de front nunca satisface `Imagen backend + Trivy`, y viceversa). **Solo los universales pueden ser
+> required** sin deadlock. Además, cuidado con **required checks huérfanos** añadidos a mano (p. ej.
+> `Lint (pull_request)` no lo emite ningún *job* —los "Lint" son *steps*— y bloqueaba TODO PR); retirado.
+
+> **Trade-off aceptado (deuda):** al no requerir los checks por componente, un PR *podría* mergearse con un
+> check de componente en rojo. El **fix robusto** (pendiente, posible feature 013) es un **job "gate"
+> agregador por componente** que corra siempre (filtro `paths:` movido a `if:` de job, con
+> `dorny/paths-filter`), de modo que un job *skipped* reporte el required como pasado y el gate por
+> componente vuelva a ser exigible sin deadlock.
+
+> **Guardián-agente (opt-in):** `Guardián de Constitución (agente · opt-in)` pasa en verde (job *skipped*)
+> sin el secret `ANTHROPIC_API_KEY`; marcarlo required es inocuo (siempre verde/neutral). Con la key, llama a
+> la API (FR-009).
 
 ## Tag ruleset: releases solo desde `main` (FR-P09 / cadena de custodia)
 
