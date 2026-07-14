@@ -1,0 +1,25 @@
+{
+  "gate": "G3 (G1 + G2 + implementación vs spec)",
+  "feature": "013-universal-governance-checks",
+  "fecha": "2026-07-14",
+  "artefactos": [".github/workflows/pr-gate.yml", ".github/workflows/pr-validation-back.yml (borrado)", ".github/workflows/pr-validation-front.yml (borrado)", "docs/pipeline-spec.md", ".github/branch-protection.md", "docs/15-devops-bitacora.md"],
+  "panel": ["revisor-implementacion", "revisor-devops"],
+  "nota_panel": "Feature de pipeline sin IA → sin promptfoo. G3 = implementación vs spec + verificación real (SC-001..006 en Actions, T015 pendiente = migración del usuario). Panel reducido al dominio.",
+  "veredicto_global": "PASS (tras remediar 1 ALTA de código + resolver 1 ALTA autorreferencial; MEDIAs de proceso documentadas)",
+  "rondas": 1,
+  "ronda_1": {
+    "veredicto_impl": "REQUIERE_CAMBIOS",
+    "veredicto_devops": "REQUIERE_CAMBIOS",
+    "huecos": [
+      {"id": "D-001", "sev": "ALTA", "fuente": "revisor-devops", "desc": "El job `changes` (dorny/paths-filter sin checkout) usa la API de PR files → necesita `pull-requests: read`, pero bajo `permissions: contents: read` a nivel workflow ese scope quedaba en `none`. El fail-safe evita bypass (correría todo) pero el filtrado por componente nunca funcionaría → objetivo de FR-002 roto.", "resolucion": "Añadido `permissions: { contents: read, pull-requests: read }` al job `changes`. YAML revalidado."},
+      {"id": "I-001", "sev": "ALTA", "fuente": "revisor-implementacion", "desc": "El guardián determinista (`validate-constitution.sh`) bloqueaba porque faltaba el informe de gate G3 de esta misma feature (autorreferencial: el PR que introduce el gate debe incluir su propio G3).", "resolucion": "Creado este informe (`gate-G3-013-*.json`) → el guardián pasa a exit 0."},
+      {"id": "I-002", "sev": "MEDIA", "fuente": "revisor-implementacion", "desc": "tasks.md no reflejaba el avance.", "resolucion": "T001-T014 marcadas [X]; T015 (usuario) pendiente."},
+      {"id": "I-003", "sev": "MEDIA", "fuente": "revisor-implementacion", "desc": "Confirmar el Paso 1 de la migración (retirar required viejos) antes de mergear el PR de 013, o se autobloquea.", "resolucion": "Documentado en branch-protection.md (orden crítico) + tasks T015; es acción del usuario."},
+      {"id": "D-003", "sev": "MEDIA", "fuente": "revisor-devops", "desc": "La ventana de migración aplica también a `main` (rama de release).", "resolucion": "branch-protection.md: migrar `develop` primero y no fusionar a `main` durante la ventana (la defensa merge-base de ci-main-* sigue activa)."},
+      {"id": "D-002", "sev": "MEDIA", "fuente": "revisor-devops", "desc": "Toda la verificación es estática; falta ejecución real en Actions.", "resolucion": "Es intrínseco (el deadlock no se ve sin remoto); T015 lo confirma. Recomendado un PR de smoke que ejercite fallo real / skip real / needs incompleto."}
+    ]
+  },
+  "verificacion_local": "YAML válido (pr-gate.yml + secrets-scan.yml); 0 acciones por tag (AC-6); `dorny/paths-filter` SHA-pin (40); `gate-selfcheck` (needs completo, 10 jobs) simulado en local → exit 0; permisos mínimos (workflow contents:read; changes +pull-requests:read; back-contracts +checks:write); guardián determinista pasa con pr-gate.yml (solo faltaba este informe G3); lógica de jobs preservada (seed 011, smoke-test+uid101 012, Spectral/oasdiff/Trivy intactos).",
+  "verificacion_real_pendiente": "SC-001..006 en Actions (T015, tras migración 'Settings primero'): PR solo-docs mergeable; PR de componente con fallo inyectado que bloquea; jobs del otro componente skipped; validar outputs de `changes` (que el filtrado funciona, no solo el fail-safe).",
+  "resumen": "pr-gate.yml cumple FR-001..008: workflow único sin paths, detección fail-safe (dorny SHA-pin), gobernanza siempre-on, componente por `if:`, agregador PR Gate (needs de 10 + if:always()) verificado por gate-selfcheck, docs enmendadas. El panel cazó 1 hueco de código real (D-001: permiso pull-requests:read del job changes) → corregido; y 1 autorreferencial (informe G3) → resuelto. MEDIAs de proceso (migración, ejecución real) documentadas. 0 bloqueantes de diseño; la confirmación end-to-end es T015 (ejecución real)."
+}
