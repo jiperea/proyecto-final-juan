@@ -17,29 +17,46 @@ Reglas comunes (ambas ramas):
 - ✅ **Do not allow bypassing the above settings** (ni admins) — coherente con XIII (sin excepción
   automática) y FR-P09 (sin vía de excepción).
 
-### Status checks requeridos (nombres exactos de los jobs)
+### Status checks requeridos (config vigente · feature 013 · PR Gate agregador)
 
-| Check (job name) | Workflow | FR |
+**Required = SOLO 2 checks, ambos corren en TODO PR** (deadlock-free):
+
+| Check (job name) | Workflow | Qué agrega/cubre |
 |---|---|---|
-| `gitleaks (todo el repo)` | `secrets-scan.yml` | FR-P04 |
-| `Guardián de Constitución + trazabilidad` | `pr-validation-back.yml` **y** `pr-validation-front.yml` | FR-P07, FR-P08 |
-| `Code review registrado` | ambos PR-gates | FR-010 / FR-P22 |
-| `lint · typecheck · test (Postgres)` | `pr-validation-back.yml` | FR-P02 |
-| `Contratos (Spectral + oasdiff)` | `pr-validation-back.yml` | FR-P03 |
-| `Imagen backend + Trivy` | `pr-validation-back.yml` | FR-P05 |
-| `lint · typecheck · test · build` | `pr-validation-front.yml` | FR-P06 |
-| `Imagen frontend + Trivy` | `pr-validation-front.yml` | FR-P05 |
+| `PR Gate` | `pr-gate.yml` | **agregador**: gobernanza (guardián ×2, code-review) + los jobs del componente tocado (lint/test, contratos, imagen+Trivy de back; lint/test/build, imagen+Trivy de front). Falla si alguno falla; skip = OK |
+| `gitleaks (todo el repo)` | `secrets-scan.yml` | secretos (FR-P04), universal |
 
-> **Guardián-agente (opt-in):** el check `Guardián de Constitución (agente · opt-in)` **solo** márcalo como
-> requerido **si** has activado el secret `ANTHROPIC_API_KEY` (FR-009). Sin la key, el job pasa en verde sin
-> llamar a la API; marcarlo requerido sin la key no aporta (siempre verde).
-> **Nota `paths:`** — los checks de un componente solo se exigen en PRs que lo tocan; en Rulesets modernos un
-> required check que no se dispara cuenta como *skipped→neutral* (no bloquea). Verifícalo en tu config.
->
-> **Nota sobre `paths:`** — los checks de `pr-validation-back.yml` solo se ejecutan (y por tanto solo se
-> exigen) en PRs que tocan `backend/**`/`contracts/**`. `secrets-scan.yml` **no** tiene filtro `paths:`, así
-> que gitleaks se exige en **todos** los PRs. Al marcar checks requeridos, verifica el comportamiento de
-> "required check that didn't run" de tu configuración (Rulesets modernos lo tratan como *skipped→neutral*).
+> **Los checks por componente NO se marcan required por nombre** (los subsume `PR Gate` vía su `needs`).
+> Marcarlos directamente reintroduce el deadlock (ver lección).
+
+#### ⚠ Lección del deadlock (feature 012→013)
+
+Con **branch protection clásica** (la de este repo), un required check cuyo workflow **no se dispara** por
+`paths:` queda en **"Expected — Waiting for status to be reported"** y **BLOQUEA el merge para siempre**.
+**NO** es *skipped→neutral* (esa nota previa era **falsa** y causó el incidente de 012: un PR de solo-front
+colgó por los required de back). Por eso los únicos required son checks que corren en **todo** PR: `PR Gate`
+(siempre, sin `paths:`) y `gitleaks`. También se retiró el check **huérfano** `Lint (pull_request)` (ningún
+*job* lo emite — los "Lint" son *steps*).
+
+#### Migración "Settings primero" (para aplicar a mano, sin ventana de deadlock)
+
+1. **Settings → required = `{gitleaks (todo el repo)}`** (retirar los 8 checks `paths:`-dependientes + el
+   huérfano `Lint (pull_request)`). Desde aquí **ningún PR se cuelga**. Gating temporalmente reducido a
+   secretos → ventana **breve y coordinada** (no fusionar código de riesgo mientras dure).
+2. **Mergear** el PR de 013 (añade `pr-gate.yml`, borra `pr-validation-*.yml`). `PR Gate` empieza a reportar.
+3. **Settings → required = `{PR Gate, gitleaks}`**. Gating pleno restaurado, deadlock-free.
+
+> **Orden crítico:** Paso 1 **antes** de mergear (Paso 2), o el PR se autobloquea por los required viejos.
+> **Primero `develop`, luego `main` (D-003):** aplica y valida la migración en `develop` (con `PR Gate` en
+> verde) **antes** de tocar `main`, y **no fusiones a `main`** durante la ventana (es la rama de release
+> `v*`/CD-prod; la defensa `merge-base` de `ci-main-*` sigue exigiendo que el tag venga de un PR, pero no
+> re-corre los checks de calidad).
+> **Rollback:** si `PR Gate` no se reconoce, volver a `{gitleaks}` en Settings y/o revertir el commit.
+> **Riesgo operativo (aceptado):** la ventana 1→3 reduce el gating a secretos; es intrínseco a un cambio
+> manual de Settings (GitHub no lo hace atómico) — repo solo-mantenedor, ventana breve y coordinada.
+
+> **Guardián-agente (opt-in):** `Guardián de Constitución (agente · opt-in)` **corre y reporta success** sin
+> `ANTHROPIC_API_KEY` (step interno saltado); queda subsumido en `PR Gate` (no se marca required por separado).
 
 ## Tag ruleset: releases solo desde `main` (FR-P09 / cadena de custodia)
 
