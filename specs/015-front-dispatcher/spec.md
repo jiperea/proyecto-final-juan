@@ -158,20 +158,20 @@ FE-3 **no crea contrato**; consume el existente `contracts/orders.openapi.yaml` 
 
 | FR | Endpoint(s) | Tarea(s) | Test(s) |
 |----|-------------|----------|---------|
-| FR-001 | `getOrder` (render por rol) | (plan) | `should mostrar reasignar solo a dispatcher` |
-| FR-002/003 | `reassignOrder` | (plan) | `should enviar {assignee_id,reason} y reflejar nuevo asignatario sin recarga` |
-| FR-004 | `reassignOrder` | (plan) | `should inhabilitar confirmar en vuelo (aria-busy)` |
-| FR-005/006 | `reassignOrder` | (plan) | `should validar motivo en cliente y asociar VALIDATION_ERROR al campo` |
-| FR-007 | `reassignOrder` | (plan) | `should mapear INVALID_ASSIGNEE al campo destino conservando lo introducido` |
-| FR-008 | `reassignOrder` | (plan) | `should mostrar 404 genérico indistinguible y limpiar detalle` |
-| FR-009/010 | `reassignOrder` | (plan) | `should mapear FORBIDDEN_ROLE/401 sin error boundary` |
-| FR-011 | `reassignOrder` | (plan) | `should no filtrar reason/assignee_id a consola/telemetría/storage` |
-| FR-012/013 | — | (plan) | `axe sin violaciones` · `flujo por teclado` · `foco+anuncio nombran destino` |
-| FR-014 | — (cliente) | (plan) | `should exigir formato UUID (RFC 4122) on blur/submit` |
-| FR-015 | `reassignOrder` | (plan) | `should mostrar error genérico ante 500 sin boundary` |
-| FR-016 | `reassignOrder` | (plan) | `should mostrar mensaje de conectividad ante fallo de red` |
-| FR-017 | — (cliente) | (plan) | `should asociar error con aria-describedby+aria-invalid y mostrar ambos a la vez` |
-| FR-018 | — | (plan) | `should ocultar reasignar bajo el breakpoint de escritorio` |
+| FR-001 | `getOrder` (render por rol) | T008, T012 | `should mostrar reasignar solo a dispatcher` |
+| FR-002/003 | `reassignOrder` | T002, T004, T005, T006, T008 | `should enviar {assignee_id,reason} y reflejar nuevo asignatario sin recarga` |
+| FR-004 | `reassignOrder` | T006 | `should marcar aria-busy/aria-disabled en vuelo (no disabled nativo)` |
+| FR-005/006 | `reassignOrder` | T004, T009, T010 | `should validar motivo en cliente y asociar VALIDATION_ERROR al campo` |
+| FR-007 | `reassignOrder` | T004, T010 | `should mapear INVALID_ASSIGNEE al campo destino conservando lo introducido` |
+| FR-008 | `reassignOrder` | T004, T011 | `should mostrar 404 genérico indistinguible y limpiar detalle` |
+| FR-009/010 | `reassignOrder` | T004, T010 | `should mapear FORBIDDEN_ROLE/401 sin error boundary` |
+| FR-011 | `reassignOrder` | T014 | `should no filtrar reason/assignee_id a consola/telemetría/storage` |
+| FR-012/013 | — | T006, T007, T013 | `axe sin violaciones` · `flujo por teclado` · `foco+anuncio nombran destino` |
+| FR-014 | — (cliente) | T006, T007, T009 | `should exigir formato UUID (RFC 4122) on blur/submit` |
+| FR-015 | `reassignOrder` | T004, T010 | `should mostrar error genérico ante 500 sin boundary` |
+| FR-016 | `reassignOrder` | T004, T010 | `should mostrar mensaje de conectividad ante fallo de red` |
+| FR-017 | — (cliente) | T009, T010 | `should asociar error con aria-describedby+aria-invalid y mostrar ambos a la vez` |
+| FR-018 | — | T008, T012 | `should ocultar reasignar bajo el breakpoint de escritorio` |
 
 ## Eval de objetivos (promptfoo) *(Constitution XIV)*
 

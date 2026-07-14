@@ -1,0 +1,26 @@
+{
+  "gate": "G2 (consistencia spec↔plan↔tasks · acumulativo G1 + revisor-consistencia)",
+  "feature": "015-front-dispatcher",
+  "fecha": "2026-07-15",
+  "artefactos": ["specs/015-front-dispatcher/spec.md", "specs/015-front-dispatcher/plan.md", "specs/015-front-dispatcher/tasks.md"],
+  "panel": ["(G1 previo: cinico, spec-theater, rbac, front-a11y — PASS)", "revisor-consistencia"],
+  "veredicto_global": "PASS (ronda 2) — 0 bloqueantes; ALTAS/MEDIAS de consistencia remediadas",
+  "rondas": 2,
+  "ronda_1": {
+    "veredicto_consistencia": "REQUIERE_CAMBIOS",
+    "hallazgos": [
+      {"id": "K-001", "sev": "ALTA", "desc": "tasks.md T006 sugería gating del envío por validez del campo, contra FR-004/F-101.", "resolucion": "T006 reformulado: el control de confirmar SIEMPRE es accionable; la validación ocurre al enviar (no gatea el botón)."},
+      {"id": "K-002", "sev": "ALTA", "desc": "plan.md dice extender write-api.ts; tasks.md creaba reassign-api.ts nuevo.", "resolucion": "T005 extiende src/features/orders/write-api.ts (patrón FE-2); T004 test en write-api.reassign.test.ts. Cascada plan→tasks."},
+      {"id": "K-003", "sev": "MEDIA", "desc": "tabla de trazabilidad de spec.md con placeholder '(plan)' en vez de IDs reales.", "resolucion": "Tabla actualizada con T001-T017 reales por FR (auditable, Constitution VI)."}
+    ]
+  },
+  "ronda_2": {
+    "veredicto_consistencia": "APROBADA_CON_COMENTARIOS",
+    "cierres": "K-001, K-002, K-003 CERRADOS; remediación coherente entre los tres artefactos.",
+    "hallazgos": [
+      {"id": "K-004", "sev": "MEDIA", "desc": "la fila FR-002/003 de la tabla omitía T004 (test de capa api del camino feliz).", "resolucion": "T004 añadido a la fila FR-002/003."}
+    ]
+  },
+  "verificacion": "Análisis /speckit-analyze: 18 FR + 5 SC con cobertura 100% de tareas; 0 unmapped; sin conflictos con la constitution (front-only, gates backend N/A). Consistencia cruzada verificada en 2 rondas.",
+  "resumen": "G2 PASS en ronda 2. Ronda 1: 2 ALTAS (gating de confirmar; ubicación de la capa api) + 1 MEDIA (trazabilidad con placeholders) → remediadas alineando tasks al plan y citando IDs reales. Ronda 2: cierres confirmados + 1 MEDIA residual (T004 ausente en una fila) corregida. 0 bloqueantes → avance a implementación permitido."
+}
