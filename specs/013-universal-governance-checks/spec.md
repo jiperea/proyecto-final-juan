@@ -105,7 +105,8 @@ back con un test roto o Trivy CRITICAL/HIGH → `PR Gate` **falla** y bloquea el
   guardián-agente `claude -p` gated a la key, mismos lint/test/Spectral/oasdiff/Trivy y su config actual).
 - **FR-004 (job agregador `PR Gate` — el único required)**: THE workflow SHALL tener un job final **`PR
   Gate`** con `if: always()` cuyo `needs:` **enumera EXPLÍCITAMENTE TODOS** los demás jobs del workflow —el
-  de detección `changes`, los 3 de gobernanza y los 5 de componente— (resuelve H-002). El job **falla** si
+  de detección `changes`, los 3 de gobernanza, los 5 de componente **y `gate-selfcheck`**— (10 jobs; resuelve
+  H-002 y K-002, coherente con SC-006). El job **falla** si
   algún `needs.*.result` es `failure` o `cancelled`, y **pasa** si todos son `success` o `skipped`. Se
   implementa recorriendo `needs.*.result` (no una lista escrita a mano de resultados), de modo que **omitir
   un job del `needs` sea visible**. Este job **siempre se ejecuta** (nunca "Expected") y es el único que se
@@ -140,14 +141,14 @@ back con un test roto o Trivy CRITICAL/HIGH → `PR Gate` **falla** y bloquea el
     (ambos corren en todo PR).
   - **Rollback:** si `PR Gate` no se reconoce por su nombre, volver a `{gitleaks}` en Settings (repo propio)
     y/o revertir el commit; el repo nunca queda con required huérfanos. Secuencia documentada en
-    `docs/branch-protection.md` (tipo manual §E).
+    `.github/branch-protection.md` (tipo manual §E).
 - **FR-008 (documentación de gobernanza fiel · resuelve D-002/H-004/FR-006-doc)**: THE feature SHALL
   actualizar `docs/pipeline-spec.md` para reflejar el `PR Gate` agregador: **reformular FR-P01** ("los checks
   de **componente** se acotan por ruta —ahora vía `if:` dentro del gate— y los de **gobernanza** son
   transversales") y **FR-P07/P08/P22** ("WHEN corre el **PR Gate**…" en vez de "el PR-gate por componente");
   **FR-P21** (el guardián-agente **corre y reporta `success`** sin la key —step interno saltado—, **no**
   "skipped"; resuelve D-006/D-009/H-005) y **NFR-P01** (ahora **un** workflow `pr-gate.yml` con jobs en
-  paralelo <10 min, no "workflow back o front"); y `docs/branch-protection.md` (lista `{PR Gate, gitleaks}` +
+  paralelo <10 min, no "workflow back o front"); y `.github/branch-protection.md` (lista `{PR Gate, gitleaks}` +
   lección del deadlock: required+`paths:` en clásica = queda "Expected" y bloquea, **NO** skipped→neutral;
   retirada del huérfano `Lint (pull_request)` + secuencia de migración de FR-007). Nota en
   `docs/15-devops-bitacora.md` (incluye la constancia de 012 `05875bf`, superseída). **Cumplimiento
@@ -201,5 +202,5 @@ válido, un solo job por check, SHA-pin, permisos, `concurrency`, agregador con 
   `gitleaks`, y el orden de pasos no tiene barrera técnica (si se hace el PR antes del Paso 1, reaparece el
   deadlock —lo cubre el rollback—). **Control compensatorio:** repo **solo-mantenedor**, ventana **breve y
   coordinada** (no se fusionan otros PRs ni código de riesgo durante la migración), y se sigue el orden
-  documentado en `docs/branch-protection.md` (§ migración, tipo manual §E). No hay forma de hacer un cambio de
+  documentado en `.github/branch-protection.md` (§ migración, tipo manual §E). No hay forma de hacer un cambio de
   Settings "atómico/guardado" en GitHub → riesgo intrínseco, aceptado y documentado (no un defecto de diseño).

@@ -1,0 +1,17 @@
+{
+  "gate": "G2 (G1 + consistencia cruzada spec↔plan↔tasks)",
+  "feature": "013-universal-governance-checks",
+  "fecha": "2026-07-14",
+  "artefactos": ["spec.md", "plan.md", "tasks.md", "quickstart.md"],
+  "panel": ["revisor-consistencia"],
+  "veredicto_global": "PASS (tras remediar 1 ALTA + 2 MEDIAS)",
+  "ronda_1": {
+    "veredicto": "REQUIERE_CAMBIOS",
+    "huecos": [
+      {"id": "K-001", "sev": "ALTA", "desc": "spec/plan/tasks referenciaban `docs/branch-protection.md` pero el fichero real es `.github/branch-protection.md` (T011 crearía un duplicado y dejaría el real —con la lección errónea skipped→neutral— sin corregir).", "resolucion": "Corregida la ruta a `.github/branch-protection.md` en spec, plan, tasks y quickstart (grep = 0 restantes)."},
+      {"id": "K-002", "sev": "MEDIA", "desc": "FR-004 enumeraba 9 jobs en `needs` (omitía `gate-selfcheck`), contradiciendo SC-006 (que lo incluye) y lo que plan/tasks ya implementan (10).", "resolucion": "FR-004 ahora enumera los 10 jobs incl. `gate-selfcheck` (coherente con SC-006/T007)."},
+      {"id": "K-003", "sev": "MEDIA", "desc": "Encabezado de Fase 1 reclamaba FR-001..006, pero FR-005 (lista de required en Settings) solo se cierra en T015 (migración manual).", "resolucion": "Encabezado corregido a 'FR-001..004, FR-006; FR-005 = Settings, en T015'."}
+    ]
+  },
+  "resumen": "Trazabilidad FR/SC→tarea 100% y diseño del agregador coherente entre spec/plan/tasks. G2 cazó un error de ruta repetido (docs/ vs .github/branch-protection.md) que habría dejado el doc real sin actualizar, y dos discrepancias internas (needs de FR-004 vs SC-006; cobertura de FR-005 en el encabezado). Remediado en cascada; correcciones de ruta/texto verificables directamente. G3 = ejecución real."
+}

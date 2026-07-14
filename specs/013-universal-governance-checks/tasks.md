@@ -4,7 +4,7 @@
 
 Feature de pipeline (US única, P1). Sin tests de app; se valida por estática + ejecución real en Actions.
 
-## Phase 1 · Construir `pr-gate.yml` (FR-001..006)
+## Phase 1 · Construir `pr-gate.yml` (FR-001..004, FR-006; FR-005 = Settings, en T015)
 - [ ] T001 [US1] Crear `.github/workflows/pr-gate.yml`: `on: pull_request` a `develop`/`main` **sin `paths:`**; `permissions: contents: read`; `concurrency: group: pr-gate-${{ github.ref }}` + `cancel-in-progress: true`.
 - [ ] T002 [US1] Job `changes` (`dorny/paths-filter`, **SHA-pin 40 chars**) → outputs `back`/`front`/`contracts`. Fail-safe (FR-002): si el filtro falla o el PR toca `.github/workflows/**`, marcar los tres como `true` (correr todo).
 - [ ] T003 [US1] Migrar los 3 jobs de **gobernanza** desde `pr-validation-back.yml` a `pr-gate.yml` **sin cambiar su lógica**: `guardian` (validate-constitution.sh + acceptance-check.sh), `guardian-agent` (opt-in, `if` a la key), `code-review-gate` (`$GITHUB_STEP_SUMMARY`, sin permisos elevados). Corren **siempre** (sin `if:` de componente). Nombres de check idénticos.
@@ -19,7 +19,7 @@ Feature de pipeline (US única, P1). Sin tests de app; se valida por estática +
 ## Phase 3 · Guardián determinista y docs (FR-008)
 - [ ] T009 Verificar que `scripts/validate-constitution.sh` y `acceptance-check.sh` siguen **exit 0** con `pr-gate.yml` (que su chequeo de FR-P01/estructura no marque el nuevo workflow como violación). Ajustar el script **solo** si su regla choca con la nueva arquitectura (documentando el cambio).
 - [ ] T010 Enmendar `docs/pipeline-spec.md`: **FR-P01** (checks de componente por `if:` interno; gobernanza transversal), **FR-P07/P08/P22** ("PR Gate"), **FR-P21** (guardián-agente reporta `success`, no skipped), **NFR-P01** (un workflow, jobs en paralelo <10 min).
-- [ ] T011 Actualizar `docs/branch-protection.md`: required = `{PR Gate, gitleaks}`; secuencia de migración "Settings primero" (FR-007); lección del deadlock (required+`paths:`=Expected que bloquea, no skipped→neutral); retirada del huérfano `Lint (pull_request)`. **Supersede** la constancia de 012 (`05875bf`).
+- [ ] T011 Actualizar `.github/branch-protection.md`: required = `{PR Gate, gitleaks}`; secuencia de migración "Settings primero" (FR-007); lección del deadlock (required+`paths:`=Expected que bloquea, no skipped→neutral); retirada del huérfano `Lint (pull_request)`. **Supersede** la constancia de 012 (`05875bf`).
 - [ ] T012 Nota en `docs/15-devops-bitacora.md` (013: raíz del deadlock + PR Gate agregador + migración; incluye la constancia de 012 superseída).
 
 ## Phase 4 · Verificación y cierre
