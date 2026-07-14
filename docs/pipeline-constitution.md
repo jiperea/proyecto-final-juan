@@ -47,7 +47,8 @@ Rationale: feedback rápido y coste mínimo; cumple el NFR **CI < 10 min** por c
 
 La imagen que **pasó CI** y está en **GHCR** es la que se despliega. El despliegue **nunca** reconstruye
 desde el fuente. Garantiza que lo probado == lo desplegado (integridad y trazabilidad del artefacto). *(CD
-= DO-7, fuera del alcance "Mínima" actual; la regla queda fijada para cuando se implemente.)*
+= DO-7, **en alcance** desde 2026-07-14: Render tira de la imagen de GHCR vía deploy-hook, sin reconstruir;
+detalle y FRs en `pipeline-spec.md` §CD.)*
 
 ## 5. Gates del pipeline (spec-as-gate)
 
@@ -72,6 +73,9 @@ mecánicamente. Ambos deben estar en verde para mergear.
 
 - **(a) Ramas**: `feature/* → develop → main` (formalizado, §1).
 - **(b) Ubicación de la gobernanza**: principio XVI en la constitución **+** este documento (detalle).
-- **(c) CD**: **fuera del alcance actual** (Mínima DO-1→DO-6). Si se aborda (DO-7): PaaS que consume la
-  imagen de GHCR + Postgres gestionada (Render/Railway/Fly.io), con la regla de **no-rebuild** (§4) y
-  aprobación manual a prod vía GitHub Environment (topa con el muro de repo privado Free, M9 J2).
+- **(c) CD**: **en alcance (DO-7, desde 2026-07-14)**. Target: **Render** (consume la imagen de GHCR vía
+  deploy-hook, no-rebuild §4) + **Neon** (Postgres gestionada), **gratis** y con URL pública. Entornos
+  **dev (`develop`, auto)** y **prod (`main`)**. La **aprobación manual a prod** vía *GitHub Environment*
+  (required reviewers) topa con el muro de repo privado Free (M9 J2) → **sustituida por `workflow_dispatch`
+  manual** (`cd-prod.yml`). **Limitación residual asumida:** ese disparo manual lo hace el mismo actor con
+  push access (no es una segunda aprobación independiente); freno anti-fat-finger, no control de 2 personas.

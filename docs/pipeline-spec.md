@@ -73,6 +73,29 @@
 - **FR-P14**: THE pipeline SHALL declarar `permissions: contents: read` por defecto y elevar
   (`packages: write` / `contents: write`) **solo en el job** que publica imagen/Release.
 
+### CD — despliegue continuo (M12 · DO-7) — Render + Neon
+> Target elegido: **Render** (cómputo, URL pública, free) + **Neon** (Postgres, free). Se despliega la
+> **imagen ya publicada en GHCR** (no-rebuild). GitHub Actions orquesta (requisito duro). Entornos **dev
+> (`develop`)** y **prod (`main`)**; se valida **dev primero**.
+- **FR-P16 (deploy dev automático)**: WHEN el CI de `develop` publica las imágenes a GHCR THE pipeline
+  SHALL desplegar automáticamente el entorno **dev** en Render (deploy-hook), que **consume la imagen**
+  publicada sin reconstruir (coherente con FR-P12).
+- **FR-P17 (deploy prod con aprobación manual)**: WHEN hay una release semver en `main` THE pipeline SHALL
+  desplegar **prod** SOLO mediante disparo **manual** (`workflow_dispatch`) — sustituto del gate de
+  aprobación de *GitHub Environments* (required reviewers), no disponible en repo privado Free.
+  *(Limitación residual asumida: el disparo manual lo hace el mismo actor con push access; es un freno
+  anti-fat-finger + confirmación explícita, NO una segunda aprobación independiente de dos personas. Se
+  acepta por el límite del plan Free; el endurecimiento sería repo público o plan con Environments.)*
+- **FR-P18 (secretos por entorno)**: THE pipeline SHALL tomar las credenciales de despliegue de cada
+  entorno de **GitHub Environment secrets** (`dev`/`prod`) — p. ej. `RENDER_DEPLOY_HOOK_BACKEND` /
+  `RENDER_DEPLOY_HOOK_FRONTEND`. NUNCA en el repo. La `DATABASE_URL` de Neon se configura en el **panel de
+  Render** del servicio (variable de entorno del contenedor), no en el workflow.
+- **FR-P19 (tag móvil por entorno)**: además del tag inmutable (`x.y.z-snapshot.{sha}` en dev, semver en
+  prod), THE pipeline SHALL publicar un tag **móvil** que el servicio de Render rastrea (`:develop` para
+  dev, `:latest` para prod); el deploy-hook redeploya ese tag. El tag inmutable queda para auditoría/rollback.
+- **FR-P20 (migraciones al arrancar)**: THE backend SHALL aplicar `prisma migrate deploy` contra la Neon
+  del entorno **al arrancar el contenedor** (ya en el CMD de la imagen, DO-2), sin paso de build en el deploy.
+
 ## NFR
 - **NFR-P01 (rendimiento)**: cada workflow de PR (back o front) completa en **< 10 minutos** (P95) — con
   caché de dependencias (`actions/setup-node` cache / `cache: npm`) y Postgres como *service container*.
@@ -101,6 +124,14 @@
 - **AC-6 (SHA-pin/permisos)**: `grep` en `.github/workflows/*.yml` no encuentra `uses: .*@v[0-9]` (todo por
   SHA) y todo workflow declara `permissions:` mínimas.
 - **AC-7 (CI<10min)**: la duración media de los workflows de PR en Actions es < 10 min.
+- **AC-8 (deploy dev automático)**: tras push a `develop`, el job `deploy-dev` **dispara el deploy-hook**
+  de Render (verificable en Actions) y Render redeploya `:develop` de GHCR **sin reconstruir**. Si se
+  configura el secret `RENDER_DEV_HEALTHCHECK_URL`, un **smoke-test** opcional espera el `200` del servicio;
+  si no, el `200` se verifica manualmente (el redeploy de Render es asíncrono y el free tier puede tardar).
+- **AC-9 (prod solo manual)**: `main` NO despliega prod de forma automática; prod solo se despliega vía
+  `workflow_dispatch` de `cd-prod.yml` (comprobable: no hay `on: push` a prod en ese workflow).
+- **AC-10 (secretos fuera del repo)**: `grep` no encuentra deploy-hooks ni `DATABASE_URL` reales en el
+  repo; viven en GitHub Environment secrets (`dev`/`prod`) y en el panel de Render.
 
 ## Política de versionado y releases (M12)
 
@@ -116,5 +147,8 @@
   tienen tarea/test de feature). El guardián se autoverifica vía AC-4.
 
 ## Fuera de alcance (declarado)
-- **CD (DO-7)**: despliegue a PaaS + aprobación manual a prod. Diferido (roadmap; muro de repo privado Free).
+- **CD (DO-7)**: ~~diferido~~ → **en alcance** (Render + Neon, ver §CD arriba). El gate de aprobación
+  automática de *GitHub Environments* sigue fuera (muro de repo privado Free) → sustituido por
+  `workflow_dispatch` manual para prod (FR-P17).
+- **IaC (Terraform) / cloud (AWS/GCP)**: posible endurecimiento futuro; v1 es PaaS (Render/Neon) sin IaC.
 - **Multi-arch images, SBOM firmado, cosign**: no exigidos por el reto; posibles endurecimientos futuros.
