@@ -139,10 +139,14 @@ y **Enviar** → la orden pasa a `pending_review`.
   (ajena/inexistente, sin revelar existencia), **403 `FORBIDDEN_ROLE`** (rol no technician), 401→refresh;
   **fallback** genérico + estado offline (reutiliza el mapeo de FE-1). Precedencia de `submitOrderExecution`
   (payload primero): un payload inválido sobre orden ajena da **422** (no 404) — contemplado en tests.
-- **FR-007 (pertenencia y rol · doble capa)**: THE front SHALL ofrecer Iniciar/Enviar **solo** cuando el
-  usuario es de rol **`technician`** **y** es el dueño (`assigned_to == actor`); para otros roles/órdenes no
-  muestra las acciones. El **backend es la autoridad** (403 `FORBIDDEN_ROLE` / 404 uniforme); el front añade
-  la ocultación como defensa en profundidad y **no revela** órdenes ajenas.
+- **FR-007 (rol · doble capa)**: THE front SHALL ofrecer Iniciar/Enviar **solo** cuando el usuario es de rol
+  **`technician`**; para dispatcher/supervisor (que **sí** pueden abrir el detalle vía su propio scope de
+  lectura, componente compartido con FE-1/008) el front **oculta** las acciones. El **backend es la
+  autoridad** (403 `FORBIDDEN_ROLE`). **Nota (K-004):** el filtro de pertenencia (`assigned_to == actor`) es
+  **defensa en profundidad redundante e inalcanzable** por datos: `getOrderDetail` ya acota al technician a
+  **sus** órdenes activas → un técnico nunca recibe 200 de una orden ajena (404 uniforme antes de renderizar).
+  Por eso la ocultación efectiva del front es **por rol**, no por pertenencia (no se testea un estado
+  imposible "technician + orden ajena visible").
 - **FR-008 (tipos derivados del contrato)**: THE front SHALL derivar los tipos de UI de `contracts/` (codegen),
   **sin redefinirlos**, con aserción **Zod↔contrato** (patrón FE-1); `ExecutionRequest`/`EvidenceRef` según OpenAPI.
 - **FR-009 (preservación de datos + persistencia de borrador)**: WHILE se resuelve un error recuperable

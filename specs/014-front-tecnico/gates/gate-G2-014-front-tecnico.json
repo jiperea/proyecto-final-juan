@@ -1,0 +1,18 @@
+{
+  "gate": "G2 (G1 + consistencia cruzada spec↔plan↔tasks)",
+  "feature": "014-front-tecnico",
+  "fecha": "2026-07-14",
+  "artefactos": ["spec.md", "plan.md", "tasks.md"],
+  "panel": ["revisor-consistencia"],
+  "veredicto_global": "PASS (tras remediar 2 ALTAS + 2 MEDIAS)",
+  "ronda_1": {
+    "veredicto": "REQUIERE_CAMBIOS",
+    "huecos": [
+      {"id": "K-001", "sev": "ALTA", "desc": "FR-006 exige testear la precedencia 'payload primero' (orden ajena + payload inválido → 422, no 404), pero ninguna tarea lo nombraba.", "resolucion": "T003 nombra explícitamente ese caso."},
+      {"id": "K-002", "sev": "ALTA", "desc": "El criterio objetivo de SC-002 (sin textos de ayuda, por inspección) colgaba solo del e2e OPCIONAL T015 → sin verificación si no se hace.", "resolucion": "T014 (no opcional) añade la inspección de componentes."},
+      {"id": "K-003", "sev": "MEDIA", "desc": "FR-009 (preservar datos en 401/refresh y red) solo estaba testeado para 422.", "resolucion": "T010 nombra los 3 caminos: 422, 401→refresh, reintento de red."},
+      {"id": "K-004", "sev": "MEDIA", "desc": "FR-007/T007 pedían ocultar por 'dueño', estado inalcanzable: getOrderDetail ya acota al technician a sus órdenes → un técnico nunca ve una ajena.", "resolucion": "FR-007/T007 reformulados: ocultación efectiva POR ROL (dispatcher/supervisor); pertenencia = defensa redundante documentada, no se testea el estado imposible."}
+    ]
+  },
+  "resumen": "Trazabilidad FR/SC→tarea 100% y terminología coherente con el contrato real. G2 cazó, leyendo el contrato (008/009), un caso de precedencia sin test (K-001), un SC dependiente de tarea opcional (K-002), cobertura parcial de FR-009 (K-003) y un requisito de ocultación estructuralmente inalcanzable (K-004). Remediado en cascada spec/tasks; verificable por lectura. G3 = implementación + Vitest/axe."
+}
