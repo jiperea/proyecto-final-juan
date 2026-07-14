@@ -1,0 +1,67 @@
+{
+  "gate": "G1 (panel de calidad de spec · panel de front)",
+  "feature": "015-front-dispatcher",
+  "fecha": "2026-07-14",
+  "artefactos": ["specs/015-front-dispatcher/spec.md", "specs/015-front-dispatcher/checklists/requirements.md"],
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
+  "veredicto_global": "PASS (ronda 2) — bloqueante y ALTAS de ronda 1 cerradas; ALTAS nuevas del re-ataque encodadas. 0 BLOQUEANTES.",
+  "rondas": 2,
+  "ronda_1": {
+    "veredicto_cinico": "REQUIERE_CAMBIOS",
+    "veredicto_spec_theater": "REQUIERE_CAMBIOS",
+    "veredicto_rbac": "APROBADA_CON_COMENTARIOS",
+    "veredicto_front": "REQUIERE_CAMBIOS",
+    "bloqueantes": [
+      {"id": "G1-B01", "fuente": "cinico(H-001)", "desc": "La entrada manual de UUID (FR-014) no tiene fuente definida: el contrato expone assigned_to como UUID desnudo sin nombre y no hay endpoint de listado de técnicos → el dispatcher no puede saber qué UUID es qué técnico. SC-001 solo demostrable con UUIDs conocidos por el test; inoperable en prod. Reabre el scope. DECISIÓN DE USUARIO."}
+    ],
+    "altas": [
+      {"id": "G1-A01", "fuente": "cinico(H-002)", "desc": "SC-002 '100% de códigos' no cubre el 500 del contrato (ni FR ni test)."},
+      {"id": "G1-A02", "fuente": "cinico(H-003)", "desc": "Sin FR/edge case para fallo de red/transporte (sin cuerpo {code,message})."},
+      {"id": "G1-A03", "fuente": "cinico(H-004)", "desc": "Concurrencia multi-dispatcher (last-write-wins): el front puede mostrar un asignatario ya sobrescrito, sin requisito de reflejar siempre la última respuesta del backend."},
+      {"id": "G1-A04", "fuente": "spec-theater(T-001)", "desc": "'sin recarga completa' (FR-003/SC-001) sin criterio pass/fail objetivo."},
+      {"id": "G1-A05", "fuente": "spec-theater(T-002)", "desc": "FR-013 'foco predecible' sin destino concreto tras éxito."},
+      {"id": "G1-A06", "fuente": "rbac(S-001)", "desc": "FR-011 no prohíbe persistir reason/assignee_id en storage del navegador; falta test de storage."},
+      {"id": "G1-A07", "fuente": "front(F-001)", "desc": "Foco/anuncio en caminos de ERROR no exigido (solo éxito); mecanismo de asociación (aria-describedby+aria-invalid) sin definir. WCAG 3.3.1/4.1.3."},
+      {"id": "G1-A08", "fuente": "front(F-002)", "desc": "Sin criterio numérico de contraste (4.5:1 / 3:1) para estados nuevos; axe no cubre disabled/focus fiable."},
+      {"id": "G1-A09", "fuente": "front(F-003)", "desc": "Responsive del master-detail fuera de escritorio sin definir (breakpoint/colapso). DECISIÓN con default defendible."}
+    ],
+    "medias": [
+      {"id": "G1-M01", "fuente": "cinico(H-005)", "desc": "Sin garantía de que el mock por contrato no diverja del backend 004 real → plan.md."},
+      {"id": "G1-M02", "fuente": "cinico(H-006)", "desc": "Panel de detalle abierto tras 404 en master-detail (¿datos obsoletos?)."},
+      {"id": "G1-M03", "fuente": "cinico(H-007)", "desc": "Bucle prueba-error de UUID sin salida/escalado (se cierra con B01)."},
+      {"id": "G1-M04", "fuente": "cinico(H-008)", "desc": "FE-3 en entorno sin 004 (CD por fases): 404 infra vs negocio → plan.md."},
+      {"id": "G1-M05", "fuente": "cinico(H-009)", "desc": "Validación cliente simultánea motivo+destino: ¿ambos errores a la vez?"},
+      {"id": "G1-M06", "fuente": "spec-theater(T-003)", "desc": "FR-010 'mensaje comprensible' sin tabla cerrada de strings/i18n → plan.md."},
+      {"id": "G1-M07", "fuente": "spec-theater(T-004)/front(F-004)", "desc": "aria-live polite vs assertive + contenido mínimo del anuncio (nombrar destino)."},
+      {"id": "G1-M08", "fuente": "spec-theater(T-005)", "desc": "Versión/variante de UUID a validar (RFC 4122 vs v4; regex)."},
+      {"id": "G1-M09", "fuente": "spec-theater(T-006)", "desc": "Mecanismo de verificación de 'sin estilos sueltos' (lint/stylelint) → plan.md."},
+      {"id": "G1-M10", "fuente": "spec-theater(T-007)", "desc": "Telemetría: qué SDK; espía de consola no cubre beacon → alcance en FR-011 + plan.md."},
+      {"id": "G1-M11", "fuente": "rbac(S-002)", "desc": "Límite de intentos INVALID_ASSIGNEE (enumeración): explicitar responsabilidad backend."},
+      {"id": "G1-M12", "fuente": "rbac(S-003)", "desc": "Alcance de FR-011 a SDKs de error-tracking de terceros heredados del shell."},
+      {"id": "G1-M13", "fuente": "front(F-005)", "desc": "aria-describedby del campo destino (ayuda+error) + momento de validación (blur/submit)."},
+      {"id": "G1-M14", "fuente": "front(F-006)", "desc": "Tap targets ≥44px en anchos responsive."}
+    ]
+  },
+  "ronda_2": {
+    "motivo": "Re-verificación tras remediación (2ª ronda /speckit-clarify). Panel de front + rbac.",
+    "veredicto_cinico": "APROBADA_CON_COMENTARIOS",
+    "veredicto_spec_theater": "APROBADA_CON_COMENTARIOS",
+    "veredicto_rbac": "APROBADA_CON_COMENTARIOS",
+    "veredicto_front": "APROBADA_CON_COMENTARIOS",
+    "cierres_ronda_1": "Bloqueante G1-B01 CERRADO (fuente externa + scope honesto SC-001 + deuda registrada). Las 9 ALTAS (500, red, last-write-wins, criterio 'sin recarga', foco tras éxito, no-storage, a11y en error, contraste, responsive) CERRADAS. MEDIAS cerradas o diferidas a plan.md anotadas. RBAC 0 huecos.",
+    "altas_nuevas_encodadas": [
+      {"id": "r2-H-001", "desc": "trim del UUID pegado antes de validar (FR-014)."},
+      {"id": "r2-T-001", "desc": "aria-describedby referencia ayuda + error simultáneamente (FR-017)."},
+      {"id": "r2-F-101", "desc": "en vuelo aria-disabled (no disabled nativo) para no perder el foco (FR-004)."}
+    ],
+    "medias_nuevas_encodadas": [
+      {"id": "r2-H-002", "desc": "campo destino inicialmente vacío (FR-014)."},
+      {"id": "r2-H-003", "desc": "confirmar no se deshabilita por validez; validación al enviar (FR-004/FR-014)."},
+      {"id": "r2-F-102", "desc": "el formulario se cierra tras éxito; detalle en solo-lectura (FR-013)."},
+      {"id": "r2-F-103", "desc": "el error de campo se limpia al editar; re-evalúa en blur/submit (FR-017)."}
+    ],
+    "diferido_plan": "Mecánicas puras de implementación restantes van a plan.md (i18n, regla lint de estilos, verificación de telemetría según SDK, contract-test del mock, riesgo CD por fases), anotadas en Assumptions."
+  },
+  "verificacion": "Panel adversarial sobre spec.md (sin código todavía). RBAC/no-enumeración sólidos. Convergencia en 2 rondas: 0 bloqueantes, ALTAS de r1 y r2 encodadas.",
+  "resumen": "G1 PASS en ronda 2. Ronda 1: 1 bloqueante (origen del UUID) + 9 ALTAS + 14 MEDIAS → remediado por 2ª ronda /speckit-clarify (por skill, no a mano). Ronda 2: bloqueante y ALTAS de r1 cerradas; el re-ataque encontró 3 ALTAS finas (trim UUID, semántica aria-describedby, foco al deshabilitar) + 4 MEDIAS, todas encodadas. Mecánicas puras diferidas a plan.md anotadas. 0 bloqueantes → avance permitido."
+}

@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,5 +31,6 @@
 
 ## Notes
 
-- **1 [NEEDS CLARIFICATION] pendiente (FR-014)**: cómo introduce el dispatcher el `assignee_id` sin endpoint de listado de técnicos. Es una decisión de scope/UX con varias interpretaciones y sin default razonable → se deja para `/speckit-clarify` + gate G1 (deliberadamente, no se inventa aquí).
-- El resto del checklist pasa. La spec consume contrato existente (004) sin crear endpoints; los "nombres de endpoint/campo" citados son del contrato, no detalles de implementación de esta feature.
+- **FR-014 resuelto en clarify (2026-07-14)**: entrada manual del identificador del técnico validada en formato (UUID) + manejo de `INVALID_ASSIGNEE`, con deuda de backend registrada (endpoint de listado de técnicos → selector real futuro, regla XV). Sin marcadores pendientes.
+- **Remediación G1 (2ª ronda clarify, 2026-07-14)**: integradas 12 clarificaciones (origen del UUID fuera de banda + scope honesto de SC-001; responsive ocultar bajo escritorio; 500/red; criterio objetivo de "sin recarga"; foco+anuncio que nombra destino; no persistir en storage + SDKs de terceros; a11y en errores con aria-describedby/aria-invalid; contraste y tap targets; limpiar detalle tras 404; ambos errores a la vez; UUID RFC 4122; rate-limit responsabilidad backend). 5 MEDIAS de tooling diferidas a plan.md, anotadas en Assumptions. FR-015..018 añadidos.
+- La spec consume contrato existente (004) sin crear endpoints; los "nombres de endpoint/campo" citados son del contrato, no detalles de implementación de esta feature.
