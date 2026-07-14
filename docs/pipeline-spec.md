@@ -51,6 +51,19 @@
   usa `node …/prisma/build/index.js`, 011 FR-003a). El residuo (vulns del npm del base image) queda
   **aceptado y documentado**, con revisión al parchear/cambiar el base image. Front (nginx) no tiene npm →
   no aplica el skip. Detalle y motivación en `specs/011-pipeline-hardening/`.
+- **FR-P05-front** *(enmendado por feature 012 tras la 1ª ejecución real del gate de front)*: WHEN corre
+  cualquier workflow que construye la imagen runtime de **front** (PR-gate + `ci-develop-front`/
+  `ci-main-front`) THE pipeline SHALL ejecutar **Trivy** (`CRITICAL,HIGH`, `ignore-unfixed`) y SHALL fallar
+  ante corregibles del **SO/librerías de Alpine** del base image. Como el front runtime es nginx **sin npm/
+  node_modules**, **no** se usa `skip-dirs`: el arreglo es **parchear** el SO en el `Dockerfile`
+  (`apk --no-cache upgrade`), elevando a `USER root` y **restaurando el usuario no-root** (uid 101) antes de
+  servir (012 FR-001b). Además, un **smoke-test** (`docker run` + `curl` a `/` y a un asset) valida el
+  arranque antes de dar verde / de publicar a GHCR (no-rebuild). **Fallback:** si `apk upgrade` no alcanza 0
+  corregibles → **bump del base image** en el mismo PR; **prohibido** `skip-dirs`/`--ignore*` del SO. Residuo
+  terminal (fix no empaquetado aún en ninguna imagen publicada) = **excepción documentada aquí** (CVE +
+  motivo + fecha de revisión), nunca un skip silencioso. Detalle en `specs/012-frontend-pipeline-hardening/`.
+  <!-- Excepciones terminales de Trivy (front) — ninguna a fecha de 2026-07-14. -->
+
 - **FR-P06**: WHEN corre el PR-gate de front THE pipeline SHALL ejecutar `lint` (eslint+stylelint),
   `typecheck` (incl. `codegen:check` y la aserción Zod↔contrato), `test` (Vitest+axe) y `build`.
 - **FR-P07 (guardián de Constitución, M9)**: WHEN corre cualquier PR-gate THE pipeline SHALL ejecutar

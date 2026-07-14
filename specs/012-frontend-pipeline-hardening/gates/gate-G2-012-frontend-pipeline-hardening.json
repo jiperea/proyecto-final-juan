@@ -1,0 +1,26 @@
+{
+  "gate": "G2 (G1 + consistencia cruzada spec↔plan↔tasks)",
+  "feature": "012-frontend-pipeline-hardening",
+  "fecha": "2026-07-14",
+  "artefactos": ["spec.md", "plan.md", "tasks.md"],
+  "panel": ["revisor-consistencia"],
+  "nota_panel": "G1 (revisor-devops + revisor-cinico) ya PASS. G2 añade consistencia/trazabilidad. Panel reducido al dominio (feature de pipeline, sin lógica de app).",
+  "veredicto_global": "PASS (tras remediar 2 ALTAS + 2 MEDIAS en cascada spec→plan→tasks)",
+  "rondas": 2,
+  "ronda_1": {
+    "veredicto": "REQUIERE_CAMBIOS",
+    "huecos": [
+      {"id": "K-001", "sev": "ALTA", "desc": "tasks.md T003 proponía tocar `ci-develop-front.yml`/`ci-main-front.yml`, fuera de la superficie que FR-003/FR-005 autorizaban (solo `pr-validation-front.yml`).", "resolucion": "FR-003 y FR-005 ampliados: el smoke-test cubre los 3 workflows que construyen la imagen runtime (PR-gate + los 2 CI que publican a GHCR, por no-rebuild). Plan y T003 alineados. Superficie ahora coherente y justificada."},
+      {"id": "K-002", "sev": "ALTA", "desc": "FR-004 (fallback bump del base image) sin tarea trazable que lo instrumente/verifique.", "resolucion": "T005b nuevo (contingencia): si T005/T008 detecta corregibles residuales → bump + reentrada a Phase 1 (re-T005); caso terminal = excepción documentada en FR-P05. + nota en Dependencias."},
+      {"id": "K-003", "sev": "MEDIA", "desc": "SC-002 (ausencia de flags de exclusión del SO) sin paso de verificación explícito en tasks.", "resolucion": "T005 amplía: grep explícito de que los 3 workflows no introdujeron `skip-dirs`/`--ignore*` del SO."}
+    ]
+  },
+  "ronda_2": {
+    "veredicto": "PASS",
+    "huecos": [
+      {"id": "K-004", "sev": "MEDIA", "desc": "T002 describía la verificación del asset como `docker exec ls` (existencia en FS), no HTTP 200 como exige FR-005 (un fichero puede existir y nginx no servirlo tras el parcheo); incoherente con T005 ('asset 200').", "resolucion": "T002 reescrito: `docker exec ls` solo resuelve el nombre hasheado; luego `curl` HTTP 200 al asset. Alineado con FR-005 y T005."}
+    ],
+    "nota": "K-001/K-002/K-003 confirmados cerrados por el revisor. K-004 (único nuevo, MEDIA) resuelto por reescritura de T002. 0 BLOQUEANTES/ALTAS → PASS."
+  },
+  "resumen": "G2 cazó una inconsistencia real de superficie (T003 tocaba workflows no autorizados por el spec) y una vía sin tarea (FR-004). Remediado en cascada spec→plan→tasks (ampliando FR-003/FR-005 a los 3 workflows de imagen por no-rebuild, añadiendo T005b y el grep de SC-002). Cobertura FR/SC→tarea 100%, sin deriva terminológica. G3 = ejecución real en Actions."
+}
