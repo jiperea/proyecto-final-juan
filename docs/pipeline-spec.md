@@ -109,7 +109,10 @@
 > (`develop`)** y **prod (`main`)**; se valida **dev primero**.
 - **FR-P16 (deploy dev automático)**: WHEN el CI de `develop` publica las imágenes a GHCR THE pipeline
   SHALL desplegar automáticamente el entorno **dev** en Render (deploy-hook), que **consume la imagen**
-  publicada (tag móvil `:develop`) sin reconstruir (coherente con FR-P12).
+  publicada (tag móvil `:develop`) sin reconstruir (coherente con FR-P12). **Degradación graceful:** WHILE el
+  secret `RENDER_DEPLOY_HOOK_*` de `dev` **no esté configurado**, el job de deploy **se omite con aviso
+  (exit 0, no rojo)** en vez de fallar — el CD solo se activa cuando el entorno está configurado, sin bloquear
+  el CI de develop. (El deploy manual a prod `cd-prod` sí exige el secret: fail-fast, por ser acción deliberada.)
 - **FR-P16b (deploy pre automático)**: WHEN el CI de `main` publica la release semver a GHCR THE pipeline
   SHALL desplegar automáticamente el entorno **pre** en Render, consumiendo la imagen **`:x.y.z` de ese
   release** (no un `:latest` desincronizable), sin reconstruir. *(Tercer entorno del reto: dev/pre/prod.)*

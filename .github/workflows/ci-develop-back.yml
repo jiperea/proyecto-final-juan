@@ -166,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${RENDER_HOOK:-}" ]; then
-            echo "::error::Falta el secret RENDER_DEPLOY_HOOK_BACKEND en el environment 'dev'."; exit 1
+            echo "::warning::RENDER_DEPLOY_HOOK_BACKEND sin configurar en 'dev' → CD OMITIDO (verde). Pon el secret para activar el deploy."; exit 0
           fi
           curl -fsS -X POST "$RENDER_HOOK" >/dev/null
           echo "· deploy dev backend disparado (Render redeploya :develop desde GHCR)"

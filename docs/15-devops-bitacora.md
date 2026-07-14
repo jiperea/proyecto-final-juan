@@ -461,6 +461,11 @@ Con esto la constancia de 012 (`05875bf`) queda en develop (superseída por 013)
 colgado en "Expected" por los required `paths:`-dependientes. Con el `PR Gate` agregador debe quedar
 **mergeable** con los jobs de componente en **skipped** y el agregador en verde.
 
+**CD dev graceful (2026-07-14):** el job `Deploy dev (Render)` de `ci-develop-back/front` fallaba en rojo en
+cada push a develop porque faltaba `RENDER_DEPLOY_HOOK_*` (Render aún sin configurar). Cambiado a **omitir con
+aviso (exit 0)** cuando el secret no está → develop/main quedan verdes; el CD se activa solo al poner el secret.
+FR-P16 enmendado. `cd-prod` sigue fail-fast (deploy manual deliberado).
+
 <!-- Próximas entradas: configuración Render+Neon (DO-7) para el CD. -->
 
 
