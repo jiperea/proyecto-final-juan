@@ -10,7 +10,7 @@
 
 > **Nota SDD.** Esta spec formaliza en el flujo Spec Kit la fase DevOps que hasta ahora se gobernaba solo
 > por el Principio XVI + `docs/pipeline-spec.md`. Aquélla pasa a ser **documento de apoyo**; ésta es la spec
-> de la feature. El **detalle FR-P01..P20 y ACs** vive en `docs/pipeline-spec.md` y se referencia aquí.
+> de la feature. El **detalle FR-P01..P22 y AC-1..AC-11** vive en `docs/pipeline-spec.md` y se referencia aquí.
 
 ## Clarifications
 
@@ -104,7 +104,7 @@ actualiza solo; prod solo cambia tras un disparo manual explícito.
 
 ## Requirements *(mandatory)*
 
-> **EARS.** El detalle completo y numerado (FR-P01..P20, NFR-P01..P03, AC-1..AC-10) está en
+> **EARS.** El detalle completo y numerado (FR-P01..P22, NFR-P01..P03, AC-1..AC-11) está en
 > `docs/pipeline-spec.md`. Aquí se enumeran los FR de la feature (agrupados) en EARS; cada uno es testeable.
 
 ### Functional Requirements

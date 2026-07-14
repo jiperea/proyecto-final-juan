@@ -8,7 +8,7 @@
 
 ## Phase 1 · Setup (compartido)
 
-- [X] T001 Contenerización back/front (`backend/Dockerfile`, `frontend/Dockerfile` etapa `runtime`, `.dockerignore`) — DO-2
+- [X] T001 Contenerización back/front (`backend/Dockerfile` con CMD `prisma migrate deploy && start` = migraciones al arrancar **FR-P20**, `frontend/Dockerfile` etapa `runtime`, `.dockerignore`) — DO-2
 - [X] T002 `docker-compose.yml` (db·db-test·backend·frontend) para paridad local — DO-2
 - [X] T003 `.gitleaks.toml` (allowlist acotado de fixtures) y `.spectral.yaml` (extiende `spectral:oas`)
 
@@ -29,6 +29,8 @@
 - [ ] T010 [US1] Crear `scripts/constitution-agent-review.sh` — guardián-agente (patrón M9: `claude -p … --output-format json`, devuelve `{aprobado:bool}`, exit 0/1), envía SOLO artefactos SDD (minimización) (FR-009/FR-P21)
 - [ ] T011 [P] [US1] Añadir job `guardian-agent` **gated** (`if: ${{ secrets.ANTHROPIC_API_KEY != '' }}`) a `pr-validation-back.yml` y `pr-validation-front.yml`, que corre T010 y bloquea si `aprobado=false` (FR-009)
 - [ ] T012 [P] [US1] Añadir job `code-review-gate` (certificador dummy, marcador en step summary, exit 0) a ambos PR-gates (FR-010/FR-P22)
+- [X] T026 [US1] `.github/branch-protection.md` — checks requeridos por nombre de job + tag ruleset `v*` + protección de `environment: prod` (FR-011/FR-009). *(Verificación manual documentada; la aplica el usuario en GitHub, ver T023.)*
+- [ ] T027 [P] [US1] Añadir al guardián determinista (`scripts/validate-constitution.sh`) el chequeo de **higiene de secretos** (FR-018b): `grep -rniE 'echo[^|]*\$\{\{\s*secrets\.'` = 0 y `grep 'pull_request_target' .github/workflows` = 0; exit 1 si hay coincidencias
 
 ## Phase 4 · US2 — imagen trazable y reproducible (P1) · SC-005/006/007
 
@@ -36,7 +38,7 @@
 **Test independiente:** merge develop → `:x.y.z-snapshot.{sha}`+`:develop` en GHCR + dist artifact; tag → `:x.y.z`+Release.
 
 - [X] T013 [US2] `ci-develop-back.yml` / `ci-develop-front.yml` — CI + build único + Trivy + `save/load` + push `:x.y.z-snapshot.{sha}` **y** `:develop` + dist artifact 90 d (FR-012/014)
-- [X] T014 [US2] `ci-main-back.yml` / `ci-main-front.yml` — trigger tag semver, procedencia `merge-base main`, imagen `:x.y.z`+`:latest`, GitHub Release (FR-013/015), pin SHA + permisos mínimos (FR-016/017/018)
+- [X] T014 [US2] `ci-main-back.yml` / `ci-main-front.yml` — **base** de FR-013/015: trigger tag semver, procedencia `merge-base main`, `tag==propio package.json`, imagen `:x.y.z`+`:latest`, GitHub Release (con `gh release create`), pin SHA + permisos mínimos (FR-016/017/018). *(Parcial: la guarda cruzada FR-013b y el cambio a `softprops` van en T015/T016 — FR-013 NO conforme del todo hasta esos.)*
 - [ ] T015 [US2] **[G3-H-005]** Guarda de lockstep **cruzada** en `ci-main-back.yml` y `ci-main-front.yml`: el paso de verificación lee **AMBOS** `backend/package.json` y `frontend/package.json` == `${GITHUB_REF_NAME#v}`; si cualquiera diverge, falla (evita release parcial) (FR-013b)
 - [ ] T016 [US2] Sustituir `gh release create` por **`softprops/action-gh-release@<sha>`** en `ci-main-{back,front}.yml`, con assets de nombre distinto (`fieldops-<comp>-{tag}.tar.gz`) al mismo Release (append) (FR-013, clarify #4)
 - [ ] T017 [P] [US2] Alinear el nombre de imagen a `ghcr.io/${owner}/${repo}/fieldops-<comp>` (con segmento repo) en todos los `ci-*` y en los deploy (reto §4)
