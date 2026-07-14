@@ -194,8 +194,9 @@ actualiza solo; prod solo cambia tras un disparo manual explícito.
   quedan **privados**; Render hace `pull` con una credencial de registro (PAT read-only) configurada en su
   panel. *(Resuelve S-003.)*
 - **FR-018b (higiene de secretos)**: THE pipeline SHALL NO volcar secretos en logs. **Oráculo objetivo:**
-  `grep -rniE 'echo[^|]*\$\{\{\s*secrets\.' .github/workflows .github/actions` devuelve **0** (ningún `echo`
-  de un `${{ secrets.* }}`); los secretos se pasan por `env:` y se usan sin imprimirse. Además los PR-gates
+  `grep -rniE 'echo[^|]*\$\{\{\s*secrets\.' .github/workflows .github/actions | grep -v 'password-stdin'`
+  devuelve **0** (ningún `echo` de un `${{ secrets.* }}` AL LOG; se excluye el idioma seguro
+  `echo "$s" | docker login --password-stdin`, que pipea a stdin). Además los PR-gates
   usan el evento **`pull_request`** (verificable: `grep 'pull_request_target' .github/workflows/*.yml` = 0),
   sin exponer secretos a forks. *(Resuelve S-005, S-006, T-001-rerun.)*
 
@@ -206,15 +207,18 @@ actualiza solo; prod solo cambia tras un disparo manual explícito.
   sirviendo el **último** merge. *(Resuelve H-012.)*
 - **FR-020 (pre, Fase 2)**: WHEN el CI de `main` (tag semver) publica la release THE pipeline SHALL, tras
   **verificar que existen en GHCR AMBAS imágenes `…backend:x.y.z` y `…frontend:x.y.z`** (si falta alguna,
-  aborta el deploy — no despliega parcial), desplegar automáticamente **pre** (`environment: pre`) consumiendo
-  la imagen **semver `:x.y.z` de ese release** (no `:latest`), y **registrar** el semver desplegado en pre
-  (GitHub Deployment del entorno `pre`). *(Resuelve H-008 y el efecto cascada de H-001.)*
+  aborta — no despliega parcial), **mover el tag por entorno `:pre`** al **manifest del semver exacto**
+  (`docker buildx imagetools create :pre :x.y.z`, sin rebuild), disparar el deploy-hook de **pre**
+  (`environment: pre`, Render rastrea `:pre`) y **registrar el semver** en un **GitHub Deployment** de `pre`.
+  *(El deploy-hook de Render no acepta parámetro de versión → se usa un tag móvil por entorno apuntado al
+  semver; el `:x.y.z` inmutable queda para auditoría. Resuelve H-008, H-001 y el I-001 de G3.)*
 - **FR-021 (prod, Fase 2)**: WHEN un operador lo autoriza THE pipeline SHALL desplegar **prod**
   (`environment: prod`) SOLO por disparo **manual** (`workflow_dispatch`) con input de **confirmación**
   (literal `PROD`) y un input `version`; el workflow **valida que ese `version` coincide con el último
   desplegado en `pre`** (leído del GitHub Deployment de `pre`, FR-020) y que su imagen existe en GHCR —
-  si no coincide con pre, **aborta** (prod solo recibe lo que pasó por pre). NO hay `on: push` que toque
-  prod. *(Resuelve H-009 [ata a pre, no solo existencia], H-003, T-007/H-016.)*
+  si no coincide con pre, **aborta** (prod solo recibe lo que pasó por pre). Tras validar, **mueve el tag
+  `:prod`** al manifest del semver (como FR-020) y dispara el hook (Render rastrea `:prod`). NO hay
+  `on: push` que toque prod. *(Resuelve H-009, H-003, T-007/H-016, I-001 de G3.)*
 - **FR-022 (secretos por entorno)**: THE pipeline SHALL tomar credenciales de deploy de **GitHub
   Environment secrets** por entorno (`dev`/`pre`/`prod`): `RENDER_DEPLOY_HOOK_BACKEND/FRONTEND`. La
   `DATABASE_URL` de **Neon (una BD/branch independiente por entorno)** se configura en el panel de Render, no

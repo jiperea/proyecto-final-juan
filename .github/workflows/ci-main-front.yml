@@ -51,16 +51,17 @@ jobs:
             exit 1
           fi
           echo "· $GITHUB_SHA es ancestro de main ✓"
-      - name: Verificar que el tag semver coincide con frontend/package.json (fail-fast)
+      - name: Guarda de lockstep — el tag debe coincidir con AMBOS package.json (FR-013b)
         run: |
           set -euo pipefail
-          version=$(node -p "require('./frontend/package.json').version")
           tag="${GITHUB_REF_NAME#v}"
-          if [ "$version" != "$tag" ]; then
-            echo "::error::El tag ($tag) no coincide con frontend/package.json ($version)."
+          back=$(node -p "require('./backend/package.json').version")
+          front=$(node -p "require('./frontend/package.json').version")
+          if [ "$back" != "$tag" ] || [ "$front" != "$tag" ]; then
+            echo "::error::Lockstep roto: tag=$tag, backend=$back, frontend=$front. Ambos package.json deben coincidir con el tag (no publica ninguno)."
             exit 1
           fi
-          echo "· tag $tag == package.json $version"
+          echo "· lockstep OK: tag $tag == backend $back == frontend $front"
       - name: Instalar dependencias
         working-directory: frontend
         run: npm ci
@@ -119,19 +120,48 @@ jobs:
           name: fieldops-frontend-image-${{ github.ref_name }}
       - name: Cargar la imagen (load, no build — no-rebuild FR-P12)
         run: docker load < <(gunzip -c image.tar.gz)
-      - name: Calcular etiqueta semver X.Y.Z
+      - name: Calcular etiquetas (semver inmutable + móvil :latest)
         id: tag
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          owner="${GITHUB_REPOSITORY_OWNER,,}"
-          ref="ghcr.io/${owner}/fieldops-frontend:${version}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/fieldops-frontend" # ghcr.io/<owner>/<repo>/... (reto §4)
+          ref="${image}:${version}"  # semver inmutable (auditoría/rollback)
+          moving="${image}:latest"   # móvil (lo rastrea Render prod, FR-P19)
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
-          echo "· imagen: $ref"
+          echo "moving=$moving" >> "$GITHUB_OUTPUT"
+          echo "· imagen: $ref  +  $moving"
       - name: Login en GHCR (GITHUB_TOKEN)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Etiquetar y push de la imagen ya probada+escaneada
+      - name: Etiquetar y push de la imagen ya probada+escaneada (semver + :latest)
         run: |
           set -euo pipefail
           docker tag fieldops-frontend:rel "${{ steps.tag.outputs.ref }}"
+          docker tag fieldops-frontend:rel "${{ steps.tag.outputs.moving }}"
           docker push "${{ steps.tag.outputs.ref }}"
+          docker push "${{ steps.tag.outputs.moving }}"
+
+  # ── Añade el dist del front al MISMO Release del tag (append, FR-013) ────────
+  release:
+    name: GitHub Release (append front)
+    needs: [ci, publish-image] # no anunciar la imagen en el Release si el push a GHCR falló (D-004)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # elevación mínima SOLO en este job (FR-P14)
+    steps:
+      - name: Descargar la dist del job de CI
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: fieldops-frontend-dist-${{ github.ref_name }}
+          path: dist
+      - name: Empaquetar dist (nombre de asset único por componente)
+        run: tar -czf "fieldops-frontend-${GITHUB_REF_NAME}.tar.gz" -C dist .
+      - name: Añadir asset al Release del tag (softprops, no pisa el de back)
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: FieldOps ${{ github.ref_name }}
+          files: fieldops-frontend-${{ github.ref_name }}.tar.gz
+          fail_on_unmatched_files: true
+          body: "Imagen frontend: `ghcr.io/${{ github.repository }}/fieldops-frontend:${{ github.ref_name }}` (semver, no-rebuild — XVI §4)."

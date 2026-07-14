@@ -71,16 +71,17 @@ jobs:
             exit 1
           fi
           echo "· $GITHUB_SHA es ancestro de main ✓"
-      - name: Verificar que el tag semver coincide con package.json (fail-fast)
+      - name: Guarda de lockstep — el tag debe coincidir con AMBOS package.json (FR-013b)
         run: |
           set -euo pipefail
-          version=$(node -p "require('./backend/package.json').version")
           tag="${GITHUB_REF_NAME#v}"
-          if [ "$version" != "$tag" ]; then
-            echo "::error::El tag ($tag) no coincide con backend/package.json ($version)."
+          back=$(node -p "require('./backend/package.json').version")
+          front=$(node -p "require('./frontend/package.json').version")
+          if [ "$back" != "$tag" ] || [ "$front" != "$tag" ]; then
+            echo "::error::Lockstep roto: tag=$tag, backend=$back, frontend=$front. Ambos package.json deben coincidir con el tag (no publica ninguno)."
             exit 1
           fi
-          echo "· tag $tag == package.json $version"
+          echo "· lockstep OK: tag $tag == backend $back == frontend $front"
       - name: Instalar dependencias
         working-directory: backend
         run: npm ci
@@ -146,22 +147,26 @@ jobs:
           name: fieldops-backend-image-${{ github.ref_name }}
       - name: Cargar la imagen (load, no build — no-rebuild FR-P12)
         run: docker load < <(gunzip -c image.tar.gz)
-      - name: Calcular etiqueta semver X.Y.Z
+      - name: Calcular etiquetas (semver inmutable + móvil :latest)
         id: tag
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          owner="${GITHUB_REPOSITORY_OWNER,,}" # GHCR exige minúsculas
-          ref="ghcr.io/${owner}/fieldops-backend:${version}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/fieldops-backend" # ghcr.io/<owner>/<repo>/... (reto §4)
+          ref="${image}:${version}"  # semver inmutable (auditoría/rollback)
+          moving="${image}:latest"   # móvil (lo rastrea Render prod, FR-P19)
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
-          echo "· imagen: $ref"
+          echo "moving=$moving" >> "$GITHUB_OUTPUT"
+          echo "· imagen: $ref  +  $moving"
       - name: Login en GHCR (GITHUB_TOKEN, sin secretos extra)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Etiquetar y push de la imagen ya probada+escaneada
+      - name: Etiquetar y push de la imagen ya probada+escaneada (semver + :latest)
         run: |
           set -euo pipefail
           docker tag fieldops-backend:rel "${{ steps.tag.outputs.ref }}"
+          docker tag fieldops-backend:rel "${{ steps.tag.outputs.moving }}"
           docker push "${{ steps.tag.outputs.ref }}"
+          docker push "${{ steps.tag.outputs.moving }}"
 
   # ── GitHub Release con la dist (idempotente) (FR-P11 · FR-P14) ──────────────
   release:
@@ -178,21 +183,13 @@ jobs:
         with:
           name: fieldops-backend-dist-${{ github.ref_name }}
           path: dist
-      - name: Empaquetar dist
+      - name: Empaquetar dist (nombre de asset único por componente — append al Release)
         run: tar -czf "fieldops-backend-${GITHUB_REF_NAME}.tar.gz" -C dist .
-      - name: Crear/actualizar Release (idempotente) (gh CLI, GITHUB_TOKEN)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          owner="${GITHUB_REPOSITORY_OWNER,,}"
-          asset="fieldops-backend-${GITHUB_REF_NAME}.tar.gz"
-          notes="Imagen: \`ghcr.io/${owner}/fieldops-backend:${GITHUB_REF_NAME#v}\` (semver, no-rebuild — XVI §4). Dist adjunta."
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            echo "· Release ${GITHUB_REF_NAME} ya existe → actualizo el asset (reintento seguro)"
-            gh release upload "${GITHUB_REF_NAME}" "$asset" --clobber
-          else
-            gh release create "${GITHUB_REF_NAME}" "$asset" \
-              --title "FieldOps backend ${GITHUB_REF_NAME}" \
-              --notes "$notes"
-          fi
+      - name: Crear/actualizar Release (softprops, append de asset) (FR-013 / clarify #4)
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: FieldOps ${{ github.ref_name }}
+          files: fieldops-backend-${{ github.ref_name }}.tar.gz
+          fail_on_unmatched_files: true
+          body: "Imagen backend: `ghcr.io/${{ github.repository }}/fieldops-backend:${{ github.ref_name }}` (semver, no-rebuild — XVI §4)."

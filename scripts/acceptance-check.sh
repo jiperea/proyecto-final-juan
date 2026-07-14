@@ -21,7 +21,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-trace="docs/traceability.md"
+trace="${TRACE_FILE:-docs/traceability.md}" # override por fixture en los tests (T022)
 
 if [ ! -f "$trace" ]; then
   echo "❌ acceptance-check: no existe $trace (matriz de trazabilidad, Constitution VI)."

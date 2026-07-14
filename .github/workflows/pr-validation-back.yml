@@ -44,6 +44,38 @@ jobs:
       - name: Trazabilidad RF→tarea→test (FR-P08)
         run: bash scripts/acceptance-check.sh
 
+  # ── Guardián-agente (opt-in, FR-009/FR-P21) — SKIPPED sin ANTHROPIC_API_KEY ──
+  guardian-agent:
+    name: Guardián de Constitución (agente · opt-in)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Guardián-agente (bloquea si aprobado=false; se omite sin la key)
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.209 # versión fijada (cadena de suministro, FR-P13)
+          bash scripts/constitution-agent-review.sh
+      - name: Aviso si está desactivado
+        if: ${{ env.ANTHROPIC_API_KEY == '' }}
+        run: echo "· guardian-agent OMITIDO (sin ANTHROPIC_API_KEY). Guardián determinista sigue activo."
+
+  # ── Code review registrado (FR-010/FR-P22) — stage de certificación (dummy) ──
+  code-review-gate:
+    name: Code review registrado
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Certificar el paso de code-review
+        run: |
+          {
+            echo "### ✅ Code review gate";
+            echo "Paso de revisión de código **certificado** (stage requerido por branch protection, reto §4).";
+            echo "Run: \`${{ github.run_id }}\` · PR: \`${{ github.event.pull_request.number }}\`";
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # NOTA (FR-P04): el escaneo de secretos NO vive aquí. Lo cubre el workflow
   # UNIVERSAL `secrets-scan.yml` (todo PR + push a develop/main, sin filtro paths),
   # de modo que también protege PRs de front y pushes directos a ramas protegidas.

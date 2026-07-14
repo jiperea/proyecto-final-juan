@@ -85,7 +85,9 @@ done
 
 # ── (c) sin marcadores [NEEDS CLARIFICATION] en specs activas (FR-P07c) ───────
 echo "· (c) sin [NEEDS CLARIFICATION] en specs activas (FR-P07c)"
-pending=$(grep -rl "\[NEEDS CLARIFICATION" specs/*/spec.md 2>/dev/null || true)
+# El marcador REAL del template es `[NEEDS CLARIFICATION: <pregunta>]` (con dos puntos). Se exige el
+# `:` para no matchear menciones en prosa (p. ej. "sin [NEEDS CLARIFICATION]" al describir este check).
+pending=$(grep -rlE "\[NEEDS CLARIFICATION:" specs/*/spec.md 2>/dev/null || true)
 if [ -n "$pending" ]; then
   while IFS= read -r f; do note "quedan marcadores [NEEDS CLARIFICATION] en $f"; done <<< "$pending"
 else
@@ -99,6 +101,24 @@ if [ -n "$dom_violations" ]; then
   while IFS= read -r l; do note "domain/ importa infra: $l"; done <<< "$dom_violations"
 else
   ok "domain/ no importa Express/Prisma/SDK-IA"
+fi
+
+# ── (e) higiene de secretos en workflows (FR-018b / FR-P07) ──────────────────
+echo "· (e) higiene de secretos en .github (FR-018b)"
+if [ -d .github ]; then
+  # Fuga = echo de un secreto AL LOG. Se excluye el idioma seguro `echo "$s" | ... --password-stdin`
+  # (el secreto va a stdin del comando, no al log).
+  secret_echo=$(grep -rniE "echo[^|]*\\\$\{\{[[:space:]]*secrets\." .github/workflows .github/actions 2>/dev/null | grep -v 'password-stdin' || true)
+  pr_target=$(grep -rEn "pull_request_target" .github/workflows 2>/dev/null || true)
+  if [ -n "$secret_echo" ]; then
+    while IFS= read -r l; do note "posible volcado de secreto en log: $l"; done <<< "$secret_echo"
+  fi
+  if [ -n "$pr_target" ]; then
+    while IFS= read -r l; do note "uso de pull_request_target (expone secretos a forks): $l"; done <<< "$pr_target"
+  fi
+  [ -z "$secret_echo" ] && [ -z "$pr_target" ] && ok "sin echo de secrets ni pull_request_target en workflows"
+else
+  ok "no hay .github (nada que comprobar)"
 fi
 
 echo

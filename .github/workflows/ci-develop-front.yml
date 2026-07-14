@@ -99,20 +99,58 @@ jobs:
           name: fieldops-frontend-image-${{ github.sha }}
       - name: Cargar la imagen (load, no build — no-rebuild FR-P12)
         run: docker load < <(gunzip -c image.tar.gz)
-      - name: Calcular etiqueta x.y.z-snapshot.<sha7>
+      - name: Calcular etiquetas (inmutable + móvil :develop)
         id: tag
         run: |
           set -euo pipefail
           version=$(node -p "require('./frontend/package.json').version")
           sha7="${GITHUB_SHA::7}"
-          owner="${GITHUB_REPOSITORY_OWNER,,}"
-          ref="ghcr.io/${owner}/fieldops-frontend:${version}-snapshot.${sha7}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/fieldops-frontend" # ghcr.io/<owner>/<repo>/... (reto §4)
+          ref="${image}:${version}-snapshot.${sha7}" # inmutable (auditoría/rollback)
+          moving="${image}:develop"                  # móvil (lo rastrea Render dev, FR-P19)
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
-          echo "· imagen: $ref"
+          echo "moving=$moving" >> "$GITHUB_OUTPUT"
+          echo "· imagen: $ref  +  $moving"
       - name: Login en GHCR (GITHUB_TOKEN)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Etiquetar y push de la imagen ya probada+escaneada
+      - name: Etiquetar y push de la imagen ya probada+escaneada (inmutable + :develop)
         run: |
           set -euo pipefail
           docker tag fieldops-frontend:ci "${{ steps.tag.outputs.ref }}"
+          docker tag fieldops-frontend:ci "${{ steps.tag.outputs.moving }}"
           docker push "${{ steps.tag.outputs.ref }}"
+          docker push "${{ steps.tag.outputs.moving }}"
+
+  # ── CD dev: redeploy en Render consumiendo la imagen :develop (FR-P16) ──────
+  deploy-dev:
+    name: Deploy dev (Render)
+    needs: publish-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: dev # secretos del entorno dev (FR-P18)
+    steps:
+      - name: Disparar deploy en Render (frontend dev) — no-rebuild, Render tira de GHCR
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_HOOK:-}" ]; then
+            echo "::error::Falta el secret RENDER_DEPLOY_HOOK_FRONTEND en el environment 'dev'."; exit 1
+          fi
+          curl -fsS -X POST "$RENDER_HOOK" >/dev/null
+          echo "· deploy dev frontend disparado (Render redeploya :develop desde GHCR)"
+        env:
+          RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+      - name: Smoke-test opcional (espera 200 si hay healthcheck configurado) — AC-8
+        env:
+          HC: ${{ secrets.RENDER_DEV_HEALTHCHECK_URL_FRONT }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HC:-}" ]; then
+            echo "· sin RENDER_DEV_HEALTHCHECK_URL_FRONT → smoke-test omitido (verificación manual del 200)"; exit 0
+          fi
+          echo "· esperando 200 en $HC (redeploy asíncrono de Render)…"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$HC" || true)
+            if [ "$code" = "200" ]; then echo "· healthy (200) en el intento $i ✓"; exit 0; fi
+            sleep 10
+          done
+          echo "::error::el frontend dev no respondió 200 en ~5 min tras el deploy"; exit 1

@@ -22,13 +22,19 @@ Reglas comunes (ambas ramas):
 | Check (job name) | Workflow | FR |
 |---|---|---|
 | `gitleaks (todo el repo)` | `secrets-scan.yml` | FR-P04 |
-| `Guardián de Constitución + trazabilidad` | `pr-validation-back.yml` | FR-P07, FR-P08 |
+| `Guardián de Constitución + trazabilidad` | `pr-validation-back.yml` **y** `pr-validation-front.yml` | FR-P07, FR-P08 |
+| `Code review registrado` | ambos PR-gates | FR-010 / FR-P22 |
 | `lint · typecheck · test (Postgres)` | `pr-validation-back.yml` | FR-P02 |
 | `Contratos (Spectral + oasdiff)` | `pr-validation-back.yml` | FR-P03 |
 | `Imagen backend + Trivy` | `pr-validation-back.yml` | FR-P05 |
+| `lint · typecheck · test · build` | `pr-validation-front.yml` | FR-P06 |
+| `Imagen frontend + Trivy` | `pr-validation-front.yml` | FR-P05 |
 
-> **Front (DO-6):** al añadir `pr-validation-front.yml`, sumar aquí sus jobs (`lint`, `typecheck`+codegen,
-> `test`+axe, `build`) como checks requeridos (FR-P06).
+> **Guardián-agente (opt-in):** el check `Guardián de Constitución (agente · opt-in)` **solo** márcalo como
+> requerido **si** has activado el secret `ANTHROPIC_API_KEY` (FR-009). Sin la key, el job pasa en verde sin
+> llamar a la API; marcarlo requerido sin la key no aporta (siempre verde).
+> **Nota `paths:`** — los checks de un componente solo se exigen en PRs que lo tocan; en Rulesets modernos un
+> required check que no se dispara cuenta como *skipped→neutral* (no bloquea). Verifícalo en tu config.
 >
 > **Nota sobre `paths:`** — los checks de `pr-validation-back.yml` solo se ejecutan (y por tanto solo se
 > exigen) en PRs que tocan `backend/**`/`contracts/**`. `secrets-scan.yml` **no** tiene filtro `paths:`, así

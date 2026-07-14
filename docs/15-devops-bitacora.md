@@ -247,10 +247,98 @@ GHCR— se comprueba al abrir PR / empujar a `develop` / taggear en Actions.)*
 - **D-005 (BAJA, doble `tsc -b`):** aceptado — `typecheck` (`tsc --noEmit` + `codegen:check`) y `build`
   (`tsc -b && vite build`) cumplen fines distintos; el margen de NFR-P01 lo permite hoy.
 
-**Pendiente:** DO-7 (CD) — enmendar la spec para traer el CD a alcance (spec-antes-que-YAML) y desplegar a
-**Render + Neon** (decisión del usuario), entornos **dev (`develop`) primero, luego prod (`main`)**, con
-secretos por **GitHub Environment**. La configuración en GitHub (secrets, servicios Render, Neon, rulesets)
-es **manual** (la hace el usuario), como el resto de ajustes del repo.
+**Pendiente:** DO-7 (CD).
 
-<!-- Próximas entradas: DO-4/5, DO-6 se añaden aquí conforme se completan. -->
+## DO-7 · CD a Render + Neon (dev + prod) — 2026-07-14
+
+**Decisiones de fase (acordadas con el usuario):**
+
+| # | Decisión | Elegido | Motivo |
+|---|----------|---------|--------|
+| D7-1 | Target de cómputo | **Render** (free web) | despliega la imagen de GHCR tal cual (no-rebuild), URL pública, gratis sin tarjeta; se descartó Fly.io (ya no free), Cloud Run/AWS (tarjeta + espejar registro) |
+| D7-2 | Postgres | **Neon** (free) | gestionada, no caduca, branching por entorno |
+| D7-3 | Entornos | **dev (`develop`, auto)** + **prod (`main`, manual)** | GitFlow del reto; validar dev primero |
+| D7-4 | Cómo despliega | **deploy-hook + tag móvil** (`:develop`/`:latest`) que Render rastrea | GHA orquesta (requisito duro); Render tira de GHCR sin reconstruir |
+| D7-5 | Aprobación a prod | **`workflow_dispatch` manual + confirmación** | el gate de GitHub Environments (required reviewers) no está en repo privado Free |
+| D7-6 | Secretos | **GitHub Environment secrets** (dev/prod) | los *environment secrets* SÍ están en Free; `DATABASE_URL` de Neon va en el panel de Render |
+
+**Hecho (spec-antes-que-YAML):** primero **enmendada `pipeline-spec.md`** (CD a alcance: FR-P16..P20,
+AC-8..10, política de versionado en lockstep) y `pipeline-constitution.md` (§4 y §7c: CD en alcance). Luego:
+- **CD dev (auto):** job `deploy-dev` añadido a `ci-develop-back/front.yml` (`environment: dev`), tras
+  publicar `:develop`; dispara el deploy-hook de Render + **smoke-test opcional** (espera 200 si hay
+  `RENDER_DEV_HEALTHCHECK_URL`). Los CI de develop ahora pushean tag inmutable **+ `:develop`** (móvil).
+- **CD prod (manual):** `cd-prod.yml` — `workflow_dispatch` con inputs (componente, versión informativa,
+  confirmación `PROD`); **sin `on: push`** (AC-9); back y front **desacoplados** (`always()`); registra en el
+  *step summary* qué se desplegó (D-004). Los CI de main pushean semver **+ `:latest`** (móvil, prod).
+
+**Verificado (sin red):** 8 YAML válidos; `grep` no halla `uses: …@v[0-9]` (AC-6) ni deploy-hooks/DATABASE_URL
+reales en el repo (AC-10); `cd-prod` solo `workflow_dispatch` (AC-9); guardián + acceptance verdes.
+*(El deploy real a Render/Neon y las URLs se comprueban tras la configuración manual — ver el manual.)*
+
+**Revisión adversarial (`revisor-devops`, por el plan):** 0 BLOQUEANTES · 1 ALTA · 3 MEDIAS · 2 BAJAS →
+`REQUIERE_CAMBIOS`. Resuelto todo:
+- **D-001 (ALTA):** `pipeline-constitution.md` contradecía la spec (decía CD fuera de alcance) → actualizado
+  §4 y §7c a "CD en alcance".
+- **D-002 (MEDIA):** la "doble confirmación" no es 2ª aprobación real → documentado como **riesgo residual
+  asumido** en spec (FR-P17) y constitución (§7c).
+- **D-003 (MEDIA):** AC-8 afirmaba 200 pero el job solo disparaba el hook → **smoke-test opcional** en
+  `deploy-dev` + AC-8 reformulado.
+- **D-004 (MEDIA):** no se registraba qué versión quedaba en prod → step de **registro en el summary** en
+  `cd-prod`.
+- **D-005 (BAJA):** back/front acoplados en `cd-prod` → **desacoplados** (`always()` + confirmación).
+- **D-006 (BAJA):** faltaba esta entrada de bitácora → añadida (patrón D7-1..6).
+
+**Configuración manual (la hace el usuario):** ver **`docs/16-devops-setup-manual.md`** — GitHub
+Environments+secrets, servicios Render (por imagen GHCR), Neon, variables del backend, rulesets de
+branch/tag. Caveat conocido documentado allí: el `nginx.conf` del front proxya a `backend:3000` (nombre de
+compose) → en Render hay que apuntar el `/v1` al backend del entorno (endurecimiento pendiente).
+
+---
+
+**Cierre de la fase DevOps (DO-1→DO-7):** los 7 entregables completos, cada uno con revisión adversarial
+`revisor-devops` (0 bloqueantes; ALTAS resueltas en la ronda; DO-3 y DO-4/5 con re-revisión CONVERGE). 8
+workflows, guardián determinista + acceptance-check, no-rebuild real y CD a Render+Neon. Pendiente solo la
+**configuración manual** en GitHub/Render/Neon (manual entregado).
+
+## Cierre SDD · feature 010-devops-pipeline (formalización en Spec Kit) — 2026-07-14
+
+**Qué:** a petición del usuario (el reto M12 §6 exige el flujo SDD), la fase DevOps se **formaliza con las
+skills de Spec Kit** — no solo con la gobernanza XVI + `revisor-devops` que se había usado. Flujo completo:
+`specify → clarify → G1 → plan → tasks → analyze → G2 → implement → G3`. `docs/pipeline-{spec,constitution}.md`
+pasan a **documentos de apoyo**; la spec de la feature es `specs/010-devops-pipeline/spec.md`.
+
+**Valor del gate adversarial (lo que cazó, y se resolvió):**
+- **G1** (cínico·spec-theater·rbac·devops): **6 bloqueantes** reales en la spec (SC sin oráculo,
+  contradicción `contracts/**`, lockstep sin atomicidad, no-rebuild vs 2 builds, entorno `pre` sin respaldo,
+  guardián-agente vs NFR-P03) → resueltos en 2 rondas. **PASS**.
+- **G2** (consistencia·devops): FRs sin tarea (FR-011/018b/P20) + rango FR-P desactualizado → resueltos. **PASS**.
+- **G3** (implementacion·devops): **2 bloqueantes** (deploy-hook no propaga el semver a pre → **tag móvil
+  por entorno** `:develop`/`:pre`/`:prod` reetiquetado al semver; `if` no-idiomático en cd-prod → `success()`)
+  + ALTAS (npm CLI pineada `@2.1.209`, `branch-protection.md` completado, test contra el script real vía
+  `TRACE_FILE`). Resueltos.
+
+**Implementado en el `implement` (delta de conformidad + Fase 2):** guardián-agente opt-in
+(`scripts/constitution-agent-review.sh` + job gated a `ANTHROPIC_API_KEY`, patrón M9 `claude -p`);
+`code-review-gate` (dummy certificador, reto §4); guarda de lockstep **cruzada** en `ci-main-*`;
+`softprops/action-gh-release` (append por asset); nombre de imagen **`ghcr.io/<owner>/<repo>/fieldops-<comp>`**
+(reto §4 — sustituye al `ghcr.io/<owner>/fieldops-<comp>` de las entradas DO-4/5 anteriores, I-005);
+`cd-pre.yml` (deploy pre + GitHub Deployment); `cd-prod.yml` (version obligatorio + validación vs pre);
+higiene de secretos (FR-018b) en el guardián; tests de scripts (`scripts/tests/`, 8 verde); manual
+`docs/16-devops-setup-manual.md`.
+
+**Anclaje M9/M12 (fuente = el reto; M9/M12 = el cómo):** los gates coinciden con los ejercicios de
+**M9_J1** (Spectral regla propia, oasdiff `fetch-depth:0`, gitleaks, verificador de ACs, todos *required* +
+SHA-pin) y **M9_J2** (constitución como política de CI). **Desviaciones conscientes documentadas:** (1) el
+verificador de ACs de M9 es `check-acceptance.js` que golpea la **API real**; aquí `acceptance-check.sh` hace
+**trazabilidad estática** de la matriz (los ACs contra la API los cubren los tests de contrato/integración
+Vitest+Supertest del backend con Postgres real) — es un verificador *distinto*, no el runtime del reto;
+(2) gitleaks/oasdiff por **CLI** (no las actions de M9) por licencia/pin de checksum; (3) guardián como
+**Claude Code Action** → dividido en determinista always-on + agente opt-in (excepción única a NFR-P03).
+
+**Estado:** Capa 1 completa y conforme a la spec; CD Fase 1 (dev) implementada; Fase 2 (pre/prod) implementada
+pero **no verificable sin el remoto** (requiere la config manual del manual). Pendiente de ejecución real en
+Actions + configuración del usuario (GitHub Environments/Render/Neon/rulesets).
+
+<!-- Próximas entradas: ejecución real en Actions tras la configuración manual. -->
+
 
