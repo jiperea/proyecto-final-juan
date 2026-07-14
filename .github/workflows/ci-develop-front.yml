@@ -1,0 +1,118 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI de integración del FRONTEND en `develop` (DO-6 · pipeline-spec.md FR-P10).
+#
+# WHEN push a `develop` que toca frontend/**·contracts/** THE pipeline SHALL correr el
+# CI de front y, si pasa, CONSTRUIR y PUBLICAR la imagen
+#   ghcr.io/<owner>/fieldops-frontend:<x.y.z>-snapshot.<sha7>  (nginx unprivileged)
+# en GHCR, y subir la dist como artifact (retención 90 días).
+#
+# No-rebuild REAL (FR-P12): imagen construida UNA vez en `ci`, escaneada con Trivy y
+# pasada por artifact al job de push (load, no rebuild). Actions por SHA de 40 chars
+# (FR-P13); `contents: read` por defecto, `packages: write` SOLO en el job de push
+# (FR-P14). Determinista, sin API de LLM (NFR-P03).
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI develop · frontend
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'frontend/**'
+      - 'contracts/**'
+      - '.github/workflows/ci-develop-front.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-develop-front-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI front + imagen (build + Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Lint (eslint + stylelint)
+        run: npm run lint
+      - name: Typecheck (tsc + codegen:check)
+        run: npm run typecheck
+      - name: Tests (Vitest + axe-core)
+        run: npm test
+      - name: Build (Vite)
+        run: npm run build
+      - name: Subir dist como artifact (auditoría / futuro CD, retención 90 días)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: fieldops-frontend-dist-${{ github.sha }}
+          path: frontend/dist
+          retention-days: 90
+          if-no-files-found: error
+      - name: Build imagen (etapa runtime nginx, la desplegable) — UNA sola vez
+        working-directory: . # el contexto de build es ./frontend
+        run: docker build --target runtime -t fieldops-frontend:ci ./frontend
+      - name: Trivy sobre la imagen que se publicará (FR-P05, defensa en profundidad)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fieldops-frontend:ci
+          format: table
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+      - name: Serializar la imagen para el job de push (no-rebuild)
+        working-directory: .
+        run: docker save fieldops-frontend:ci | gzip > image.tar.gz
+      - name: Subir la imagen como artifact (efímero, entre jobs)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: fieldops-frontend-image-${{ github.sha }}
+          path: image.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  publish-image:
+    name: Imagen snapshot → GHCR
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write # elevación mínima SOLO en este job (FR-P14)
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Descargar la imagen construida en el job ci
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: fieldops-frontend-image-${{ github.sha }}
+      - name: Cargar la imagen (load, no build — no-rebuild FR-P12)
+        run: docker load < <(gunzip -c image.tar.gz)
+      - name: Calcular etiqueta x.y.z-snapshot.<sha7>
+        id: tag
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./frontend/package.json').version")
+          sha7="${GITHUB_SHA::7}"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          ref="ghcr.io/${owner}/fieldops-frontend:${version}-snapshot.${sha7}"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "· imagen: $ref"
+      - name: Login en GHCR (GITHUB_TOKEN)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Etiquetar y push de la imagen ya probada+escaneada
+        run: |
+          set -euo pipefail
+          docker tag fieldops-frontend:ci "${{ steps.tag.outputs.ref }}"
+          docker push "${{ steps.tag.outputs.ref }}"

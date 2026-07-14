@@ -207,8 +207,50 @@ remoto.)*
   (canónico = imagen GHCR) — en `branch-protection.md`.
 - **D-007 (BAJA):** verificado con `gh api` que **cada SHA resuelve a su tag** comentado.
 
-**Pendiente:** DO-6 (workflows de front, inertes hasta consumir `frontend/`): `pr-validation-front.yml`,
-`ci-develop-front.yml`, `ci-main-front.yml`.
+**Pendiente:** DO-6 (workflows de front): `pr-validation-front.yml`, `ci-develop-front.yml`,
+`ci-main-front.yml`.
+
+## DO-6 · Workflows de front — 2026-07-14
+
+**Hecho:** los 3 workflows de front, espejo del patrón ya convergido del back (sin Postgres; imagen
+`fieldops-frontend`, nginx unprivileged):
+- **`pr-validation-front.yml`** (FR-P06/P07/P08): PRs a `frontend/**`·`contracts/**` (paths, FR-P01; el
+  contrato entra porque el front deriva tipos de él) → job **guardian** (validate-constitution +
+  acceptance-check) + job **lint·typecheck(+`codegen:check` = aserción Zod↔contrato)·test(+axe)·build**.
+  Los **E2E (Playwright) quedan fuera** del gate (pesados, riesgo NFR-P01) → local/manual con justificación.
+- **`ci-develop-front.yml`** (FR-P10): push a `develop` → CI de front + imagen construida **una vez** +
+  Trivy + `save`/`load` → push `…/fieldops-frontend:x.y.z-snapshot.{sha7}` (no-rebuild, FR-P12).
+- **`ci-main-front.yml`** (FR-P11): tag semver `vX.Y.Z` → procedencia (`merge-base` a main) +
+  tag==`frontend/package.json` + imagen semver. **No crea Release** (lo hace back bajo el mismo tag) para
+  evitar carrera entre workflows; el front solo publica su imagen + dist artifact.
+
+Cadena de suministro: mismas 5 actions por SHA de 40 chars ya verificadas; `permissions` mínimas por job
+(`packages: write` solo en publish). Escaneo de secretos: cubierto por `secrets-scan.yml` universal.
+
+**Verificado (sin red):** los 3 YAML válidos; `grep` no halla `uses: …@v[0-9]` (AC-6); guardián verde
+cubriendo los **7 workflows**; nombres de imagen (`:ci`/`:rel`) y de artifact sin colisión con los del back
+(prefijos `-backend`/`-frontend`). *(La ejecución real —lint/test/build de front, imagen, Trivy, push a
+GHCR— se comprueba al abrir PR / empujar a `develop` / taggear en Actions.)*
+
+**Revisión adversarial (`revisor-devops`, por el plan):** 0 BLOQUEANTES · 1 ALTA · 3 MEDIAS · 1 BAJA →
+`REQUIERE_CAMBIOS`. Resuelto:
+- **D-001 (ALTA, asimetría de seguridad):** el PR-gate de front no construía ni escaneaba la imagen (el de
+  back sí) → la imagen de front llegaba a `develop` sin gate de cadena de suministro. **Añadido job
+  `image-scan`** (build `--target runtime` + Trivy) al PR-gate de front, en paridad con back.
+- **D-003 (MEDIA, paths):** un cambio a los scripts del guardián no re-disparaba el gate de front →
+  añadidos `scripts/validate-constitution.sh` y `acceptance-check.sh` a sus `paths:` (paridad con back).
+- **D-004 (MEDIA, versionado):** un tag `vX.Y.Z` dispara back y front a la vez → **política de lockstep**
+  documentada en `pipeline-spec.md` (mismo `X.Y.Z` ambos componentes; package.json sincronizados).
+- **D-002 (MEDIA, trazabilidad de FR-P):** documentado en `pipeline-spec.md` que los `FR-P###` del pipeline
+  se verifican por los **ACs (AC-1..7)** + workflows/guardián, no por la matriz RF (deliberado: meterlos en
+  la matriz haría fallar `acceptance-check`).
+- **D-005 (BAJA, doble `tsc -b`):** aceptado — `typecheck` (`tsc --noEmit` + `codegen:check`) y `build`
+  (`tsc -b && vite build`) cumplen fines distintos; el margen de NFR-P01 lo permite hoy.
+
+**Pendiente:** DO-7 (CD) — enmendar la spec para traer el CD a alcance (spec-antes-que-YAML) y desplegar a
+**Render + Neon** (decisión del usuario), entornos **dev (`develop`) primero, luego prod (`main`)**, con
+secretos por **GitHub Environment**. La configuración en GitHub (secrets, servicios Render, Neon, rulesets)
+es **manual** (la hace el usuario), como el resto de ajustes del repo.
 
 <!-- Próximas entradas: DO-4/5, DO-6 se añaden aquí conforme se completan. -->
 

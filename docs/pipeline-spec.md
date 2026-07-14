@@ -102,6 +102,19 @@
   SHA) y todo workflow declara `permissions:` mínimas.
 - **AC-7 (CI<10min)**: la duración media de los workflows de PR en Actions es < 10 min.
 
+## Política de versionado y releases (M12)
+
+- **Versionado en lockstep (monorepo):** un tag semver `vX.Y.Z` libera **ambos componentes a la vez** con
+  el **mismo `X.Y.Z`**. `backend/package.json` y `frontend/package.json` se mantienen **sincronizados**;
+  cada workflow de `main` verifica `tag == su package.json` (fail-fast) — si divergen, el release de ese
+  componente falla a propósito. *(No hay versionado independiente por componente; si algún día se quisiera,
+  se usarían patrones de tag separados `backend-v*`/`frontend-v*`.)*
+- **Trazabilidad de los FR del pipeline (FR-P01..P15):** NO viven en `docs/traceability.md` (esa es la
+  matriz **RF→tarea→test de las features**, y `acceptance-check.sh` solo valida `FR-###`, no `FR-P###`).
+  Los FR del pipeline se verifican por los **ACs de esta spec (AC-1..AC-7)** y por los propios workflows +
+  guardián. Es deliberado: mezclar `FR-P###` en la matriz de features haría fallar `acceptance-check` (no
+  tienen tarea/test de feature). El guardián se autoverifica vía AC-4.
+
 ## Fuera de alcance (declarado)
 - **CD (DO-7)**: despliegue a PaaS + aprobación manual a prod. Diferido (roadmap; muro de repo privado Free).
 - **Multi-arch images, SBOM firmado, cosign**: no exigidos por el reto; posibles endurecimientos futuros.
