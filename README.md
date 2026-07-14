@@ -93,14 +93,89 @@ npm run typecheck                   npm run typecheck
 
 Gate adversarial a demanda (headless): `scripts/gate.sh --phase G1 --feature-dir specs/<feature>`.
 
+## Pipeline CI/CD (reto M12)
+
+Pipeline **gobernado por SDD** (Principio XVI): la spec precede al YAML. Detalle en
+[`docs/pipeline-spec.md`](docs/pipeline-spec.md), config de ramas en
+[`.github/branch-protection.md`](.github/branch-protection.md), bitácora del proceso en
+[`docs/15-devops-bitacora.md`](docs/15-devops-bitacora.md). CI **API-free** (las evals de IA corren en local,
+nunca en CI). Todas las *actions* van **fijadas por SHA** (cadena de suministro) y con **permisos mínimos**.
+
+### Estrategia de ramas (GitFlow)
+
+```
+feature/NNN-*  ──PR──▶  develop  ──PR──▶  main
+                          │                 │
+                    CI develop         CI main (release)
+                 imagen :snapshot     imagen semver + GitHub Release
+                    → GHCR                → GHCR  (tag v* protegido)
+```
+
+- **`feature/*` → `develop`**: cada feature en su rama; PR contra `develop` con el **PR Gate** (abajo).
+- **`develop` → `main`**: integración → release. Al mergear a `develop` se construye y publica la imagen
+  **snapshot** a GHCR; en `main`, la imagen **semver** + GitHub Release. **No-rebuild**: la imagen que se
+  escanea es byte a byte la que se publica y despliega.
+- **Ramas protegidas** (`develop`, `main`): requieren PR (sin push directo) y que pasen los **required checks**.
+
+### El PR Gate (un único check agregador)
+
+Todo PR dispara [`.github/workflows/pr-gate.yml`](.github/workflows/pr-gate.yml) (sin filtro `paths:`, corre
+**siempre**). Detecta qué componente cambió y ejecuta:
+
+- **Gobernanza (siempre):** guardián de Constitución + trazabilidad, guardián-agente (opt-in, desactivado sin
+  `ANTHROPIC_API_KEY`), code-review registrado.
+- **Backend** (si toca `backend/**`/`contracts/**`): lint · typecheck · test (Postgres real), Contratos
+  (Spectral + oasdiff), Imagen backend + Trivy.
+- **Frontend** (si toca `frontend/**`/`contracts/**`): lint · typecheck · test · build, Imagen frontend +
+  Trivy (con smoke-test de arranque).
+- **`PR Gate`** (job final): agrega el resultado de todos (`skip` = OK, `failure` = bloquea). Es el **único
+  required** junto con `gitleaks`. Así ningún PR queda bloqueado en "Expected" y a la vez no se puede mergear
+  con un check de calidad/seguridad en rojo. (Los jobs del componente que no se toca aparecen **`skipped`**.)
+
+### Cómo abrir un PR de prueba
+
+```bash
+git switch develop && git pull
+git switch -c feature/prueba-pipeline
+# …haz un cambio (p. ej. en backend/** o frontend/**)…
+git add -A && git commit -m "test: pipeline"
+git push -u origin feature/prueba-pipeline
+gh pr create --base develop --fill        # abre el PR → dispara el PR Gate
+gh pr checks --watch                       # sigue los checks en vivo
+```
+
+- Un PR que toca solo `docs/**` → los jobs de componente salen **`skipped`** y `PR Gate` verde (mergeable).
+- Un PR de `backend/**` con un test roto o una vuln CRITICAL/HIGH → el job falla → `PR Gate` **bloquea** el merge.
+
+### Cómo verificar la imagen publicada en el registro (GHCR)
+
+Al mergear a `develop`/`main`, la imagen se publica en **GitHub Container Registry**:
+
+```bash
+# nombres: ghcr.io/<owner>/<repo>/fieldops-backend  y  …/fieldops-frontend
+#   develop → tag :develop  (+ :<version>-snapshot.<sha7> inmutable)
+#   main    → tag :<version> (semver) + GitHub Release
+
+# 1) verlas en el registro (necesita PAT con read:packages)
+echo "$GHCR_PAT" | docker login ghcr.io -u <tu-usuario> --password-stdin
+docker pull ghcr.io/<owner>/<repo>/fieldops-backend:develop
+docker image inspect ghcr.io/<owner>/<repo>/fieldops-backend:develop --format '{{.Id}} {{.Config.User}}'
+
+# 2) o en la web: pestaña "Packages" del repo/organización en GitHub.
+```
+
+La imagen desplegada (Render, CD) es exactamente esa (no se reconstruye).
+
 ## Estado
 
 - **Backend** (features **001–#010**): auth+RBAC, órdenes (entidad/listado/FSM/auditoría), reasignación,
   ejecución, revisión, resumen IA y **detalle read-side** — todas con G1/G2/G3 verdes, en `develop`.
 - **Frontend FE-1** (`009-front-shell-listado`): shell + acceso/sesión + listado por rol + detalle
   read-only. **G1/G2/G3 verdes**, mergeada a `develop`. Verificado end-to-end contra el stack real.
-- **Siguiente**: FE-2 (técnico) · FE-3 (dispatcher) · FE-4 (supervisor+IA) sobre FE-1; y la fase
-  **DevOps** (spec del pipeline → contenerización `docker-compose` de las 3 capas → CI/CD). Roadmap en
+- **DevOps / pipeline CI/CD** (features **010–013**): contenerización de las 3 capas, PR-gate M9,
+  CI develop/main con imagen a GHCR, y el **PR Gate agregador** (013) — G1/G2/G3 verdes, **probado en
+  Actions**. Ver sección *Pipeline CI/CD* arriba. Pendiente: CD a Render/Neon (config de entorno).
+- **Siguiente**: FE-2 (técnico) · FE-3 (dispatcher) · FE-4 (supervisor+IA) sobre FE-1. Roadmap en
   [`docs/06-roadmap.md`](docs/06-roadmap.md).
 
 ## Entrega
