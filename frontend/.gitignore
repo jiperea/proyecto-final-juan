@@ -6,6 +6,7 @@ playwright-report/
 test-results/
 *.log
 .env*
+!.env.example
 .DS_Store
 .vscode/
 .idea/
