@@ -14,10 +14,11 @@ Determinista, API-free (NFR-P03 intacto). Cambios en `frontend/Dockerfile`, work
 - **Superficie**:
   - `frontend/Dockerfile` (etapa runtime): `USER root` → `RUN apk --no-cache upgrade` → `USER 101` antes de
     `EXPOSE`/`CMD` (FR-001/FR-001b).
-  - `pr-validation-front.yml` job `image-scan`: paso nuevo de **smoke-test** tras el build y antes/junto a
-    Trivy — `docker run --add-host backend:127.0.0.1 -d …` + `curl --retry` a `/` y a un asset `/assets/…` +
-    `docker rm -f` (FR-005/SC-006). (Evaluar replicar el smoke-test en `ci-develop-front.yml`/`ci-main-front.yml`
-    donde también se construye la imagen desplegable — decisión en tasks.)
+  - **Smoke-test** (paso nuevo) en los 3 workflows que construyen la imagen runtime de front (FR-003/FR-005):
+    `pr-validation-front.yml` (job `image-scan`, tras build, junto a Trivy) y `ci-develop-front.yml`/
+    `ci-main-front.yml` (tras build, **antes del push a GHCR** — la imagen desplegable no llega rota a Render
+    por no-rebuild). Patrón: `docker run --add-host backend:127.0.0.1 -d …` + `curl --retry` a `/` y a un
+    asset `/assets/…` + `docker rm -f`.
   - `docs/pipeline-spec.md` FR-P05: cláusula de front (FR-006).
 - **Sin nuevas actions** → SHA-pin (AC-6/FR-P13) intacto; `docker run`/`curl` son shell del runner.
 - **Trivy front sin cambios**: `CRITICAL,HIGH` + `ignore-unfixed` (ya así en `pr-validation-front.yml:121-122`);
@@ -39,8 +40,8 @@ Determinista, API-free (NFR-P03 intacto). Cambios en `frontend/Dockerfile`, work
 
 ## Fases (para tasks)
 1. `frontend/Dockerfile`: elevación/reversión de privilegios + `apk --no-cache upgrade` (FR-001/FR-001b).
-2. Smoke-test de arranque en el job `image-scan` de `pr-validation-front.yml` (+ valorar ci-develop/main-front)
-   (FR-005, SC-005/006).
+2. Smoke-test de arranque en los 3 workflows de imagen de front (`pr-validation-front`, `ci-develop-front`,
+   `ci-main-front`) (FR-003/FR-005, SC-005/006).
 3. Enmendar `docs/pipeline-spec.md` FR-P05 con la política de front (FR-006) + nota en `docs/15-devops-bitacora.md`.
 4. Verificación estática (Dockerfile, USER final no-root, sin skip del SO, SHA-pin intacto).
 5. (usuario) push al fork → PR de front → job `Imagen frontend + Trivy` verde + smoke-test (SC-001..006).

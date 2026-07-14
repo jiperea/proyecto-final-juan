@@ -92,10 +92,13 @@ gate de front siguen en verde (sin regresión).
   Trivy` SHALL mantener su configuración (`CRITICAL,HIGH`, `ignore-unfixed`, sin `skip-dirs` para el SO —
   verificado hoy en `pr-validation-front.yml:121-122`); el arreglo es en el Dockerfile, **no** relajando el
   escáner. El residuo realmente `unfixed` queda **visible** en el reporte y **documentado**.
-- **FR-003 (sin regresión del resto del gate de front)**: THE cambio SHALL limitar su superficie a
-  `frontend/Dockerfile` (etapa runtime) + el smoke-test de FR-005; no toca los jobs `lint·typecheck·test·
-  build`, guardián de Constitución ni code-review, que siguen en verde. La cadena de suministro (SHA-pin de
-  actions, AC-6) queda intacta (no se añaden actions nuevas).
+- **FR-003 (superficie acotada, sin regresión · resuelve K-001)**: THE cambio SHALL limitar su superficie a
+  `frontend/Dockerfile` (etapa runtime) + el paso de smoke-test de FR-005 en los **workflows que construyen la
+  imagen runtime de front**: `pr-validation-front.yml`, `ci-develop-front.yml` y `ci-main-front.yml` (estos
+  dos publican la imagen desplegable a GHCR → deben validar arranque antes de push, por **no-rebuild**). NO
+  toca los jobs `lint·typecheck·test·build`, guardián de Constitución ni code-review, que siguen en verde. La
+  cadena de suministro (SHA-pin de actions, AC-6) queda intacta (no se añaden actions nuevas; `docker run`/
+  `curl` son shell del runner).
 - **FR-004 (fallback obligatorio si el parcheo no basta · resuelve H-001/H-002)**: IF tras `apk upgrade`
   Trivy sigue reportando ≥1 `CRITICAL/HIGH` **corregible** (con `Fixed Version` no instalable desde la rama
   pinada) THE equipo SHALL, **en el mismo PR**, subir el base image (patch/minor de la rama Alpine, o un
@@ -107,9 +110,11 @@ gate de front siguen en verde (sin regresión).
   de `docs/pipeline-spec.md` (documento versionado; **no** en `.specify/gate-exceptions.txt`, cuyo esquema
   `<spec> <G1|G2|G3> <fecha> <owner>` es solo para excepciones del guardián de Constitución y no encaja para
   un CVE — D-005) con CVE + motivo + fecha de revisión — **auditable, nunca un skip silencioso**.
-- **FR-005 (smoke-test de arranque · resuelve H-005/D-003/D-004/H-103)**: WHEN el job `Imagen frontend +
-  Trivy` construye la imagen parcheada THE pipeline SHALL, tras el build y antes de dar verde, **arrancar el
-  contenedor** de la imagen runtime y verificar que **nginx arranca y sirve estáticos**. Dado que
+- **FR-005 (smoke-test de arranque · resuelve H-005/D-003/D-004/H-103)**: WHEN un workflow de front construye
+  la imagen runtime parcheada (el job de imagen de `pr-validation-front.yml` y los CI `ci-develop-front.yml`/
+  `ci-main-front.yml` que publican a GHCR, ver FR-003) THE pipeline SHALL, tras el build y antes de dar verde
+  (y, en los CI, antes del push a GHCR), **arrancar el contenedor** de la imagen runtime y verificar que
+  **nginx arranca y sirve estáticos**. Dado que
   `nginx.conf` proxya `/v1/ → http://backend:3000` (hostname que solo resuelve en la red de compose), el
   arranque aislado SHALL hacer resoluble ese upstream (`docker run --add-host backend:127.0.0.1 …`) para que
   nginx no falle por "host not found in upstream" (causa ajena al parcheo). El check SHALL: (a) esperar con
