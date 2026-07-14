@@ -1,0 +1,17 @@
+# Excepciones DOCUMENTADAS al guardián de Constitución (FR-P07b).
+# Formato:  <spec-basename> <G1|G2|G3> <YYYY-MM-DD-alta> <owner>   # motivo
+#   · <YYYY-MM-DD-alta>: fecha de alta de la excepción (para control de caducidad).
+#   · <owner>: responsable de re-materializar el informe y retirar la línea.
+# Regla (memoria "no diferir ALTAs en silencio"): una excepción NO oculta el hueco,
+# lo hace explícito y trazable. El guardián emite un AVISO visible si una excepción
+# lleva > 30 días sin resolverse (deuda que envejece, no permiso permanente).
+#
+# 005: cerrada y mergeada con informe G3 en formato .json/heredado que no quedó
+#      materializado como gates/gate-G3-*. Hueco de trazabilidad documental (no de
+#      proceso: el gate G3 sí se ejecutó). Pendiente de re-materializar el informe.
+005-registro-ejecucion G3 2026-07-14 jiperea   # re-materializar informe G3 heredado
+# 011: endurecimiento acotado de 010 (3 fixes) con gate CONSOLIDADO en G1 (panel reducido, decisión
+#      documentada en spec/plan). G2 (consistencia) cubierta en el G1 consolidado; G3 = verificación real
+#      en Actions (los 3 jobs en verde), intrínseca a esta feature.
+011-pipeline-hardening G2 2026-07-14 jiperea   # consolidado en el G1 (panel reducido, alcance 3 fixes)
+011-pipeline-hardening G3 2026-07-14 jiperea   # G3 = ejecución real en Actions (fork) — no verificable en local

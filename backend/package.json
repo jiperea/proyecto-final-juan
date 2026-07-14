@@ -6,7 +6,7 @@
   "description": "FieldOps 001 — Autenticación, sesión y RBAC (hexagonal)",
   "engines": { "node": ">=18" },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -18,10 +18,11 @@
     "seed": "tsx prisma/seed.ts",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "eval": "promptfoo eval -c ../evals/promptfooconfig.yaml"
+    "eval": "npx -y promptfoo@0.121.18 eval -c ../evals/promptfooconfig.yaml"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",
+    "prisma": "^5.18.0",
     "argon2": "^0.40.3",
     "cookie-parser": "^1.4.6",
     "express": "^4.19.2",
@@ -42,8 +43,6 @@
     "@vitest/coverage-v8": "^2.0.5",
     "eslint": "^9.9.0",
     "openapi-typescript": "^7.3.0",
-    "prisma": "^5.18.0",
-    "promptfoo": "^0.121.18",
     "supertest": "^7.0.0",
     "tsx": "^4.17.0",
     "typescript": "^5.5.4",

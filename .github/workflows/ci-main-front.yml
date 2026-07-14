@@ -1,0 +1,179 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI de RELEASE del FRONTEND en `main` (DO-6 · pipeline-spec.md FR-P11).
+#
+# WHEN se empuja un tag semver `vX.Y.Z` THE pipeline SHALL publicar la imagen
+#   ghcr.io/<owner>/fieldops-frontend:X.Y.Z  (nginx unprivileged, semver sin sufijo).
+#
+# El GitHub Release semver lo crea el workflow de BACK (ci-main-back.yml) bajo el mismo
+# tag; aquí el front solo publica su imagen (el artefacto desplegable) y sube su dist
+# como artifact de auditoría — así se evita una carrera entre dos workflows por el
+# mismo Release.
+#
+# Cadena de custodia (FR-P09): el tag solo libera si su commit es ancestro de `main`
+# (merge-base) y coincide con frontend/package.json. No-rebuild (FR-P12): imagen única
+# construida en `ci`, pasada por artifact al push. Actions por SHA (FR-P13); permisos
+# mínimos por job (FR-P14). Sin API de LLM (NFR-P03).
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI main · frontend (release)
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-main-front-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI front + imagen (build + Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # historia para la verificación de ancestría
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Procedencia — el commit del tag debe estar en main (cadena de custodia)
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::El commit $GITHUB_SHA (tag $GITHUB_REF_NAME) NO es ancestro de main. Release abortada."
+            exit 1
+          fi
+          echo "· $GITHUB_SHA es ancestro de main ✓"
+      - name: Guarda de lockstep — el tag debe coincidir con AMBOS package.json (FR-013b)
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          back=$(node -p "require('./backend/package.json').version")
+          front=$(node -p "require('./frontend/package.json').version")
+          if [ "$back" != "$tag" ] || [ "$front" != "$tag" ]; then
+            echo "::error::Lockstep roto: tag=$tag, backend=$back, frontend=$front. Ambos package.json deben coincidir con el tag (no publica ninguno)."
+            exit 1
+          fi
+          echo "· lockstep OK: tag $tag == backend $back == frontend $front"
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+      - name: Lint (eslint + stylelint)
+        working-directory: frontend
+        run: npm run lint
+      - name: Typecheck (tsc + codegen:check)
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Tests (Vitest + axe-core)
+        working-directory: frontend
+        run: npm test
+      - name: Build (Vite)
+        working-directory: frontend
+        run: npm run build
+      - name: Subir dist como artifact (auditoría, retención 90 días)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: fieldops-frontend-dist-${{ github.ref_name }}
+          path: frontend/dist
+          retention-days: 90
+          if-no-files-found: error
+      - name: Build imagen (etapa runtime nginx) — UNA sola vez
+        run: docker build --target runtime -t fieldops-frontend:rel ./frontend
+      - name: Smoke-test de arranque (FR-005 — verifica antes del push a GHCR, no-rebuild)
+        run: |
+          set -euo pipefail
+          docker run -d --name fe-smoke --add-host backend:127.0.0.1 -p 8080:8080 fieldops-frontend:rel
+          trap 'docker rm -f fe-smoke >/dev/null 2>&1 || true' EXIT
+          # SC-005: el runtime NO corre como root (uid 101) tras el parcheo (FR-001b).
+          test "$(docker inspect --format '{{.Config.User}}' fe-smoke)" = "101"
+          curl --retry 15 --retry-delay 1 --retry-connrefused -fsS http://localhost:8080/ >/dev/null
+          asset=$(docker exec fe-smoke sh -c 'ls /usr/share/nginx/html/assets/*.js 2>/dev/null | head -1 | sed "s#/usr/share/nginx/html##"')
+          test -n "$asset"
+          curl -fsS "http://localhost:8080${asset}" >/dev/null
+          echo "· smoke-test OK: nginx arranca y sirve / + ${asset}"
+      - name: Trivy sobre la imagen que se publicará (FR-P05)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: fieldops-frontend:rel
+          format: table
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+      - name: Serializar la imagen para el job de push (no-rebuild)
+        run: docker save fieldops-frontend:rel | gzip > image.tar.gz
+      - name: Subir la imagen como artifact (efímero, entre jobs)
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: fieldops-frontend-image-${{ github.ref_name }}
+          path: image.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  publish-image:
+    name: Imagen semver → GHCR
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write # elevación mínima SOLO en este job (FR-P14)
+    steps:
+      - name: Descargar la imagen construida en el job ci
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: fieldops-frontend-image-${{ github.ref_name }}
+      - name: Cargar la imagen (load, no build — no-rebuild FR-P12)
+        run: docker load < <(gunzip -c image.tar.gz)
+      - name: Calcular etiquetas (semver inmutable + móvil :latest)
+        id: tag
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/fieldops-frontend" # ghcr.io/<owner>/<repo>/... (reto §4)
+          ref="${image}:${version}"  # semver inmutable (auditoría/rollback)
+          moving="${image}:latest"   # móvil (lo rastrea Render prod, FR-P19)
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "moving=$moving" >> "$GITHUB_OUTPUT"
+          echo "· imagen: $ref  +  $moving"
+      - name: Login en GHCR (GITHUB_TOKEN)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Etiquetar y push de la imagen ya probada+escaneada (semver + :latest)
+        run: |
+          set -euo pipefail
+          docker tag fieldops-frontend:rel "${{ steps.tag.outputs.ref }}"
+          docker tag fieldops-frontend:rel "${{ steps.tag.outputs.moving }}"
+          docker push "${{ steps.tag.outputs.ref }}"
+          docker push "${{ steps.tag.outputs.moving }}"
+
+  # ── Añade el dist del front al MISMO Release del tag (append, FR-013) ────────
+  release:
+    name: GitHub Release (append front)
+    needs: [ci, publish-image] # no anunciar la imagen en el Release si el push a GHCR falló (D-004)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # elevación mínima SOLO en este job (FR-P14)
+    steps:
+      - name: Descargar la dist del job de CI
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: fieldops-frontend-dist-${{ github.ref_name }}
+          path: dist
+      - name: Empaquetar dist (nombre de asset único por componente)
+        run: tar -czf "fieldops-frontend-${GITHUB_REF_NAME}.tar.gz" -C dist .
+      - name: Añadir asset al Release del tag (softprops, no pisa el de back)
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: FieldOps ${{ github.ref_name }}
+          files: fieldops-frontend-${{ github.ref_name }}.tar.gz
+          fail_on_unmatched_files: true
+          body: "Imagen frontend: `ghcr.io/${{ github.repository }}/fieldops-frontend:${{ github.ref_name }}` (semver, no-rebuild — XVI §4)."

@@ -1,0 +1,49 @@
+{
+  "gate": "G1 (panel reducido por dominio · consolida G2/G3 + verificación real)",
+  "feature": "012-frontend-pipeline-hardening",
+  "fecha": "2026-07-14",
+  "artefactos": ["spec.md"],
+  "panel": ["revisor-devops", "revisor-cinico"],
+  "nota_panel": "Endurecimiento acotado de 010/011 (1 fix, front) → panel reducido al dominio: revisor-devops (CI/CD, cadena de suministro, privilegios de contenedor) + revisor-cinico (ataque genérico/spec-theater consolidado). Se descarta revisor-rbac-seguridad: la elevación de privilegios de FR-001b es seguridad de contenedor (dominio devops), no control de acceso de aplicación (sin superficie nueva). Reducción re-justificada específicamente para front (H-006/H-104), no por inercia de 011.",
+  "veredicto_global": "PASS (converge en ronda 3; 0 BLOQUEANTES). 2 BLOQUEANTES + 4 ALTAS de ronda 1 y 3 ALTAS de ronda 2, todos remediados.",
+  "rondas": 3,
+  "ronda_1": {
+    "veredicto": "REQUIERE_CAMBIOS",
+    "bloqueantes": 2,
+    "huecos": [
+      {"id": "D-001", "sev": "BLOQUEANTE", "fuente": "revisor-devops", "desc": "`apk upgrade` en runtime necesita root, pero `nginx-unprivileged` corre como uid 101 → build roto o regresión silenciosa a root. Mismo patrón que el BLOQUEANTE D-001 de 011.", "resolucion": "FR-001b: `USER root` → `apk --no-cache upgrade` → restaurar `USER 101` antes de EXPOSE/CMD + SC-005 (no-root)."},
+      {"id": "H-001", "sev": "BLOQUEANTE", "fuente": "revisor-cinico", "desc": "La vía de escape 'residuo unfixed' es falsa: una CVE con `Fixed Version` no instalable NO cae bajo `ignore-unfixed` → seguiría bloqueando.", "resolucion": "Edge case + Assumption corregidos; FR-004 (bump obligatorio) sustituye a la falsa salida."},
+      {"id": "H-002", "sev": "ALTA", "fuente": "revisor-cinico", "desc": "El remedio ('subir base image') vivía solo en Assumptions, sin FR → riesgo de skip ad-hoc.", "resolucion": "FR-004: bump obligatorio en el mismo PR, prohibido skip/ignore del SO."},
+      {"id": "H-003", "sev": "ALTA", "fuente": "revisor-cinico", "desc": "No-reproducibilidad de `apk upgrade` sobre tag flotante (green→red en re-runs).", "resolucion": "Documentado como tradeoff aceptado (tag pinado + Trivy gatea cada build); pin por digest = deuda documentada (ya diferida en 010 D-002)."},
+      {"id": "H-005", "sev": "ALTA", "fuente": "revisor-cinico", "desc": "El edge case afirma que un arranque roto 'falla en el gate', pero el job solo hace build+Trivy sin `docker run` (verificado pr-validation-front.yml:114-122).", "resolucion": "FR-005 (smoke-test `docker run` + `curl`) + SC-006."},
+      {"id": "D-002", "sev": "ALTA", "fuente": "revisor-devops", "desc": "Ningún SC verifica no-root tras el parcheo.", "resolucion": "SC-005 (validación estática + `docker inspect`)."},
+      {"id": "H-004/D-004r1", "sev": "MEDIA", "desc": "'aplica ENMIENDA FR-P05' pero FR-P05 solo describe el npm del back; la política de front no está en el doc maestro.", "resolucion": "FR-006: enmendar `docs/pipeline-spec.md` FR-P05 con la cláusula de front."},
+      {"id": "H-006", "sev": "MEDIA", "desc": "Reducción de panel copiada de 011 sin re-justificar para front.", "resolucion": "Re-justificado en Assumptions (solo toca paquetes del SO; sin superficie a11y/RBAC/UX)."},
+      {"id": "H-007", "sev": "MEDIA", "desc": "Posible capa Docker cacheada rancia.", "resolucion": "Verificado: sin cache-from persistente + `apk --no-cache` → sin capa rancia."},
+      {"id": "H-008", "sev": "MEDIA", "desc": "Se asumía sin evidencia el Trivy de front (CRITICAL,HIGH + ignore-unfixed).", "resolucion": "FALSO POSITIVO: verificado en pr-validation-front.yml:121-122; cita añadida a FR-002."},
+      {"id": "H-009", "sev": "BAJA", "desc": "Impacto de --no-cache en tiempo/tamaño sin NFR.", "resolucion": "NFR-P01 (timeout 10m) ya lo acota; delta marginal. Sin cambio."}
+    ]
+  },
+  "ronda_2": {
+    "veredicto": "REQUIERE_CAMBIOS (0 bloqueantes; ALTAS nuevas de la propia remediación)",
+    "bloqueantes": 0,
+    "huecos": [
+      {"id": "D-003", "sev": "ALTA", "fuente": "revisor-devops", "desc": "El smoke-test de FR-005 (`docker run` aislado) fallaría: `nginx.conf:10` proxya a `http://backend:3000`, hostname que solo resuelve en la red de compose → 'host not found in upstream' (falso rojo ajeno al parcheo).", "resolucion": "FR-005 precisado: `docker run --add-host backend:127.0.0.1` para que nginx arranque; el smoke-test valida arranque + serving de estáticos, no el proxy."},
+      {"id": "H-101/H-105", "sev": "ALTA", "fuente": "revisor-cinico", "desc": "FR-004 sin techo/escalado: ¿y si NINGÚN base image publicado tiene aún el fix, o el bump introduce una CVE nueva en bucle?", "resolucion": "FR-004 ampliado: bump iterativo; caso terminal = excepción documentada (auditable), nunca skip silencioso."},
+      {"id": "H-106", "sev": "ALTA", "fuente": "revisor-cinico", "desc": "La mitigación de H-003 asume no-rebuild en CD de front sin verificarlo.", "resolucion": "Verificado: ci-develop-front.yml escanea con Trivy (l.69) antes de push a GHCR y Render tira esa imagen (no-rebuild, DO-7). Documentado en Assumptions."},
+      {"id": "D-004/H-103", "sev": "MEDIA", "desc": "Smoke-test sin retry/cleanup y validando solo `/` (falso-verde si se rompen assets).", "resolucion": "FR-005: `curl --retry`, `docker rm -f`, y verificar `/` + un asset `/assets/…`."},
+      {"id": "H-102", "sev": "MEDIA", "desc": "'documentado' del residuo unfixed sin artefacto/ubicación concreta.", "resolucion": "SC-002: residuo aceptado en `docs/pipeline-spec.md` FR-P05 (versionado)."},
+      {"id": "H-104", "sev": "MEDIA", "desc": "Excluir revisor-rbac-seguridad pese a la elevación de privilegios de FR-001b.", "resolucion": "Justificado: privilegio de contenedor = dominio revisor-devops (validó FR-001b); rbac-seguridad es acceso de app (sin superficie nueva). SC-005 da chequeo determinista."}
+    ]
+  },
+  "ronda_3": {
+    "veredicto": "PASS",
+    "bloqueantes": 0,
+    "huecos": [
+      {"id": "D-005", "sev": "MEDIA", "fuente": "revisor-devops", "desc": "`.specify/gate-exceptions.txt` tiene esquema estricto para excepciones del guardián (G1/G2/G3), no encaja para un residuo Trivy/CVE.", "resolucion": "FR-004 y SC-002 corregidos: el residuo terminal se documenta en `docs/pipeline-spec.md` FR-P05 (versionado), NO en gate-exceptions.txt."}
+    ],
+    "nota": "6 huecos de ronda 2 cerrados con texto explícito (verificado contra nginx.conf, Dockerfile y ci-develop-front.yml reales). El único hueco nuevo (D-005, MEDIA) se cierra apuntando el residuo al documento correcto. 0 BLOQUEANTES → converge."
+  },
+  "verificacion_real_pendiente": "SC-001..SC-006 se confirman al empujar la PR de front al fork (Actions): job `Imagen frontend + Trivy` en verde (0 CRITICAL/HIGH corregibles) + smoke-test (arranque + assets) + USER no-root.",
+  "resumen": "El gate reducido cazó 2 BLOQUEANTES reales antes de tocar código (apk upgrade necesita root sobre imagen no-root; vía de escape 'unfixed' falsa) y, en ronda 2, 3 ALTAS que introdujo la propia remediación (smoke-test roto por el upstream de nginx, FR-004 sin techo, no-rebuild no verificado). Convergió en 3 rondas con 4 FR nuevos (FR-001b privilegios, FR-004 bump+escalado, FR-005 smoke-test real, FR-006 doc maestro) + 2 SC (no-root, smoke verde) y tradeoffs documentados. Todo verificado contra los ficheros reales. 0 bloqueantes."
+}

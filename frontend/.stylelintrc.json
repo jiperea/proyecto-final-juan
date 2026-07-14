@@ -1,0 +1,19 @@
+{
+  "extends": "stylelint-config-standard",
+  "rules": {
+    "declaration-property-value-disallowed-list": {
+      "/^(color|background|background-color|border|border-color|fill|stroke|box-shadow)$/": ["/#[0-9a-fA-F]{3,8}/"],
+      "/^(font-size|padding|margin|gap|width|height|border-radius|line-height)$/": ["/\\d+px/"],
+      "font-family": ["/.+/"]
+    },
+    "selector-class-pattern": null,
+    "comment-empty-line-before": null,
+    "custom-property-pattern": null,
+    "rule-empty-line-before": null,
+    "at-rule-empty-line-before": null,
+    "declaration-block-single-line-max-declarations": null,
+    "media-feature-range-notation": null,
+    "declaration-empty-line-before": null
+  },
+  "ignoreFiles": ["src/ui/tokens.css", "dist/**", "node_modules/**"]
+}

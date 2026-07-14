@@ -1,0 +1,23 @@
+{
+  "gate": "G3 (G1 + G2 + implementación vs spec)",
+  "feature": "012-frontend-pipeline-hardening",
+  "fecha": "2026-07-14",
+  "artefactos": ["frontend/Dockerfile", ".github/workflows/pr-validation-front.yml", ".github/workflows/ci-develop-front.yml", ".github/workflows/ci-main-front.yml", "docs/pipeline-spec.md"],
+  "panel": ["revisor-implementacion", "revisor-devops"],
+  "nota_panel": "Feature de pipeline sin componente IA → sin promptfoo. G3 = implementación vs spec/contrato + verificación real (SC-001..006 en Actions, T008 pendiente). Panel reducido al dominio.",
+  "veredicto_global": "PASS (tras remediar 1 ALTA convergente; MEDIAs documentadas o confirmables en la ejecución real)",
+  "rondas": 1,
+  "ronda_1": {
+    "veredicto_impl": "REQUIERE_CAMBIOS (1 ALTA)",
+    "veredicto_devops": "APROBADA_CON_COMENTARIOS (0 bloqueantes)",
+    "huecos": [
+      {"id": "I-001/D-004", "sev": "ALTA", "fuente": "ambos (convergente)", "desc": "SC-005 promete que el no-root se verifica 'por docker inspect en el smoke-test de FR-005', pero los 3 workflows solo hacían curl → la verificación dinámica no-root quedaba manual (local), no automatizada; una regresión futura a root no se cazaría en CI.", "resolucion": "Añadida la aserción `test \"$(docker inspect --format '{{.Config.User}}' fe-smoke)\" = \"101\"` al smoke-test de los 3 workflows (tras `docker run`, antes del curl). SC-005 ahora se verifica en cada PR/CI/release. YAML revalidado."},
+      {"id": "D-001", "sev": "MEDIA", "fuente": "revisor-devops", "desc": "docs/traceability.md no tiene filas para los FR de 012.", "resolucion": "CONVENCIÓN confirmada: las features de pipeline (010/011) NO están en la matriz de trazabilidad de app (es FR→endpoint→task→test de la aplicación; el pipeline no tiene endpoints/tests de app, se valida por build+scan+smoke-test). acceptance-check.sh solo AVISA (no bloquea) para specs de pipeline. 012 sigue el precedente de 010/011 — no es un hueco."},
+      {"id": "D-002", "sev": "MEDIA", "fuente": "revisor-devops", "desc": "El smoke-test suma tiempo al job `ci` (timeout-minutes:15; NFR-P01 <10min).", "resolucion": "El smoke-test añade ~15-30s (retry acotado); `timeout-minutes` ya protege; el margen real se confirma en T008. Aceptado."},
+      {"id": "D-003", "sev": "MEDIA", "fuente": "revisor-devops", "desc": "`COPY --from=build` sin `--chown` (preexistente, no de 012) → ficheros root:root; uid 101 depende de permisos de lectura.", "resolucion": "Riesgo preexistente; los estáticos son world-readable (644) → nginx los sirve como 101 (confirmado en verificación local: `/` y asset → 200). El smoke-test nuevo es precisamente lo que lo cazaría si fallara. Confirmación amd64 en T008."}
+    ]
+  },
+  "verificacion_local": "arm64, etapa runtime aislada (el build de Vite crashea bajo QEMU, ajeno a 012): build OK; `docker inspect` USER=101 (SC-005); smoke-test `/` y asset → HTTP 200 (SC-006); Trivy imagen parcheada → 0 CRITICAL/HIGH corregibles (SC-001, conteo JSON).",
+  "verificacion_real_pendiente": "SC-001..006 en Actions amd64 (T008): job `Imagen frontend + Trivy` verde + smoke-test (arranque + assets + USER 101).",
+  "resumen": "Implementación fiel al spec: Dockerfile FR-001/FR-001b (USER root→apk upgrade→USER 101), Trivy sin skip-dirs (FR-002), superficie acotada a los 3 workflows sin actions nuevas (FR-003/AC-6), FR-P05-front (FR-006). El panel convergió en 1 ALTA real (SC-005 no automatizada) → remediada añadiendo la aserción `docker inspect` al smoke-test de los 3 workflows. MEDIAs documentadas (trazabilidad = convención de pipeline; tiempo/chown = confirmables en T008). 0 bloqueantes."
+}

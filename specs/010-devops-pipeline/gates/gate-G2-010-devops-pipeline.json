@@ -1,0 +1,21 @@
+{
+  "gate": "G2",
+  "feature": "010-devops-pipeline",
+  "fecha": "2026-07-14",
+  "artefactos": ["spec.md", "plan.md", "tasks.md"],
+  "panel": ["revisor-consistencia", "revisor-devops (regresión)", "G1 (heredado, PASS)"],
+  "veredicto_global": "PASS",
+  "bloqueantes": 0,
+  "resumen": "G2 CONVERGE tras cerrar los hallazgos de consistencia. revisor-devops: CONVERGE (plan/tasks fieles al reto, T010-T025 cierran el delta de G1 1:1). revisor-consistencia: 0 bloqueantes, 3 ALTAS + 2 MEDIAS de trazabilidad, todas resueltas.",
+  "huecos_resueltos": [
+    {"id": "K-001", "sev": "ALTA", "desc": "T014 [X] pero FR-013 (softprops+lockstep) pendiente → T014 rematizado como base; softprops→T016, lockstep cruzado→T015."},
+    {"id": "K-002", "sev": "ALTA", "desc": "FR-011 sin tarea → T026 (branch-protection.md, ya existente, + verificación manual)."},
+    {"id": "K-003", "sev": "ALTA", "desc": "FR-018b sin tarea → T027 (añadir chequeo de higiene de secretos al guardián determinista)."},
+    {"id": "K-004", "sev": "MEDIA", "desc": "FR-P20 sin traza → T001 etiquetado con FR-P20 (migraciones al arrancar en el CMD del Dockerfile)."},
+    {"id": "K-005", "sev": "MEDIA", "desc": "spec.md citaba FR-P01..P20/AC-1..10 → corregido a FR-P01..P22/AC-1..11 (real tras G1)."},
+    {"id": "D-001", "sev": "MEDIA", "desc": "protección de prod sin verificación automatizada → T021/T027 + gh api en manual (T023)."},
+    {"id": "D-002", "sev": "MEDIA", "desc": "cd-prod actual con version opcional/latest → T020 lo hace obligatorio+validado; hasta entonces, no usar cd-prod (documentado)."},
+    {"id": "D-003", "sev": "MEDIA", "desc": "composite actions prospectivas → FR-016 ya cubre .github/actions/**; sin tarea porque no existen aún."}
+  ],
+  "siguiente": "/speckit-implement (aplica T010-T027 pendientes) → gate G3."
+}

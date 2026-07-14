@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CD a PRODUCCIÓN (DO-7 · pipeline-spec.md FR-P17/P18/P19). Render + Neon.
+#
+# Disparo EXCLUSIVAMENTE MANUAL (`workflow_dispatch`): es el sustituto del gate de
+# aprobación de GitHub Environments (required reviewers), no disponible en repo
+# privado del plan Free. Así prod NUNCA se despliega solo desde `main` (AC-9): un
+# humano lanza este workflow a conciencia, tras la release semver (ci-main-*).
+#
+# No-rebuild (FR-P12): NO construye nada; solo dispara el deploy-hook de Render, que
+# tira de la imagen `:latest` (o el semver) ya publicada en GHCR por ci-main-*.
+# Secretos del entorno `prod` (FR-P18). Sin API de LLM (NFR-P03).
+# ─────────────────────────────────────────────────────────────────────────────
+name: CD prod (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      componente:
+        description: 'Qué desplegar a prod'
+        type: choice
+        required: true
+        default: ambos
+        options: [ambos, backend, frontend]
+      version:
+        description: 'Semver a promover a prod (debe ser el que está en pre; ej. v0.1.0)'
+        type: string
+        required: true
+      confirmar:
+        description: 'Escribe PROD para confirmar el despliegue a producción'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  packages: write # inspeccionar + MOVER el tag :prod al semver (FR-019 tag móvil por entorno)
+  deployments: read # leer el último Deployment de pre
+
+concurrency:
+  group: cd-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    name: Deploy prod (Render)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: prod # secretos del entorno prod (FR-P18)
+    steps:
+      - name: Confirmación explícita (freno anti-fat-finger — no es 2ª aprobación, ver spec FR-P17)
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirmar }}" != "PROD" ]; then
+            echo "::error::Confirmación inválida: escribe PROD para desplegar a producción."; exit 1
+          fi
+          echo "· confirmado despliegue a prod de: ${{ inputs.componente }} (versión ${{ inputs.version }})"
+      - name: Validar que la versión == la desplegada en pre y que la imagen existe (FR-021)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          want="${{ inputs.version }}"
+          # último Deployment de 'pre' con estado success (fuente de verdad, registrada por cd-pre.yml)
+          pre=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=pre&per_page=1" -q '.[0].ref // empty')
+          [ -n "$pre" ] || { echo "::error::No hay ningún Deployment de 'pre'; no se puede promover a prod."; exit 1; }
+          if [ "$want" != "$pre" ]; then
+            echo "::error::La versión pedida ($want) NO coincide con la desplegada en pre ($pre). Prod solo recibe lo que pasó por pre."; exit 1
+          fi
+          # la imagen del semver debe existir en GHCR y se MUEVE el tag :prod al semver validado
+          # (el deploy-hook de Render redeploya :prod → así sirve exactamente esta versión, no-rebuild).
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          base="ghcr.io/${GITHUB_REPOSITORY,,}"; v="${want#v}"
+          for img in fieldops-backend fieldops-frontend; do
+            docker manifest inspect "${base}/${img}:${v}" >/dev/null 2>&1 || { echo "::error::${img}:${v} no existe en GHCR."; exit 1; }
+            docker buildx imagetools create -t "${base}/${img}:prod" "${base}/${img}:${v}"
+          done
+          echo "· validado: prod desplegará $want (== pre, imágenes presentes, tag :prod movido)"
+      # Idiomático: sin `if:` propio, GitHub antepone `success()` → si confirm/validación fallan, los
+      # deploy NO corren. Back y front se filtran por componente. (Se acepta que un fallo de back salte
+      # el de front — D-005 BAJA; para prod es preferible parar y revisar.)
+      - name: Disparar deploy en Render (backend prod)
+        if: ${{ inputs.componente == 'ambos' || inputs.componente == 'backend' }}
+        env:
+          RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
+        run: |
+          set -euo pipefail
+          [ -n "${RENDER_HOOK:-}" ] || { echo "::error::Falta RENDER_DEPLOY_HOOK_BACKEND en environment 'prod'."; exit 1; }
+          curl -fsS -X POST "$RENDER_HOOK" >/dev/null
+          echo "· deploy prod backend disparado (versión validada ${{ inputs.version }} → :prod)"
+      - name: Disparar deploy en Render (frontend prod)
+        if: ${{ inputs.componente == 'ambos' || inputs.componente == 'frontend' }}
+        env:
+          RENDER_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+        run: |
+          set -euo pipefail
+          [ -n "${RENDER_HOOK:-}" ] || { echo "::error::Falta RENDER_DEPLOY_HOOK_FRONTEND en environment 'prod'."; exit 1; }
+          curl -fsS -X POST "$RENDER_HOOK" >/dev/null
+          echo "· deploy prod frontend disparado (versión validada ${{ inputs.version }} → :prod)"
+      - name: Registro del despliegue (qué versión quedó en prod) — D-004
+        if: ${{ success() }} # solo registra si confirm+validación+deploy tuvieron éxito (no en abortos)
+        run: |
+          {
+            echo "### Despliegue a prod";
+            echo "- Componente: \`${{ inputs.componente }}\` · Versión: \`${{ inputs.version }}\` (validada == pre)";
+            echo "- Lanzado por: \`${{ github.actor }}\` · Run: \`${{ github.run_id }}\`";
+          } >> "$GITHUB_STEP_SUMMARY"

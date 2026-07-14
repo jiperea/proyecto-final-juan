@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CD a PRE (DO-7 Fase 2 · pipeline-spec.md FR-P16b / spec FR-020 / AC-11).
+#
+# WHEN se empuja un tag semver `vX.Y.Z` THE pipeline SHALL, tras verificar que AMBAS
+# imágenes `:x.y.z` (back y front) existen en GHCR, desplegar automáticamente **pre**
+# (consumiendo el semver, NO `:latest`) y **registrar un GitHub Deployment** del
+# entorno pre con ese semver — fuente de verdad que `cd-prod.yml` valida (FR-021).
+#
+# No-rebuild: solo dispara el deploy-hook de Render (que tira del semver de GHCR).
+# Secretos del environment `pre` (FR-P18). Sin API de LLM (NFR-P03).
+# ─────────────────────────────────────────────────────────────────────────────
+name: CD pre · auto (tras release)
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-pre
+  cancel-in-progress: false
+
+jobs:
+  deploy-pre:
+    name: Deploy pre (Render)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: pre # secretos del entorno pre (FR-P18)
+    permissions:
+      contents: read
+      packages: write # inspeccionar + MOVER el tag :pre al semver (FR-019 tag móvil por entorno)
+      deployments: write # registrar el GitHub Deployment de pre (FR-020)
+    steps:
+      - name: Esperar a que AMBAS imágenes :x.y.z existan y MOVER el tag :pre al semver
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for img in fieldops-backend fieldops-frontend; do
+            ok=""
+            for i in $(seq 1 30); do
+              if docker manifest inspect "${base}/${img}:${version}" >/dev/null 2>&1; then ok=1; break; fi
+              echo "· esperando ${img}:${version} (intento $i)…"; sleep 10
+            done
+            [ -n "$ok" ] || { echo "::error::${img}:${version} no existe en GHCR tras ~5 min; release incompleto, no despliego pre."; exit 1; }
+            # El deploy-hook de Render solo redeploya el tag configurado (:pre). Movemos :pre al
+            # semver EXACTO (mismo manifest, sin rebuild) para que el hook sirva de verdad esta versión.
+            docker buildx imagetools create -t "${base}/${img}:pre" "${base}/${img}:${version}"
+          done
+          echo "· ambas imágenes :$version presentes y tag :pre movido a $version ✓"
+      - name: Disparar deploy en Render (pre · back + front)
+        env:
+          HOOK_BACK: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
+          HOOK_FRONT: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+        run: |
+          set -euo pipefail
+          [ -n "${HOOK_BACK:-}" ] || { echo "::error::Falta RENDER_DEPLOY_HOOK_BACKEND en environment 'pre'."; exit 1; }
+          [ -n "${HOOK_FRONT:-}" ] || { echo "::error::Falta RENDER_DEPLOY_HOOK_FRONTEND en environment 'pre'."; exit 1; }
+          curl -fsS -X POST "$HOOK_BACK" >/dev/null
+          curl -fsS -X POST "$HOOK_FRONT" >/dev/null
+          echo "· deploy pre disparado (Render redeploya :$GITHUB_REF_NAME → semver)"
+      - name: Registrar GitHub Deployment de pre (fuente de verdad para prod, FR-020/021)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          dep=$(gh api "repos/${GITHUB_REPOSITORY}/deployments" -X POST \
+            -f ref="${GITHUB_REF_NAME}" -f environment="pre" -f required_contexts='[]' \
+            -F auto_merge=false -f description="pre ${GITHUB_REF_NAME}" -q '.id')
+          gh api "repos/${GITHUB_REPOSITORY}/deployments/${dep}/statuses" -X POST \
+            -f state="success" -f environment="pre" -f description="desplegado ${GITHUB_REF_NAME}"
+          echo "· GitHub Deployment de pre registrado: ${GITHUB_REF_NAME} (id $dep)"

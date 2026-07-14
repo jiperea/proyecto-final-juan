@@ -1,0 +1,210 @@
+{
+  "gate": "G1",
+  "feature": "009-front-shell-listado",
+  "fase": "after_clarify",
+  "fecha": "2026-07-14",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
+  "veredicto_global": "PASS",
+  "veredicto_ronda1": "BLOQUEADA",
+  "rondas": {"r1": {"bloq": 5, "altas": 8, "medias": 14}, "r2": {"bloq": 0, "altas": 6, "medias": 7}, "r3": {"bloq": 0, "altas": 7, "medias": 5}, "r4": "remediación aplicada, sin re-correr (decisión de convergencia — ver .md)"},
+  "cierre": "0 bloqueantes sostenido (r2-r3); altas r1-r3 remediadas; residuales = detalle de implementación → /speckit-plan + G2/G3. Ver gate-G1-009-front-shell-listado.md.",
+  "bloqueantes": 0,
+  "altas_abiertas": 0,
+  "altas": 8,
+  "medias": 14,
+  "huecos": [
+    {
+      "id": "B-01",
+      "severidad": "BLOQUEANTE",
+      "verificado": "CONFIRMADO",
+      "origen": ["H-001(cinico)", "H-007(cinico)"],
+      "categoria": "CONTRATO_UI",
+      "elemento": "FR-010 + Clarification Q3 (paginación) vs orders.openapi.yaml:38 / OrderListResponse",
+      "descripcion": "El contrato de getOrderList dice EXPLÍCITAMENTE 'Sin paginación' y OrderListResponse solo expone `orders[]` (sin cursor `next`). FR-010 y la clarificación Q3 («Cargar más» por cursor) se redactaron sobre una premisa falsa (asunción de la convención general de cursor de la constitución, NO aplicada por 002a a este endpoint).",
+      "accion": "Eliminar FR-010 y la clarificación Q3. Sustituir por: la app renderiza la lista completa que devuelve getOrderList (sin control de paginación). Cae también F-004 (a11y de «Cargar más», ya no aplica)."
+    },
+    {
+      "id": "B-02",
+      "severidad": "BLOQUEANTE",
+      "verificado": "CONFIRMADO",
+      "origen": ["H-002(cinico)"],
+      "categoria": "CONTRATO_UI",
+      "elemento": "FR-004 / FR-005 vs auth.openapi.yaml (CSRF double-submit en refresh/logout)",
+      "descripcion": "auth exige CSRF double-submit (header X-CSRF-Token == cookie csrf_token, legible por JS) en refresh y logout — justo los que invocan FR-004/FR-005. Ningún FR cubre leer csrf_token y enviar la cabecera. Sin ello, refresh/logout devuelven 403 siempre.",
+      "accion": "Añadir FR: WHEN la app invoca refresh o logout THE app SHALL leer la cookie csrf_token y enviarla en X-CSRF-Token (double-submit); orden de comprobación sesión(401)→CSRF(403)."
+    },
+    {
+      "id": "B-03",
+      "severidad": "BLOQUEANTE",
+      "verificado": "PLAUSIBLE",
+      "origen": ["S-001(rbac)"],
+      "categoria": "FUGA_DATOS",
+      "elemento": "FR-005 (logout) / Key Entities — purga de estado cliente",
+      "descripcion": "FR-005 solo descarta el access de memoria; no exige purgar caché de listado/detalle, notes, last_rejection_reason ni identidad. En dispositivo compartido de campo, un segundo login podría ver datos residuales (incl. PII/motivo de rechazo). Fallo puramente de cliente, invisible al backend (Constitución IV/XI).",
+      "accion": "Añadir FR: WHEN se cierra sesión (o se monta un login nuevo) THE app SHALL purgar TODO estado en memoria/caché del cliente (sesión, listado, detalle, notes, last_rejection_reason) antes de montar el shell del nuevo usuario."
+    },
+    {
+      "id": "B-04",
+      "severidad": "BLOQUEANTE",
+      "verificado": "PLAUSIBLE",
+      "origen": ["F-001(front)"],
+      "categoria": "ACCESIBILIDAD",
+      "elemento": "FR-021 / navegación SPA — gestión de foco/anuncio de ruta",
+      "descripcion": "Rutas de cliente sin recarga: axe-core NO detecta que el lector de pantalla no se entera del cambio de vista. Falta FR/SC que exija mover el foco al h1/landmark (o anunciar la ruta) tras cada navegación. Rompe WCAG operabilidad por AT pese a SC-003/004.",
+      "accion": "Añadir FR: WHEN cambia la ruta de cliente THE app SHALL mover el foco al encabezado principal de la vista (o anunciar el cambio vía live region). SC/test de interacción que lo verifique."
+    },
+    {
+      "id": "B-05",
+      "severidad": "BLOQUEANTE",
+      "verificado": "PLAUSIBLE",
+      "origen": ["F-002(front)"],
+      "categoria": "DESIGN_SYSTEM",
+      "elemento": "FR-017 (sin estilos sueltos) — mecanismo determinista",
+      "descripcion": "FR-017 prohíbe hex/px/font arbitrarios pero ningún SC cita el gate determinista que lo hace cumplir (stylelint declaration-property-value-disallowed-list o script CI). Sin él, la disciplina depende de revisión manual — contra deterministic-first (Constitución).",
+      "accion": "Añadir SC medible: '0 estilos sueltos' verificado por stylelint/lint de tokens en CI (gate G3). Mismo patrón para FR-016 (ver A-06)."
+    },
+    {
+      "id": "A-01",
+      "severidad": "ALTA",
+      "origen": ["H-003(cinico)"],
+      "categoria": "EDGE_CASE",
+      "elemento": "FR-004 — race de refresh single-use (rotación atómica)",
+      "descripcion": "Varias peticiones con 401 simultáneo disparan 2 refresh concurrentes; el refresh es single-use → el 2º falla y fuerza logout espurio.",
+      "accion": "FR-004 debe serializar/deduplicar el refresh (una única promesa compartida por todas las peticiones 401 concurrentes)."
+    },
+    {
+      "id": "A-02",
+      "severidad": "ALTA",
+      "origen": ["H-004(cinico)", "F-007(front)"],
+      "categoria": "REQUISITO_FALTANTE",
+      "elemento": "Bootstrap de sesión al recargar + retorno a la vista tras re-login",
+      "descripcion": "US1 Independent Test promete que al recargar la sesión persiste, pero el access vive solo en memoria (FR-003) y ningún FR define el bootstrap (refresh/me silencioso al arrancar + pantalla de carga). F-007: tras re-login a mitad de sesión, ¿se vuelve a la ruta donde estaba? ('sin perder mi sitio').",
+      "accion": "Añadir FR de bootstrap: WHEN arranca la app THE app SHALL intentar refresh silencioso y resolver a shell o login; y tras re-login continuar a la ruta pedida (coherente con FR-021)."
+    },
+    {
+      "id": "A-03",
+      "severidad": "ALTA",
+      "origen": ["H-005(cinico)"],
+      "categoria": "INCONSISTENCIA",
+      "elemento": "Detalle sin FR para 500/503; 'vacío' no aplica a detalle",
+      "descripcion": "FR-011/012/013 solo cubren 200 y 404; falta el estado error (500/503) del detalle que SC-006 da por hecho. Además 'vacío' no tiene sentido para una vista de un único recurso.",
+      "accion": "Añadir FR de error (500/503) para getOrderDetail análogo a FR-009; aclarar en SC-006 que 'vacío' aplica al listado, no al detalle."
+    },
+    {
+      "id": "A-04",
+      "severidad": "ALTA",
+      "origen": ["H-006(cinico)", "T-002(theater)", "F-005(front)"],
+      "categoria": "CONTRATO_UI",
+      "elemento": "FR-015 — fallback para `code` no mapeado / sin `code`",
+      "descripcion": "La tabla §8 no cubre INTERNAL/500 ni un catch-all. FR-015 prohíbe 'inventar' pero no dice qué mostrar ante un code fuera de tabla → choca con 'no colgar' (FR-009/SC-006). (3 revisores coinciden.)",
+      "accion": "Definir en design-system §8 un mensaje genérico de fallback ('Ha ocurrido un error. Reinténtalo.') y reescribir FR-015 con la rama EARS del code no mapeado."
+    },
+    {
+      "id": "A-05",
+      "severidad": "ALTA",
+      "origen": ["S-003(rbac)"],
+      "categoria": "SEGURIDAD",
+      "elemento": "FR-011 — sanitización de `notes` (texto libre) → XSS almacenado",
+      "descripcion": "notes es texto libre de un técnico visible a otros roles. Sin FR que exija render como texto escapado (nunca dangerouslySetInnerHTML/markdown sin sanitizar) → XSS almacenado entre roles.",
+      "accion": "Añadir FR: THE app SHALL renderizar notes y todo texto libre de otro usuario como texto escapado; prohibido HTML crudo/markdown sin sanitizar."
+    },
+    {
+      "id": "A-06",
+      "severidad": "ALTA",
+      "origen": ["F-003(front)"],
+      "categoria": "CONTRATO_UI",
+      "elemento": "FR-016 — derivación de tipos verificable",
+      "descripcion": "FR-016 exige derivar tipos del contrato pero sin mecanismo (codegen openapi-typescript / test de diff) que impida una copia manual que diverja al cambiar el contrato.",
+      "accion": "SC/tarea: generar tipos/Zod desde los OpenAPI (codegen) + test que falle si divergen. Junto con B-05, un SC de 'contrato-UI verificado'."
+    },
+    {
+      "id": "A-07",
+      "severidad": "ALTA",
+      "origen": ["T-001(theater)"],
+      "categoria": "SIN_CRITERIO_PASS_FAIL",
+      "elemento": "SC-001 — 'sin callejones sin salida' no medible",
+      "descripcion": "La cláusula no tiene condición binaria testeable.",
+      "accion": "Definir: 'toda vista intermedia expone un control de retorno visible/navegable a listado o login', o eliminar la cláusula y dejar solo '≤3 clics'."
+    },
+    {
+      "id": "A-08",
+      "severidad": "ALTA",
+      "origen": ["F-006(front)"],
+      "categoria": "CONTRATO_UI",
+      "elemento": "Key Entities — '…' en campos de listado/detalle",
+      "descripcion": "La elipsis deja abierto qué campos expone getOrderList/getOrderDetail por rol; el implementador podría divergir (choca con FR-006 'sin filtrar ni añadir').",
+      "accion": "Listar exhaustivamente (sin '…') el conjunto cerrado de campos por rol, tomados del contrato."
+    },
+    {
+      "id": "M-01", "severidad": "MEDIA", "origen": ["T-003(theater)"], "categoria": "MULTIPLE_INTERPRETACION",
+      "elemento": "FR-008 — 'explicativo' sin contenido mínimo",
+      "accion": "Fijar contenido mínimo del estado vacío (texto no genérico; opcional mención de ámbito)."
+    },
+    {
+      "id": "M-02", "severidad": "MEDIA", "origen": ["T-004(theater)"], "categoria": "NO_EARS",
+      "elemento": "FR-014 — cláusula 'sin asumir autoridad propia' no observable",
+      "accion": "Fusionar en la primera mitad de FR-014 o eliminar como requisito autónomo (no añade test)."
+    },
+    {
+      "id": "M-03", "severidad": "MEDIA", "origen": ["H-008(cinico)"], "categoria": "EDGE_CASE",
+      "elemento": "Master-detail: qué muestra /orders sin id; selección cambia URL",
+      "accion": "Definir: /orders sin id muestra placeholder ('selecciona una orden'); clic → /orders/:id conservando lista."
+    },
+    {
+      "id": "M-04", "severidad": "MEDIA", "origen": ["F-011(front)"], "categoria": "RESPONSIVE",
+      "elemento": "MasterDetail — foco al seleccionar / colapso en resize",
+      "accion": "Definir gestión de foco al seleccionar fila y al colapsar <1024px."
+    },
+    {
+      "id": "M-05", "severidad": "MEDIA", "origen": ["F-008(front)"], "categoria": "RESPONSIVE",
+      "elemento": "FR-019 — ≥44px ¿aplica a master-detail?",
+      "accion": "Aclarar que ≥44px aplica a TODO control (design-system §4), no solo al layout de campo."
+    },
+    {
+      "id": "M-06", "severidad": "MEDIA", "origen": ["F-009(front)"], "categoria": "ACCESIBILIDAD",
+      "elemento": "prefers-reduced-motion solo como edge case",
+      "accion": "Formalizar como FR/SC con test."
+    },
+    {
+      "id": "M-07", "severidad": "MEDIA", "origen": ["F-010(front)"], "categoria": "ESTADO_UI",
+      "elemento": "Estado 'cargando' sin FR (aria-busy)",
+      "accion": "Añadir FR del estado de carga accesible (aria-busy, texto para AT)."
+    },
+    {
+      "id": "M-08", "severidad": "MEDIA", "origen": ["H-011(cinico)"], "categoria": "EDGE_CASE",
+      "elemento": "Fallo de red puro (offline/timeout) vs 503",
+      "accion": "Tratar como estado error con reintento; mensaje 'sin conexión' en design-system §8 (parte de A-04)."
+    },
+    {
+      "id": "M-09", "severidad": "MEDIA", "origen": ["H-009(cinico)"], "categoria": "EDGE_CASE",
+      "elemento": "Logout que falla (red/500)",
+      "accion": "Definir: limpiar estado local y navegar a login igualmente (best-effort), aun si la llamada falla."
+    },
+    {
+      "id": "M-10", "severidad": "MEDIA", "origen": ["H-010(cinico)"], "categoria": "EDGE_CASE",
+      "elemento": "Logout multi-pestaña",
+      "accion": "Decisión consciente: aceptar que otra pestaña sigue hasta su próximo 401 (documentar en Assumptions) o propagar vía storage event. Candidato a YAGNI/Assumption (XV)."
+    },
+    {
+      "id": "M-11", "severidad": "MEDIA", "origen": ["S-002(rbac)"], "categoria": "SEGURIDAD",
+      "elemento": "Segunda capa cliente: verificar rol/ownership antes de render",
+      "accion": "Evaluar: la UI comprueba rol/ownership antes de renderizar notes/evidence/last_rejection_reason (defensa en profundidad) o se documenta como confianza en el backend (ya testeado)."
+    },
+    {
+      "id": "M-12", "severidad": "MEDIA", "origen": ["S-004(rbac)"], "categoria": "FUGA_DATOS",
+      "elemento": "Prefetch de getOrderDetail en master-detail",
+      "accion": "Prohibir prefetch de detalle de órdenes no seleccionadas explícitamente."
+    },
+    {
+      "id": "M-13", "severidad": "MEDIA", "origen": ["S-005(rbac)"], "categoria": "FUGA_DATOS",
+      "elemento": "Telemetría/logging de errores en cliente con PII",
+      "accion": "FE-1 no incluye telemetría → documentar en Assumptions que no hay captura de errores a terceros; si se añade, redactar PII. Candidato a Assumption (XV)."
+    },
+    {
+      "id": "M-14", "severidad": "MEDIA", "origen": ["S-006(rbac)"], "categoria": "FUGA_DATOS",
+      "elemento": "Destino post-login (orderId pendiente) — storage cleanup",
+      "accion": "Definir dónde se guarda el destino (estado de router en memoria, no storage compartido) y limpiarlo tras usar/cancelar."
+    }
+  ],
+  "resumen": "G1 FAIL. 5 bloqueantes: 2 CONFIRMADOS contra contrato (B-01 getOrderList sin paginación → FR-010/Q3 inválidos; B-02 CSRF double-submit no cubierto en refresh/logout), 3 de robustez cliente (B-03 purga de estado al logout, B-04 gestión de foco SPA, B-05 gate determinista de estilos). El panel de front nuevo aportó B-04/B-05 y varias ALTAs de a11y/contrato-UI. La clarificación de paginación (Q3) fue un error del autor basado en asunción no verificada del contrato."
+}

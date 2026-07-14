@@ -1,0 +1,30 @@
+{
+  "gate": "G3",
+  "feature": "009-front-shell-listado",
+  "fase": "after_implement",
+  "fecha": "2026-07-14",
+  "panel": ["revisor-implementacion", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
+  "verificacion_determinista": "tsc strict limpio · eslint+stylelint rc=0 · vitest 55/55 · Playwright e2e 3/3 · build de producción OK. promptfoo N/A (FE-1 sin IA, reconciliación XIV).",
+  "veredicto_global": "PASS",
+  "rondas": {
+    "r1": {"bloqueantes": 3, "detalle": "I-001 FR-004 sin redirect a login (código muerto SESSION_EXPIRED); S-001 login sin purga → fuga entre cuentas vía caché; F-001 conflicto de foco h1↔detalle"},
+    "r2": {"bloqueantes": 1, "detalle": "implementacion APROBADA; S-003 (nuevo, expuesto por fix de S-001): doRefresh sin guard de epoch → race login concurrente; F-006 ALTA deep-link foco; F-002 ALTA Zod sin gate"},
+    "r3": {"bloqueantes": 0, "detalle": "S-003 confirmado resuelto; nuevos S-004 (MEDIA, login sin guard de epoch) y F-010 (ALTA, CI no corre gates de front)"}
+  },
+  "resoluciones": [
+    "I-001 (BLOQ): client.ts invalida sesión en 401 terminal → redirige a login conservando ruta. Test session-flows.",
+    "S-001 (BLOQ): login() purga sesión/caché previa (invalidateSession) + /login redirige si autenticado.",
+    "F-001 (BLOQ): useRouteFocus cede foco a MasterDetail en rutas de detalle.",
+    "S-003 (BLOQ r2): doRefresh comprueba epoch antes de aplicar token/rol (anti-race entre cuentas).",
+    "F-006 (ALTA): foco de detalle también en deep-link/montaje; test en orders.test.",
+    "F-002 (ALTA): aserción de tipo AssertAssignable en schemas.ts (tsc falla si Zod diverge del contrato).",
+    "F-003 (ALTA): lint cubre vector font. F-004 (ALTA): aria-busy en isFetching.",
+    "S-004 (MEDIA): login() con guard de epoch (LoginSupersededError). I-003/I-004 (MEDIA): tests XSS/logout-5xx. F-005 (MEDIA): contraste lee tokens.css."
+  ],
+  "disposiciones": [
+    "F-010 (ALTA): el enforcement en CI de los gates de front (lint/typecheck/test/AssertAssignable/axe) es DevOps DO-6 (gobernanza spec-antes-que-YAML, requiere DO-1). Hoy ci.yml es placeholder de fundación. Los gates existen como scripts npm y pasan en verde local. Documentado en spec §SC-008. NO se escribe CI YAML en FE-1 por gobernanza.",
+    "S-002 (MEDIA): bfcache retira el blanqueo al resolver refresh, no tras adopt(me) → posible parpadeo de etiqueta de identidad (sin datos de órdenes; caché ya purgada). Aceptado como MEDIA documentada.",
+    "T048 (quickstart con backend real + docker-compose) y F-010 (workflow CI) requieren levantar el stack → validación en fase DevOps."
+  ],
+  "cierre": "0 bloqueantes sostenido (r2-r3). Los 3 bloqueantes de r1 + el de r2 (S-003) resueltos y con test; altas remediadas o dispuestas a DO-6 con motivo de gobernanza. FE-1 (US1+US2+US3) implementado y verde de forma determinista."
+}

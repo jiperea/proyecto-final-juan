@@ -1,0 +1,42 @@
+{
+  "gate": "G3",
+  "feature": "010-devops-pipeline",
+  "fecha": "2026-07-14",
+  "artefactos": [".github/workflows/*.yml (9)", "scripts/*.sh (3)", "scripts/tests/pipeline-scripts.test.sh", "docs/16-devops-setup-manual.md", "spec.md"],
+  "panel": ["revisor-implementacion", "revisor-devops (regresión)", "G1+G2 heredados"],
+  "veredicto_global": "PASS",
+  "bloqueantes": 0,
+  "rondas": [
+    {"ronda": 1, "veredicto": "REQUIERE_CAMBIOS", "bloqueantes": 2,
+     "ids": ["I-001 deploy-hook no propaga semver a pre/prod (tag inmutable)", "D-001 cd-prod if:job.status no idiomático"],
+     "altas": ["D-002 npm claude-code sin pin", "I-002/D-003 branch-protection.md desactualizado"],
+     "medias": ["I-003 test reimplementa lógica", "I-004 grep FR-018b sin -i/\\s*", "D-004 release front sin needs publish-image", "D-005 coste API opt-in", "D-006 manejo error cd-pre"]},
+    {"ronda": 2, "veredicto": "CONVERGE", "bloqueantes": 0,
+     "nota": "2 bloqueantes + 4 altas resueltos y verificados; 1 MEDIA nueva (resumen cd-prod incondicional) → corregida con if: success()"}
+  ],
+  "resolucion": [
+    {"id": "I-001", "fix": "tag móvil por entorno (:develop/:pre/:prod) reetiquetado al manifest del semver con docker buildx imagetools create antes del deploy-hook; Render rastrea el tag móvil; GitHub Deployment de pre ya corresponde a lo servido → cadena pre→prod íntegra."},
+    {"id": "D-001", "fix": "cd-prod: pasos de deploy sin if de estado propio → success() implícito los bloquea si confirm/validación fallan; resumen con if: success()."},
+    {"id": "D-002", "fix": "npm install -g @anthropic-ai/claude-code@2.1.209 (versión fijada)."},
+    {"id": "I-002/D-003", "fix": "branch-protection.md: tabla completa (code-review, jobs de front, guardian-agent condicional), coherente con docs/16."},
+    {"id": "I-003", "fix": "acceptance-check.sh acepta TRACE_FILE; el test ejercita el SCRIPT REAL contra fixtures (8/8 verde)."},
+    {"id": "I-004", "fix": "grep del guardián alineado al oráculo FR-018b (grep -rniE + [[:space:]]*)."},
+    {"id": "D-004", "fix": "release front needs: [ci, publish-image]."}
+  ],
+  "verificacion_estatica": {
+    "H-005_lockstep_cruzado": "cerrado (ci-main-* verifican AMBOS package.json)",
+    "H-006_prod_vs_pre": "cerrado (cd-prod valida vs GitHub Deployment de pre)",
+    "H-007_cd_pre": "cerrado (cd-pre.yml crea + registra Deployment)",
+    "SHA_pin": "6 actions, todas por SHA de 40 chars (AC-6: 0 tag-based)",
+    "guardián+acceptance": "exit 0 (010-G3 ahora presente)",
+    "tests_scripts": "8/8 verde (regresión D-007 contra el script real)"
+  },
+  "no_verificable_sin_remoto": "ejecución real en Actions, push a GHCR, deploy a Render/Neon, y AC-8/AC-11 (200 en la URL) — requieren la configuración manual del usuario (docs/16). El instructor verifica AC-1/SC-004 (spec-antes-que-YAML) por git log sobre docs/pipeline-spec.md.",
+  "desviaciones_documentadas": [
+    "check-acceptance.js de M9 (verificador de ACs contra API real) → aquí acceptance-check.sh = trazabilidad estática; los ACs contra API los cubren los tests de contrato/integración del backend.",
+    "guardián como Claude Code Action → determinista always-on + agente opt-in (excepción única a NFR-P03).",
+    "aprobación prod por workflow_dispatch (muro de Environments en repo privado Free).",
+    "formalización SDD retroactiva (spec-antes-que-YAML anclado a docs/pipeline-spec.md)."
+  ],
+  "resumen": "G3 PASS tras 2 rondas. Implementación conforme a la spec remediada; H-005/006/007 cerrados; cadena de suministro (SHA-pin, permisos mínimos, higiene de secretos) verificada; CD con tag móvil por entorno resuelve la limitación del deploy-hook. Fase 2 implementada pero pendiente de ejecución real + config manual. Cierra el flujo SDD de la feature 010."
+}
