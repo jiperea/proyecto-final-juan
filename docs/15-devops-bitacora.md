@@ -369,7 +369,16 @@ Contratos ✓, guardián ✓, code-review ✓). Trivy destapó un **4.º hallazg
 honesto:** `apt-get upgrade -y` en la etapa runtime del `backend/Dockerfile` (parchea a las versiones deb12
 corregidas; no esconde). Conformidad con FR-P05 ("CRITICAL/HIGH corregibles"). Pendiente: re-push → Trivy verde.
 
-<!-- Próximas entradas: confirmación de los jobs en verde tras el push al fork. -->
+**Confirmación en verde (2026-07-14, run `29328465834` en `jiperea/proyecto-final-juan`):** tras el
+re-push con el `apt-get upgrade`, **Trivy quedó verde** y con él **toda la CI capa 1**: Tests ✓,
+Contratos/Spectral ✓, guardián de Constitución + code-review ✓, **build + Trivy ✓**, imagen snapshot →
+GHCR ✓. **SC-001/002/003 confirmados** → **011 cerrada** (era su única razón de ser: fallos no detectables
+sin remoto). El único job rojo restante es **CD · Deploy dev (Render)**, que falla *fail-fast* por diseño
+(`##[error]Falta el secret RENDER_DEPLOY_HOOK_BACKEND en el environment 'dev'`) — eso es DO-7/010 y depende
+de la configuración manual del usuario (Neon + Render + GitHub Environments, ver `docs/16-devops-setup-manual.md`).
+
+<!-- Próximas entradas: configuración Render+Neon (DO-7 Fase 1 dev) y CD dev en verde. -->
+
 
 
 
