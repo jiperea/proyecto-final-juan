@@ -72,5 +72,82 @@ base es endurecimiento opcional → se valora al añadir Trivy en DO-3. Tags min
 **Pendiente:** DO-3 (pr-validation-back.yml + `validate-constitution.sh` + `acceptance-check.sh`) → DO-4/5
 (CI develop/main + GHCR) → DO-6 (workflows front).
 
-<!-- Próximas entradas: DO-3, DO-4/5, DO-6 se añaden aquí conforme se completan. -->
+## DO-3 · PR-gate del backend — 2026-07-14
+
+**Hecho:** `.github/workflows/pr-validation-back.yml` — batería de gates M9 sobre PRs que tocan
+`backend/**` o `contracts/**` (filtros `paths:`, FR-P01), en 5 jobs deterministas:
+- **guardian** → `scripts/validate-constitution.sh` (FR-P07: a spec-antes-que-YAML · b informes de gate
+  G1/G2/G3 por spec, con excepciones documentadas · c sin `[NEEDS CLARIFICATION]` en `spec.md` · d
+  `domain/` sin imports de infra) + `scripts/acceptance-check.sh` (FR-P08: integridad de la matriz
+  `docs/traceability.md`, ninguna fila FR sin tarea+test).
+- **secrets** → gitleaks CLI OSS con versión fijada + `.gitleaks.toml` (FR-P04).
+- **lint-typecheck-test** → `eslint` + `tsc --noEmit` + `vitest run` con **Postgres 16 de servicio** y
+  `prisma migrate deploy` (FR-P02; NFR-P02 paridad; NFR-P01 caché npm + `timeout-minutes: 10`).
+- **contracts** → Spectral (`.spectral.yaml` extiende `spectral:oas`, `--fail-severity error`) + oasdiff
+  `breaking` vs la base del PR (FR-P03).
+- **image-scan** → `docker build` del backend + **Trivy** (`CRITICAL,HIGH`, `ignore-unfixed`, FR-P05).
+
+Cadena de suministro: **todas las actions por SHA de 40 chars** (checkout, setup-node, trivy-action; el
+tag va solo en comentario, FR-P13/AC-6); `permissions: contents: read` a nivel de workflow y **ningún job
+eleva permisos** (este gate no publica nada — eso es DO-4/DO-5, FR-P14). Cero API de LLM: las evals de
+promptfoo siguen **en local** sobre el plan (NFR-P03/FR-P15).
+
+**Nuevos artefactos de soporte:** `scripts/{validate-constitution,acceptance-check}.sh` (deterministas,
+`set -euo pipefail`, exit 0/1), `.spectral.yaml`, `.specify/gate-exceptions.txt` (excepciones al guardián
+**documentadas y trazables**, no silenciosas — memoria «no diferir ALTAs en silencio»).
+
+**Retirada del placeholder:** se elimina `.github/workflows/ci.yml` (era placeholder de fundación con
+`build-test` sobre un `package.json` de raíz inexistente; DO-1 ya lo marcó «se reemplaza por los workflows
+spec-derivados en DO-3+»). Para **no** dejar hueco de cobertura de secretos, el escaneo NO se acota al
+PR-gate de back: vive en un workflow **universal** `secrets-scan.yml` (todo PR + push a `develop`/`main`,
+sin filtro `paths:`), que también protege PRs de front y pushes directos a ramas protegidas.
+
+**Verificado (determinista, sin API):** ambos scripts salen **0** en el estado actual del repo (AC-4);
+`validate-constitution.sh` reporta la excepción **005-G3** (informe G3 no materializado como
+`gates/gate-G3-*`; deuda documental conocida, gate ejecutado) sin fallar. YAML válido; `grep` **no**
+encuentra `uses: …@v[0-9]` (AC-6); las 3 actions con SHA de 40 chars. `git log --diff-filter=A` mantiene
+`docs/pipeline-spec.md` **anterior** a `pr-validation-back.yml` (AC-1). *(La ejecución real en Actions —
+tiempos, imagen, Trivy — se comprobará al abrir el primer PR contra `develop`.)*
+
+**Decisiones/hallazgos de DO-3:**
+- **acceptance-check** verifica la **integridad de la matriz** (toda fila FR con tarea+test) en vez del
+  cruce libre `spec.md`↔matriz: los FR se renumeran por spec y hay filas de ID combinado
+  (`FR-007/008/009`), así que un matcher por token daba falsos positivos. La cobertura por-spec se emite
+  como **aviso no-bloqueante** (visibilidad sin falso rojo).
+- **gitleaks por CLI OSS** (no la action) para evitar el requisito de licencia en repos de organización;
+  versión fijada. Coherente con el `ci.yml` original.
+- **Trivy `ignore-unfixed`**: FR-P05 exige fallar ante `CRITICAL/HIGH` **corregibles**; las sin fix no
+  bloquean (no hay acción posible), se ven en el reporte.
+
+**Revisión adversarial (`revisor-devops`, por el plan):** 0 BLOQUEANTES · 4 ALTAS · 4 MEDIAS →
+`REQUIERE_CAMBIOS`. Todas las ALTAS y las MEDIAS de bajo riesgo resueltas en la misma ronda (memoria «no
+diferir ALTAs en silencio»):
+- **D-004 (ALTA, cobertura secretos):** la retirada de `ci.yml` dejaría PRs de front y push a `main` sin
+  gitleaks hasta DO-4/5/6 → **`secrets-scan.yml` universal** (cierra el hueco, no depende de disciplina).
+- **D-002 (ALTA, timeout):** `timeout-minutes: 10` añadido también a `guardian`, `contracts` y al job de
+  secretos (antes solo el job pesado); evita jobs colgados (NFR-P01, cuota de Actions Free).
+- **D-003 (ALTA, cobertura del guardián):** el check (a) del guardián pasa de `*-validation-*.yml` a
+  **todos** los `.github/workflows/*.{yml,yaml}` → DO-4/5/6 y cualquier workflow futuro caen bajo
+  spec-antes-que-YAML.
+- **D-001 (ALTA, branch protection):** no es código en repo privado Free → se **versiona** la config
+  esperada en `.github/branch-protection.md` (checks requeridos por nombre de job, sin bypass, FR-P09/AC-3).
+- **D-005 (MEDIA, cadena de suministro):** verificación de **checksum SHA256** de los binarios descargados
+  (gitleaks y oasdiff) contra el fichero de checksums del release.
+- **D-006 (MEDIA, Trivy):** `docker build --target runtime` explícito → Trivy escanea siempre la imagen
+  desplegable, no una etapa de build.
+- **D-007 (MEDIA, parser):** `acceptance-check.sh` era **falso-verde** en las 30 filas de 5 columnas de la
+  matriz (leía `$4/$5` fijos; en esas filas la tarea/test están corridas por una columna «método»). Ahora
+  lee las **dos últimas** celdas (`$(NF-2)/$(NF-1)`), tolera ambas disposiciones y marca MALFORMADA (falla)
+  toda fila con < 6 campos. *(Hallazgo real: esas 30 filas nunca se habían verificado de verdad.)*
+- **D-008 (MEDIA, caducidad de excepciones):** `.specify/gate-exceptions.txt` gana campos `fecha` y
+  `owner`; el guardián emite **AVISO visible** si una excepción supera 30 días (deuda que envejece).
+
+Pospuesto (documentado, no bloqueante): un **fixture** que ejercite `acceptance-check.sh` contra filas
+incompletas/combinadas (D-007) — la corrección ya está verificada a mano contra la matriz real; el fixture
+se valora cuando exista arnés de test de scripts.
+
+**Pendiente:** DO-4 (`ci-develop-back.yml`: imagen `x.y.z-snapshot.{sha}` → GHCR + dist artifact) → DO-5
+(`ci-main-back.yml`: imagen semver + Release) → DO-6 (workflows de front).
+
+<!-- Próximas entradas: DO-4/5, DO-6 se añaden aquí conforme se completan. -->
 
