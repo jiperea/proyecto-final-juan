@@ -30,7 +30,7 @@ strict, lint. Rutas bajo `frontend/src/`.
 
 ## Phase 5 · Verificación y cierre
 - [X] T014 [P] Barrido **axe** en las pantallas nuevas + verificación de tap targets ≥44px (SC-004) y de que notas/object_ref no aparecen en logs/telemetría (SC-006, test/inspección). **Inspección de componentes (K-002, SC-002, NO opcional): las pantallas nuevas no contienen textos de ayuda/tooltips explicativos más allá de labels/placeholders del DS** — verificable independientemente del e2e opcional T015.
-- [ ] T015 [P] (opcional, justificado) e2e Playwright del **camino feliz** iniciar→notas→foto→enviar con backend mockeado por contrato (`page.route`) — SC-002.
+- [X] T015 [P] (opcional, justificado) e2e Playwright del **camino feliz** iniciar→notas→foto→enviar con backend mockeado por contrato (`page.route`) — SC-002.
 - [X] T016 Verificación total: `npm run typecheck` (incl. codegen:check) + `npm run lint` + `npm test` (+ axe) + `npm run build`, todo verde.
 - [X] T017 Trazabilidad `docs/traceability.md` (FR→tarea→test de FE-2) + Gate G3 (panel front) en `specs/014-front-tecnico/gates/`.
 
