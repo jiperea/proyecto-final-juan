@@ -1,0 +1,42 @@
+{
+  "gate": "G1 (calidad de spec · panel completo de front)",
+  "feature": "014-front-tecnico",
+  "fecha": "2026-07-14",
+  "artefactos": ["spec.md"],
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
+  "veredicto_global": "PASS (converge en ronda 2; 0 BLOQUEANTES). 4 BLOQUEANTES + ~14 ALTAS/MEDIAS de ronda 1 remediados.",
+  "rondas": 2,
+  "ronda_1": {
+    "veredicto": "BLOQUEADA (4 BLOQUEANTES)",
+    "huecos": [
+      {"id": "H-001/S-004", "sev": "BLOQUEANTE", "fuente": "cinico+rbac", "desc": "La spec mapeaba `409 INVALID_TRANSITION`, pero el contrato usa **422** en start/execution (y 403 = FORBIDDEN_ROLE). El front nunca reconocería el 422 real → todo caería al fallback (rompe SC-003).", "resolucion": "FR-006/AC1.3/AC2.6/SC-003 corregidos a 422; 403 FORBIDDEN_ROLE contemplado; precedencia payload-primero documentada."},
+      {"id": "T-001", "sev": "BLOQUEANTE", "fuente": "spec-theater", "desc": "SC-002 'completable sin instrucciones' no medible.", "resolucion": "SC-002: e2e camino feliz + criterio objetivo (sin textos de ayuda más allá de labels, inspección de componentes)."},
+      {"id": "S-001", "sev": "BLOQUEANTE", "fuente": "rbac", "desc": "Dispositivo compartido de campo: el borrador preservado tras 401 podía filtrar notas/evidencia PII del técnico A al técnico B al re-loguear otro `sub`.", "resolucion": "FR-010: purga del borrador al cambiar de actor/logout (atado a `sub`) + edge case."},
+      {"id": "F-001/F-002", "sev": "BLOQUEANTE", "fuente": "front-a11y", "desc": "Estado en vuelo de Iniciar/Enviar no anunciado; evidencias sin nombre accesible ni eliminar por teclado → SC-004 no verificable.", "resolucion": "FR-005/FR-011 (aria-busy/disabled+texto); FR-004 (nombre accesible + eliminar por ítem por teclado); SC-004 detallado."}
+    ],
+    "altas_medias": [
+      {"id": "H-002", "sev": "ALTA", "desc": "`version` presentada como concurrencia optimista real (no lo es).", "resolucion": "Assumptions: version informativo server-side; front no compara versiones."},
+      {"id": "H-003/F-004/S-002", "sev": "ALTA", "desc": "`object_ref` derivado de nombre+tamaño → colisión falsa (descarta fotos reales) y PII del nombre.", "resolucion": "object_ref = UUID aleatorio (sin colisión, sin PII); valida contra el contrato antes de añadir."},
+      {"id": "H-004", "sev": "ALTA", "desc": "Metadato-only deja la revisión de evidencia de FE-4 sin imagen (solo count+types).", "resolucion": "Elevado como deuda de negocio (#007) en Assumptions."},
+      {"id": "H-005", "sev": "ALTA", "desc": "Backgrounding móvil al capturar foto pierde el formulario en memoria.", "resolucion": "FR-009: persiste notas (sessionStorage); evidencias se re-piden (ver H-101)."},
+      {"id": "T-002/T-003/F-003", "sev": "ALTA", "desc": "'aviso honesto' sin contenido/componente; validación de evidencia 'idealmente' (ambigua).", "resolucion": "FR-004: componente DS role=status + texto obligatorio; validación en el momento de añadir."},
+      {"id": "H-006/F-002b", "sev": "ALTA/MEDIA", "desc": "No se podía quitar una evidencia añadida por error.", "resolucion": "FR-004 + edge case: eliminar por ítem."},
+      {"id": "F-005", "sev": "ALTA", "desc": "Estados de carga/error del detalle antes del formulario sin definir.", "resolucion": "FR-011: reutiliza estados carga/vacío/error/sin-permiso de FE-1."},
+      {"id": "S-003", "sev": "MEDIA", "desc": "No ocultaba acciones a rol no-technician.", "resolucion": "FR-007: doble capa (front oculta si rol!=technician; backend 403)."},
+      {"id": "S-005", "sev": "MEDIA", "desc": "PII en telemetría/breadcrumbs del front.", "resolucion": "SC-006: prohíbe notas/object_ref en telemetría."},
+      {"id": "H-007/F-007/F-008/T-005/6/7", "sev": "MEDIA", "desc": "HEIC sin type; feedback límite 10; foco tras error; defs de 'preview'/'error crudo'/'pantalla rota'.", "resolucion": "Edge cases + SC-003/SC-004 operativos."}
+    ]
+  },
+  "ronda_2": {
+    "veredicto": "PASS (4/4 revisores sin bloqueantes)",
+    "huecos": [
+      {"id": "H-101", "sev": "ALTA", "fuente": "cinico", "desc": "El borrador en sessionStorage guarda metadato pero el preview vía object URL no sobrevive al remount → thumbnails rotos / refs huérfanos.", "resolucion": "FR-009/edge case: persistir SOLO notas; las evidencias se re-piden al volver (aviso), sin restaurar refs sin imagen."},
+      {"id": "H-102", "sev": "MEDIA", "desc": "Método de dedup 'por contenido' sin definir.", "resolucion": "FR-004(d): best-effort nombre+tamaño+lastModified, no bloqueante (object_ref UUID hace irrelevante el dedup del contrato)."},
+      {"id": "S-006", "sev": "MEDIA", "desc": "Notas PII en sessionStorage en claro (dispositivo compartido).", "resolucion": "Riesgo residual aceptado/documentado (purga FR-010, same-origin, limpieza al enviar)."},
+      {"id": "S-007", "sev": "MEDIA", "desc": "Posible asimetría 422/404 como oráculo de existencia.", "resolucion": "Es del contrato/backend; el front solo mapea códigos, no infiere existencia. Anotado."},
+      {"id": "F-006", "sev": "MEDIA", "desc": "Tap targets ≥44px no fijados.", "resolucion": "SC-004: objetivos táctiles ≥44×44px en controles de campo."}
+    ],
+    "nota": "4 BLOQUEANTES de ronda 1 cerrados y verificados contra el contrato. La ALTA nueva (H-101) y las MEDIAS remediadas en spec. 0 BLOQUEANTES → converge."
+  },
+  "resumen": "El panel completo de front cazó 4 bloqueantes reales antes de una línea de código: un error factual contra el contrato (409→422 INVALID_TRANSITION, que habría roto todo el mapeo de errores), una fuga de PII entre técnicos en dispositivo compartido de campo, SC no medible, y huecos de a11y (estado en vuelo, gestión accesible de evidencias). Remediados + ~14 ALTAS/MEDIAS (object_ref UUID sin PII/colisión, deuda de FE-4 elevada, persistencia de borrador honesta, aviso honesto especificado, doble capa de rol, tap targets). Converge en 2 rondas. Verificación final = G3 (implementación) + Vitest/axe."
+}

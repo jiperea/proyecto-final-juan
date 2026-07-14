@@ -2,12 +2,16 @@ import { ApiError } from '../../api/client';
 import { NOT_AVAILABLE_MESSAGE } from '../../i18n/errors';
 import { StatusBadge } from '../../ui';
 import { InlineError, Spinner } from '../../ui';
+import { useSession } from '../auth/session';
+import { ExecutionForm } from './ExecutionForm';
+import { StartWorkButton } from './StartWorkButton';
 import { useOrderDetail } from './useOrders';
 import './orders.css';
 
 // FR-011/011b/012/013/013b/031: detalle solo-lectura por rol.
 export function OrderDetailView({ orderId }: { orderId: string }) {
   const query = useOrderDetail(orderId);
+  const { user } = useSession();
 
   if (query.isPending) return <Spinner label="Cargando detalle…" />;
 
@@ -27,11 +31,29 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   }
 
   const { order, notes, evidence, last_rejection_reason } = query.data;
+  // FR-007 (K-004): las acciones write se ofrecen SOLO al rol technician (ocultación por rol; el scope de
+  // getOrderDetail ya garantiza que el técnico solo ve sus órdenes → el chequeo de pertenencia es redundante).
+  const isTechnician = user?.role === 'technician';
   return (
     <article className="order-detail" aria-busy={query.isFetching}>
       <h2 tabIndex={-1}>{order.title}</h2>
-      <StatusBadge status={order.status} />
+      {/* F-001: región viva → un lector de pantalla anuncia el cambio de estado (Iniciar/Enviar). */}
+      <div role="status" aria-live="polite">
+        <StatusBadge status={order.status} />
+      </div>
       <p className="order-detail__desc">{order.description}</p>
+
+      {isTechnician && order.status === 'assigned' ? (
+        <section aria-label="Acciones de la orden">
+          <StartWorkButton orderId={order.id} />
+        </section>
+      ) : null}
+      {isTechnician && order.status === 'in_progress' ? (
+        <section aria-label="Registrar ejecución">
+          <h3>Registrar ejecución</h3>
+          <ExecutionForm orderId={order.id} />
+        </section>
+      ) : null}
 
       {/* Motivo del último rechazo: solo si viene en el payload (technician dueño con rechazo sin atender). */}
       {last_rejection_reason !== undefined ? (
