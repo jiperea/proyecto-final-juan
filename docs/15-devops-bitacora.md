@@ -363,7 +363,14 @@ implement, con G2/G3 consolidados/excepcionados (gate-exceptions) y **G3 = la pr
 guardián + acceptance exit 0. **Pendiente (SC-001/002/003):** confirmar los 3 jobs en **verde** al empujar
 al fork (lo hace el usuario). Informe: `specs/011-pipeline-hardening/gates/gate-G1-*.json`.
 
-<!-- Próximas entradas: confirmación de los 3 jobs en verde tras el push al fork. -->
+**Iteración de ejecución real (011):** tras el push al fork, **seed y Spectral quedaron verdes** (Tests ✓,
+Contratos ✓, guardián ✓, code-review ✓). Trivy destapó un **4.º hallazgo** no visible antes: CRITICAL/HIGH
+**corregibles del SO del base image** (`libgnutls30` CVE-2026-33845, `libcap2`…) — ni npm ni app. **Fix
+honesto:** `apt-get upgrade -y` en la etapa runtime del `backend/Dockerfile` (parchea a las versiones deb12
+corregidas; no esconde). Conformidad con FR-P05 ("CRITICAL/HIGH corregibles"). Pendiente: re-push → Trivy verde.
+
+<!-- Próximas entradas: confirmación de los jobs en verde tras el push al fork. -->
+
 
 
 
