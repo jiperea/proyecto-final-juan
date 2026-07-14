@@ -449,7 +449,20 @@ guardián determinista pasa con `pr-gate.yml` (solo faltaba el informe G3, cread
 (usuario):** migración "Settings primero" (Paso 1→3) + PR → SC-001..006 en Actions real. Informes:
 `specs/013-universal-governance-checks/gates/`.
 
-<!-- Próximas entradas: migración Settings + PR Gate verde en Actions; configuración Render+Neon (DO-7). -->
+**Confirmación en verde (PR #5, run `29342103999`):** tras corregir un *startup failure* de la 1ª ejecución
+(literal de string con comilla doble en una expresión de GitHub, `join(needs.*.result, ",")` → `','`), el
+`pr-gate.yml` corrió **los 11 jobs en verde**, incluido el agregador **`PR Gate → success`**: `changes` enrutó
+bien (permiso `pull-requests: read`), el fail-safe corrió todo (PR que toca `.github/workflows`),
+`gate-selfcheck` validó el `needs`, y gobernanza + back + front pasaron. **Migración "Settings primero"
+completada:** `develop` required = **`{PR Gate, gitleaks}`**; PR #5 mergeado; `pr-validation-*.yml` retirados.
+Con esto la constancia de 012 (`05875bf`) queda en develop (superseída por 013).
+
+**Prueba de fuego (SC-001, anti-deadlock):** este PR **solo-docs** (no toca back ni front) — antes se habría
+colgado en "Expected" por los required `paths:`-dependientes. Con el `PR Gate` agregador debe quedar
+**mergeable** con los jobs de componente en **skipped** y el agregador en verde.
+
+<!-- Próximas entradas: configuración Render+Neon (DO-7) para el CD. -->
+
 
 
 
