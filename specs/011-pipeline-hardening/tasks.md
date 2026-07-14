@@ -18,7 +18,7 @@
 - [X] T007 Verificación estática: 9 YAML válidos, AC-6 (0 `@v[0-9]`, +1 SHA verificado = spectral-action), guardián+acceptance exit 0.
 - [X] T008 Gate G3 (panel reducido: revisor-devops/implementacion) + informe en `specs/011-pipeline-hardening/gates/`.
 - [X] T009 Nota en `docs/15-devops-bitacora.md` (hallazgos de la 1ª ejecución real + fixes 011).
-- [ ] T010 (usuario) push al fork → confirmar los 3 jobs en verde (SC-001/002/003).
+- [X] T010 (usuario) push al fork → **CI capa 1 en VERDE** (run 29328465834): Tests ✓, Contratos/Spectral ✓, guardián+code-review ✓, **build + Trivy ✓** (apt upgrade cerró CVEs del SO), imagen→GHCR ✓ → **SC-001/002/003 confirmados**. (El único job rojo, *Deploy dev Render*, es CD/DO-7 y falla fail-fast por falta del secret `RENDER_DEPLOY_HOOK_BACKEND` — configuración manual del usuario, no es 011.)
 
 ## Dependencias
 Phase 1/2/3 independientes entre sí (ficheros/steps distintos) → paralelizables. Phase 4 tras 1-3.

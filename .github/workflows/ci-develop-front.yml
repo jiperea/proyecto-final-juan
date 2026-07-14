@@ -63,6 +63,18 @@ jobs:
       - name: Build imagen (etapa runtime nginx, la desplegable) — UNA sola vez
         working-directory: . # el contexto de build es ./frontend
         run: docker build --target runtime -t fieldops-frontend:ci ./frontend
+      - name: Smoke-test de arranque (FR-005 — verifica antes del push a GHCR, no-rebuild)
+        run: |
+          set -euo pipefail
+          docker run -d --name fe-smoke --add-host backend:127.0.0.1 -p 8080:8080 fieldops-frontend:ci
+          trap 'docker rm -f fe-smoke >/dev/null 2>&1 || true' EXIT
+          # SC-005: el runtime NO corre como root (uid 101) tras el parcheo (FR-001b).
+          test "$(docker inspect --format '{{.Config.User}}' fe-smoke)" = "101"
+          curl --retry 15 --retry-delay 1 --retry-connrefused -fsS http://localhost:8080/ >/dev/null
+          asset=$(docker exec fe-smoke sh -c 'ls /usr/share/nginx/html/assets/*.js 2>/dev/null | head -1 | sed "s#/usr/share/nginx/html##"')
+          test -n "$asset"
+          curl -fsS "http://localhost:8080${asset}" >/dev/null
+          echo "· smoke-test OK: nginx arranca y sirve / + ${asset}"
       - name: Trivy sobre la imagen que se publicará (FR-P05, defensa en profundidad)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
