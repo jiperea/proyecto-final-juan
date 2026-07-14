@@ -35,14 +35,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setStatus('authenticated');
   }
 
-  // Bootstrap (FR-023): al arrancar, refresh silencioso + me (con un reintento).
+  // Bootstrap (FR-023): al arrancar, refresh silencioso + me (con un reintento). El ref `booted`
+  // garantiza UNA sola ejecución (también bajo StrictMode, que invoca efectos dos veces); no se usa
+  // un flag de cancelación por cleanup porque cancelaría la única ejecución y dejaría el estado en
+  // «loading» para siempre (bug detectado al arrancar la app real, no visible en tests sin StrictMode).
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
-    let alive = true;
     void (async () => {
       const r = await refreshOnce();
-      if (!alive) return;
       if (!r) {
         setStatus('anonymous');
         return;
@@ -50,16 +51,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           const me = await authApi.fetchMe();
-          if (alive) adopt(me);
+          adopt(me);
           return;
         } catch {
-          if (attempt === 1 && alive) setStatus('anonymous');
+          if (attempt === 1) setStatus('anonymous');
         }
       }
     })();
-    return () => {
-      alive = false;
-    };
   }, []);
 
   // Eventos del store (FR-005/029): invalidación → anónimo + purga; cambio de rol → purga + re-fetch me.

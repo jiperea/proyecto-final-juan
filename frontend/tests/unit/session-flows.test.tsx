@@ -1,10 +1,15 @@
+import { StrictMode } from 'react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { server } from '../../mocks/server';
 import { renderApp } from '../test-utils';
 import { AppRoutes } from '../../src/routes/AppRoutes';
+import { makeQueryClient } from '../../src/app/queryClient';
+import { SessionProvider } from '../../src/features/auth/session';
 import { setAccessToken } from '../../src/api/session-store';
 
 const TECH = { id: 'u1', email: 'a@x.test', username: 'ana', role: 'technician' };
@@ -55,6 +60,23 @@ describe('Flujos de sesión (G3 remediación)', () => {
     );
     renderApp(<AppRoutes />, '/orders');
     expect(await screen.findByText(/diego · Despachador/)).toBeInTheDocument();
+  });
+
+  it('bootstrap resuelve bajo StrictMode (no se queda en «Cargando…»)', async () => {
+    // Regresión: StrictMode invoca los efectos 2 veces; el bootstrap debe resolver igual (no colgarse).
+    server.use(http.post('/v1/auth/refresh', () => new HttpResponse(null, { status: 401 })));
+    render(
+      <StrictMode>
+        <QueryClientProvider client={makeQueryClient()}>
+          <MemoryRouter initialEntries={['/orders']}>
+            <SessionProvider>
+              <AppRoutes />
+            </SessionProvider>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument();
   });
 
   it('I-004/FR-005: logout con 500 igualmente vuelve al login (best-effort)', async () => {
