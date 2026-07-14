@@ -19,7 +19,10 @@ FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 # Prisma necesita openssl en debian-slim (detección de libssl para el engine).
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+# `apt-get upgrade` parchea los paquetes del SO del base image con CRITICAL/HIGH corregibles
+# (p.ej. libgnutls30, libcap2) → Trivy en verde SIN esconder (011 FR-003, conformidad FR-P05).
+RUN apt-get update && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN npm ci --omit=dev
