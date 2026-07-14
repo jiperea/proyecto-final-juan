@@ -1,6 +1,6 @@
 <!-- SPECKIT START -->
-Plan activo: `specs/009-front-shell-listado/plan.md` (+ research.md, data-model.md, quickstart.md, contracts/README.md).
-Feature FE-1 (roadmap): primera UI. SPA **React 18 + Vite** (TS strict) en `frontend/` que **consume** contratos congelados (`auth.openapi.yaml`, `orders.openapi.yaml`) y el **design system** `docs/design-system.md`. Read-side puro (login/sesión + listado por rol + detalle read-only; sin mutación de órdenes). Stack: React Router · TanStack Query · openapi-typescript+Zod (codegen del contrato) · CSS Modules+tokens · Vitest+RTL+axe-core+Playwright+MSW. Gates de calidad = tooling determinista de front (no promptfoo; no hay IA). G1 verde (0 bloqueantes).
+Plan activo: `specs/010-devops-pipeline/plan.md` (+ research.md, quickstart.md; sin data-model/contracts — pipeline, no feature de app).
+Feature 010 (transversal, ADR-0004): **Pipeline CI/CD (reto M12)**. Formaliza en SDD la fase DevOps (antes solo gobernada por Principio XVI + `docs/pipeline-spec.md`, que pasa a documento de apoyo). Ramas `feature/* → develop → main`; flujos separados por componente (`paths:`); PR-gate M9 + guardián de Constitución; CI develop (imagen snapshot→GHCR) / main (semver + Release); **no-rebuild**; CD a **Render + Neon**, entornos **dev/pre/prod** (faseado: Fase 1 dev, Fase 2 pre/prod). Guardián **determinista always-on** + **agente vía API opt-in y desactivado** (excepción única a NFR-P03). G1 ✅ PASS (spec endurecida por el panel adversarial); delta implementación↔spec escalado a G3. Para stack/estructura/fases, leer ese plan y `docs/pipeline-spec.md`.
 Para tecnologías, estructura y comandos, leer ese plan.
 <!-- SPECKIT END -->
 
