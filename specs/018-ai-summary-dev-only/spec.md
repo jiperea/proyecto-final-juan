@@ -114,15 +114,18 @@ errores transitorios (429/503) sin cambios.
   **HTTP 501** con `{code:"AI_UNAVAILABLE", message, agent_action}`; diferente de `SERVICE_UNAVAILABLE`
   (HTTP 503, transitorio/reintentable).
 - **FR-002**: La distinción "no operable" vs "transitorio" SHALL hacerse **clasificando el error nativo del
-  `execFile`** en el **adaptador** (`claude-cli-provider`): `ENOENT` → `AI_UNAVAILABLE`; `killed`/timeout/
-  exit≠0 → `SERVICE_UNAVAILABLE`. **No** hay probe separado, **ni caché**, **ni** llamada de red de
-  verificación, **ni** dependencia del texto del error. La decisión vive en **infra** (el adaptador); el
-  **dominio permanece puro** (recibe un `DomainError` tipado, sin `child_process`).
+  `execFile`** en el **adaptador** (`claude-cli-provider`): errores de **spawn que impiden ejecutar el
+  binario** (`ENOENT` binario ausente, `EACCES`/`ENOEXEC` no ejecutable, `ENOTDIR`) → `AI_UNAVAILABLE`;
+  errores **tras el spawn** (timeout/`killed`, exit≠0, salida no parseable con el binario presente) →
+  `SERVICE_UNAVAILABLE` (transitorio). **No** hay probe separado, **ni caché**, **ni** llamada de red, **ni**
+  dependencia del texto del error (se usa `error.code`/`error.syscall` nativos). La decisión vive en
+  **infra** (el adaptador); el **dominio permanece puro** (recibe un `DomainError` tipado, sin `child_process`).
 - **FR-002b**: WHEN se procesa `ai-summary` THE backend SHALL respetar el **orden**: (1) autenticación
-  (401) → (2) autorización rol supervisor + estado `pending_review` (403/404) → (3) gate de material
-  (`sufficient:false` si insuficiente) → (4) invocación del proveedor (de donde puede surgir
-  `AI_UNAVAILABLE`). Un actor no autorizado o una orden fuera de `pending_review` **nunca** recibe
-  `AI_UNAVAILABLE` (recibe 401/403/404 antes).
+  (**401** si no autenticado) → (2) autorización: rol supervisor (**403** si otro rol) y visibilidad/estado
+  `pending_review` (**404** si no visible/otro estado, no-enumeración) → (3) **rate-limit** (**429** si
+  excede) → (4) gate de material (`sufficient:false`, **200**, si insuficiente) → (5) invocación del
+  proveedor (de donde puede surgir `AI_UNAVAILABLE`). Un actor no autorizado, orden fuera de
+  `pending_review`, o rate-limited **nunca** recibe `AI_UNAVAILABLE` (recibe 401/403/404/429 antes).
 - **FR-003**: WHEN la UI de revisión recibe `code:AI_UNAVAILABLE` THE front SHALL mostrar «El resumen por IA
   no está disponible en este entorno», **deshabilitar** el disparador y **no** ofrecer reintento, sin
   bloquear el resto de la revisión (MVP reactivo; ocultación proactiva = stretch).
@@ -132,12 +135,17 @@ errores transitorios (429/503) sin cambios.
 - **FR-005**: El mensaje/`agent_action`/`details` de `AI_UNAVAILABLE` SHALL ser **genérico**: sin nombre de
   binario (`claude`), ruta, versión, ni traza; y el evento de acceso SHALL registrarse con un outcome propio
   (`unavailable`) y **sin PII** (solo `orderId`/código/timestamp) — no debe cargarse ni loguearse el material
-  de la orden en este camino.
+  de la orden en este camino. El `outcome` de acceso es el **tipo TS** `AccessOutcome` del logger (pino), no
+  un enum de BD → añadir `'unavailable'` **no requiere migración**.
 - **FR-006**: El sistema SHALL **no** introducir proveedor de **API de pago** (respeta "sin API de pago");
-  `AI_PROVIDER` permanece `claude-cli` (dev) | `mock` (tests). Además, un **guard activo dev-only** SHALL
-  tratar el proveedor como no operable en producción (p. ej. `NODE_ENV==='production'` con
-  `AI_PROVIDER==='claude-cli'`), de modo que "dev-only" no se convierta en IA de pago si cambiara la imagen;
-  el guard **no** hace I/O de red.
+  `AI_PROVIDER` permanece `claude-cli` (dev) | `mock` (tests). Además, un **guard activo dev-only**
+  (**deny-by-default**: se considera operable **solo** cuando `NODE_ENV==='development'` **o**
+  `AI_PROVIDER==='mock'`; cualquier otro entorno —pre/prod/staging— trata `claude-cli` como **no operable**)
+  SHALL implementarse **dentro del propio adaptador** `claude-cli-provider` (misma ruta que FR-002 → devuelve
+  el mismo `DomainError AI_UNAVAILABLE` por el puerto, respetando el orden de FR-002b; **no** un check en el
+  handler que pudiera saltarse la precedencia). El guard lee la **config validada e inyectada** al arrancar
+  (Zod, fail-fast), **no** `process.env` en el punto de uso, y **no** hace I/O de red. Así "dev-only" no se
+  convierte en IA de pago aunque la imagen cambie.
 - **FR-007**: El alcance dev-only y el comportamiento desplegado SHALL quedar documentados en
   **`docs/06-roadmap.md`** (BL-072 → cerrado como dev-only), una nota en **`.specify/memory/constitution.md`**
   o ADR, y el mensaje de UI en la tabla de errores de **`docs/design-system.md §8`**.
@@ -156,15 +164,19 @@ refleja en `docs/traceability.md`.
   el `PATH` real (determinista, Constitution).
 - **SC-002**: Un test confirma que la respuesta serializada de `AI_UNAVAILABLE` **no** contiene `claude`,
   rutas, versión ni traza (mensaje genérico, FR-005).
-- **SC-003**: Un test confirma la precedencia (FR-002b): un no-supervisor / orden no-`pending_review` recibe
-  401/403/404 y **nunca** `AI_UNAVAILABLE`, incluso con el proveedor no operable.
+- **SC-003**: Tests confirman la precedencia (FR-002b) con **códigos exactos** aun con el proveedor no
+  operable: no autenticado → **401**; rol no-supervisor → **403**; orden no visible/otro estado → **404**;
+  rate-limited → **429**; y en **ninguno** de esos casos el body es `AI_UNAVAILABLE`.
 - **SC-004**: Test de componente front: ante `code:AI_UNAVAILABLE`, la UI muestra el mensaje de entorno,
   **deshabilita** el botón y no ofrece reintento.
 - **SC-005**: Con proveedor operable (mock), los tests existentes de resumen IA siguen en **verde**
   (0 regresiones) y no se dispara `AI_UNAVAILABLE`.
-- **SC-006**: Un test/inspección confirma que `AI_PROVIDER` sigue en `{claude-cli,mock}` y que el guard
-  dev-only trata el proveedor como no operable en producción (sin ruta a API de pago).
-- **SC-007**: `tsc`/`eslint`/`stylelint` y las suites de back y front terminan en verde.
+- **SC-006**: Un test confirma que `AI_PROVIDER` sigue en `{claude-cli,mock}` y que el guard dev-only
+  (deny-by-default) trata `claude-cli` como **no operable** cuando la **config inyectada** indica un entorno
+  no-dev (el test pasa la config, **sin** mutar `process.env`).
+- **SC-007**: Un test confirma que, en el camino `AI_UNAVAILABLE`, se registra el evento de acceso con
+  `outcome:'unavailable'` y **solo** `orderId`/código/timestamp (sin notas/evidencia/PII cargadas ni logueadas).
+- **SC-008**: `tsc`/`eslint`/`stylelint` y las suites de back y front terminan en verde.
 
 > Verificación determinista (tsc/eslint/vitest, puerto inyectable). El eval de IA (`/evals`) sigue siendo
 > **dev-only**; en el entorno desplegado la capacidad se declara no disponible.
