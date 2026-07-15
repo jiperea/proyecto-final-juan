@@ -58,6 +58,9 @@ async function seedOrders(): Promise<void> {
   for (let i = 0; i < 10; i++) push(i % 2 === 0 ? 'assigned' : 'in_progress', t2);
   push('pending_review', t2, SEED_ORDERS.tech2PendingReview);
 
+  // 019 — pending_review de technician1 CON evidencia (ancla approvableReview): aprobable desde arranque limpio.
+  push('pending_review', t1, SEED_ORDERS.approvableReview);
+
   // technician3: solo closed → alcance activo VACÍO (lista vacía → 200)
   push('closed', t3);
 
@@ -66,10 +69,49 @@ async function seedOrders(): Promise<void> {
   push('draft', null);
 
   await prisma.order.createMany({ data: rows });
+
+  // 019 — audit de la transición (in_progress→pending_review) + evidencia para la orden aprobable.
+  // OrderEvidence exige un OrderAudit (FK). Sin esto, aprobar da 409 EVIDENCE_MISSING (guard de 006).
+  const auditId = uuidv7();
+  await prisma.orderAudit.create({
+    data: {
+      id: auditId,
+      orderId: SEED_ORDERS.approvableReview,
+      actorId: t1,
+      eventType: 'transition',
+      fromStatus: 'in_progress',
+      toStatus: 'pending_review',
+      reason: null, // marcador opaco de ejecución; las notas van en OrderExecutionNotes (no aquí)
+    },
+  });
+  await prisma.orderExecutionNotes.create({
+    data: {
+      id: uuidv7(),
+      orderId: SEED_ORDERS.approvableReview,
+      auditId,
+      notes: 'Sustituida la polea de tracción y engrasado el guiado. Cabina nivela correctamente.',
+      attempt: 1,
+      createdBy: t1,
+    },
+  });
+  await prisma.orderEvidence.create({
+    data: {
+      id: uuidv7(),
+      orderId: SEED_ORDERS.approvableReview,
+      auditId,
+      objectRef: '018f2000-0000-7000-8000-0000000000a1-ev1',
+      contentType: 'image/jpeg',
+      sizeBytes: 204800,
+      uploadedBy: t1,
+      attempt: 1,
+    },
+  });
 }
 
 async function main(): Promise<void> {
-  // Orden inverso de FK para re-seed idempotente.
+  // Orden inverso de FK para re-seed idempotente. NOTA (019): order_evidence/audit/notes son APPEND-ONLY
+  // por trigger de BD (DELETE prohibido); por eso este seed asume BD fresca/vacía en esas tablas (así corre
+  // db-test, efímera). Para re-sembrar el dev main con datos previos: `prisma migrate reset --force`.
   await prisma.order.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.session.deleteMany();
