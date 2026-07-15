@@ -118,11 +118,21 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 | FE-2 | `NNN-front-tecnico` | **Front del técnico (campo/móvil)**: iniciar trabajo + registrar ejecución + captura de evidencia | FE-1, 004 (subida binaria real → #007) | "registro la ejecución con ≥1 foto y la envío a revisión" |
 | FE-3 | `NNN-front-dispatcher` | **Front del dispatcher (escritorio)**: reasignación en master-detail | FE-1, 003 | "reasigno una orden reasignable a otro técnico" |
 | FE-4 | `NNN-front-supervisor` | **Front del supervisor (escritorio)**: aprobar/rechazar + panel de resumen IA | FE-1, revisión (005), 006 | "reviso, veo el resumen y apruebo/rechazo con motivo" |
+| FE-5 | `017-front-reskin` | **Reskin del front + tema oscuro** (transversal, presentación): refresh del design system (acento naranja, paleta de estados, radios/sombras suaves, **Stepper** del FSM, tarjeta de resumen IA) + **tema oscuro** (reescribe §2.4). **Sin ampliar alcance funcional, sin estilos sueltos, WCAG 2.1 AA en ambos temas.** | FE-1..FE-4 | "la app se ve como la exploración y funciona igual, en claro y oscuro" |
 
 > **Sistema de diseño (UX/UI) — se define justo antes de FE-1**, no por adelantado: tokens/paleta, tipografía,
 > componentes base, patrón responsive campo↔oficina, accesibilidad **WCAG 2.1 AA** (Constitution, Convenciones).
 > Referencia de partida: exploración de vistas mínimas (login · lista · detalle por rol · registro de ejecución
 > con evidencia; móvil + escritorio master-detail).
+>
+> **FE-5 (017-front-reskin) — refresh del design system, no una feature funcional**: FE-1..4 se implementaron
+> contra el design system inicial (acento azul, sin tema oscuro). La **exploración visual** mostrada al usuario
+> (acento naranja, tema oscuro, stepper, tarjeta IA) era **no vinculante**; FE-5 acerca el front a ese lenguaje
+> **dentro del design system** (solo tokens/componentes base, cero estilos sueltos) y **sin ampliar alcance**:
+> no añade endpoints/roles/estados/funciones. Se **descartó** el control segmentado de filtros del artifact
+> porque el listado no tiene filtro cliente (el alcance lo fija el backend por rol). El **tema oscuro** reescribe
+> la exención §2.4 del design system (hoy "fuera de MVP"), por decisión explícita del usuario (2026-07-15), con
+> contraste **AA verificado en ambos temas**. Depende de FE-1..4 (repinta lo ya construido).
 >
 > **Deuda trazada → feature #010 — Detalle de orden (read-side, prerequisito de FE-1/FE-4)**: las specs 004–006
 > son *write-side* y **no** exponen la lectura del detalle (notas de ejecución + metadatos de evidencia + motivo

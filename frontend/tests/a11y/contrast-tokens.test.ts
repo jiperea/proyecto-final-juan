@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-// Contraste WCAG 2.1 AA verificado POR TOKEN (SC-005), independiente del render de axe.
+// SC-003a (FE-5) · Contraste WCAG 2.1 AA por token, en AMBOS temas (claro y oscuro), independiente del
+// render (vitest corre con css:false). Recorre la LISTA CERRADA de pares del spec §Pares de contraste.
 function luminance(hex: string): number {
   const n = hex.replace('#', '');
   const rgb = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16) / 255);
@@ -13,50 +14,65 @@ function ratio(a: string, b: string): number {
   return (l1! + 0.05) / (l2! + 0.05);
 }
 
-// Lee los valores REALES de tokens.css (fuente de verdad, F-005): si un token cambia, el test lo usa.
-const TOKENS = readFileSync('src/ui/tokens.css', 'utf8');
-function token(name: string): string {
-  const m = TOKENS.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})`));
-  if (!m) throw new Error(`token --${name} no encontrado en tokens.css`);
+// Quita comentarios para no confundir el selector real con el ejemplo de la cabecera documental.
+const CSS = readFileSync('src/ui/tokens.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+// Extrae el bloque de un selector (primer `{ … }` tras el selector), tolerante a reformateo (espacios,
+// comillas simples/dobles del atributo). H-006: no depende del formato exacto de tokens.css.
+function block(selectorRe: RegExp): string {
+  const m = CSS.match(selectorRe);
+  if (!m || m.index === undefined) throw new Error(`selector ${selectorRe} no encontrado`);
+  const open = CSS.indexOf('{', m.index);
+  const close = CSS.indexOf('}', open);
+  return CSS.slice(open, close);
+}
+const LIGHT = block(/:root\s*\{/); // primer :root (valores claros)
+const DARK = block(/:root\[data-theme=['"]dark['"]\]\s*\{/);
+
+function token(theme: string, name: string): string {
+  const src = theme === 'dark' ? DARK : LIGHT;
+  const m = src.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})`));
+  if (!m) throw new Error(`token --${name} no encontrado en tema ${theme}`);
   return m[1]!;
 }
 
-const BG = token('color-bg');
-const SURFACE = token('color-surface');
+// Lista cerrada de pares (spec §Pares de contraste). [nombre, fg, bg, umbral].
+function pairs(theme: string): Array<[string, string, string, number]> {
+  const t = (n: string) => token(theme, n);
+  return [
+    ['text/bg', t('color-text'), t('color-bg'), 4.5],
+    ['text/surface', t('color-text'), t('color-surface'), 4.5],
+    ['text-muted/bg', t('color-text-muted'), t('color-bg'), 4.5],
+    ['text-muted/surface', t('color-text-muted'), t('color-surface'), 4.5],
+    ['on-accent/primary', t('color-text-on-accent'), t('color-primary'), 4.5],
+    ['on-accent/primary-hover', t('color-text-on-accent'), t('color-primary-hover'), 4.5],
+    ['on-accent/danger', t('color-text-on-accent'), t('color-danger'), 4.5],
+    ['on-accent/success', t('color-text-on-accent'), t('color-success'), 4.5],
+    ['warning-fg/surface', t('color-warning-fg'), t('color-surface'), 4.5],
+    ['warning-fg/bg', t('color-warning-fg'), t('color-bg'), 4.5],
+    ['danger-text/bg', t('color-danger'), t('color-bg'), 4.5],
+    ['danger-text/surface', t('color-danger'), t('color-surface'), 4.5],
+    ['focus-ring/bg', t('color-focus-ring'), t('color-bg'), 3],
+    ['focus-ring/surface', t('color-focus-ring'), t('color-surface'), 3],
+    ['status-assigned', t('status-assigned-fg'), t('status-assigned-bg'), 4.5],
+    ['status-in_progress', t('status-in_progress-fg'), t('status-in_progress-bg'), 4.5],
+    ['status-pending_review', t('status-pending_review-fg'), t('status-pending_review-bg'), 4.5],
+    ['status-closed', t('status-closed-fg'), t('status-closed-bg'), 4.5],
+    ['status-draft', t('status-draft-fg'), t('status-draft-bg'), 4.5],
+    // Stepper (fila 17): color del paso actual/completado vs fondo (componente ≥3:1).
+    ['stepper-current/bg', t('color-primary'), t('color-bg'), 3],
+    ['stepper-done/bg', t('color-success'), t('color-bg'), 3],
+  ];
+}
 
-const WHITE = token('color-text-on-accent');
-
-// Pares texto/fondo (≥4.5:1) — leídos de tokens.css (§2.1-2.2).
-const textPairs: Array<[string, string, string]> = [
-  ['text/bg', token('color-text'), BG],
-  ['text-muted/bg', token('color-text-muted'), BG],
-  ['white/primary', WHITE, token('color-primary')],
-  ['white/danger', WHITE, token('color-danger')],
-  ['white/success', WHITE, token('color-success')],
-  ['warning-fg/bg', token('color-warning-fg'), BG],
-];
-
-// Badges de estado (≥4.5:1) — §2.3.
-const badgePairs: Array<[string, string, string]> = [
-  ['assigned', token('status-assigned-fg'), token('status-assigned-bg')],
-  ['in_progress', token('status-in_progress-fg'), token('status-in_progress-bg')],
-  ['pending_review', token('status-pending_review-fg'), token('status-pending_review-bg')],
-  ['closed', token('status-closed-fg'), token('status-closed-bg')],
-  ['draft', token('status-draft-fg'), token('status-draft-bg')],
-];
-
-describe('SC-005 · contraste por token (WCAG 2.1 AA)', () => {
-  it.each([...textPairs, ...badgePairs])('%s ≥ 4.5:1', (_name, fg, bg) => {
-    expect(ratio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+describe.each(['light', 'dark'])('SC-003a · contraste por token — tema %s', (theme) => {
+  it.each(pairs(theme))('%s ≥ umbral', (_name, fg, bg, threshold) => {
+    expect(ratio(fg, bg)).toBeGreaterThanOrEqual(threshold);
   });
+});
 
-  it('focus-ring ≥ 3:1 sobre bg y surface (componentes/estados)', () => {
-    const ring = token('color-focus-ring');
-    expect(ratio(ring, BG)).toBeGreaterThanOrEqual(3);
-    expect(ratio(ring, SURFACE)).toBeGreaterThanOrEqual(3);
-  });
-
-  it('FR-019: token de objetivo táctil = 44px (axe target-size se verifica en e2e T044)', () => {
-    expect(TOKENS).toMatch(/--touch-target:\s*44px/);
+describe('token de objetivo táctil', () => {
+  it('FR-019: --touch-target = 44px', () => {
+    expect(CSS).toMatch(/--touch-target:\s*44px/);
   });
 });

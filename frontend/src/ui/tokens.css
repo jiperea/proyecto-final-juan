@@ -1,29 +1,38 @@
 /* Design tokens — mapea docs/design-system.md §2-4. Única fuente de color/tamaño/espaciado.
-   Este fichero está exento del lint de estilos sueltos (aquí SÍ se definen los literales). */
+   Este fichero está exento del lint de estilos sueltos (aquí SÍ se definen los literales).
+
+   FE-5 (017): tema CSS-first. Los VALORES CLAROS viven en :root (primero, para que los tests de
+   contraste legacy por regex lean claro por defecto). El tema oscuro es un swap de valores:
+   - @media (prefers-color-scheme: dark) { :root:not([data-theme]) { … } }  → sigue al SO en modo «sistema»
+   - :root[data-theme="dark"] { … }   → elección explícita del usuario (gana sobre el SO)
+   - :root[data-theme="light"] { … }  → fuerza claro sobre un SO oscuro
+   Los nombres de token son semánticos: las vistas no cambian entre temas. */
 :root {
-  /* Base (neutros) */
+  /* Base (neutros) — claro */
   --color-bg: #ffffff;
   --color-surface: #f8fafc;
+  --color-surface-2: #eef2f7;
   --color-border: #cbd5e1;
   --color-text: #1e293b;
   --color-text-muted: #475569;
   --color-text-on-accent: #ffffff;
 
-  /* Semánticos */
-  --color-primary: #1d4ed8;
-  --color-primary-hover: #1e40af;
+  /* Semánticos — claro. Acento NARANJA accesible (blanco sobre él ≥4.5:1). */
+  --color-primary: #c2410c;
+  --color-primary-hover: #9a3412;
+  --color-accent-soft: #fff1e9;
   --color-danger: #b91c1c;
   --color-success: #15803d;
   --color-warning-fg: #92400e;
-  --color-focus-ring: #1d4ed8;
+  --color-focus-ring: #c2410c;
 
-  /* Estado de la orden (badge) */
+  /* Estado de la orden (badge) — claro */
   --status-assigned-bg: #dbeafe;
   --status-assigned-fg: #1e40af;
   --status-in_progress-bg: #fef9c3;
   --status-in_progress-fg: #854d0e;
-  --status-pending_review-bg: #f3e8ff;
-  --status-pending_review-fg: #6b21a8;
+  --status-pending_review-bg: #ede9fe;
+  --status-pending_review-fg: #5b21b6;
   --status-closed-bg: #dcfce7;
   --status-closed-fg: #166534;
   --status-draft-bg: #f1f5f9;
@@ -36,6 +45,7 @@
   --font-body: 400 16px/1.5 var(--font-family);
   --font-label: 600 14px/1.4 var(--font-family);
   --font-caption: 400 13px/1.4 var(--font-family);
+  --font-kicker: 700 12px/1.4 var(--font-family);
 
   /* Espaciado (escala 4px) */
   --space-1: 4px;
@@ -45,12 +55,12 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  /* Radios / elevación / táctil */
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  /* Radios / elevación / táctil — radios más suaves (FE-5) */
+  --radius-sm: 9px;
+  --radius-md: 14px;
   --radius-full: 9999px;
-  --shadow-1: 0 1px 3px rgba(15, 23, 42, 0.12);
-  --shadow-2: 0 4px 12px rgba(15, 23, 42, 0.16);
+  --shadow-1: 0 1px 2px rgba(16, 24, 32, 0.06), 0 4px 16px rgba(16, 24, 32, 0.06);
+  --shadow-2: 0 2px 6px rgba(16, 24, 32, 0.08), 0 12px 32px rgba(16, 24, 32, 0.1);
   --shadow-modal: 0 10px 40px rgba(15, 23, 42, 0.28);
   --color-scrim: rgba(15, 23, 42, 0.5);
   --z-modal: 1000;
@@ -62,10 +72,100 @@
   --bp-lg: 1024px;
 }
 
+/* --- Tema oscuro: swap de valores (§2.4). Mismos nombres de token. --- */
+/* Bloque compartido por «sistema» (media query) y por elección explícita [data-theme="dark"]. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-bg: #0e141a;
+    --color-surface: #18212b;
+    --color-surface-2: #212c38;
+    --color-border: #38485a;
+    --color-text: #e7edf3;
+    --color-text-muted: #aab8c7;
+    --color-text-on-accent: #1a1005;
+    --color-primary: #fb923c;
+    --color-primary-hover: #fdba74;
+    --color-accent-soft: #3a2015;
+    --color-danger: #fca5a5;
+    --color-success: #6ee7a0;
+    --color-warning-fg: #fcd34d;
+    --color-focus-ring: #fb923c;
+    --status-assigned-bg: #1e2a44;
+    --status-assigned-fg: #a8c5ff;
+    --status-in_progress-bg: #3a2f10;
+    --status-in_progress-fg: #fcd34d;
+    --status-pending_review-bg: #2a2140;
+    --status-pending_review-fg: #cbb6ff;
+    --status-closed-bg: #12321f;
+    --status-closed-fg: #6ee7a0;
+    --status-draft-bg: #26313d;
+    --status-draft-fg: #c2cfdc;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0e141a;
+  --color-surface: #18212b;
+  --color-surface-2: #212c38;
+  --color-border: #38485a;
+  --color-text: #e7edf3;
+  --color-text-muted: #aab8c7;
+  --color-text-on-accent: #1a1005;
+  --color-primary: #fb923c;
+  --color-primary-hover: #fdba74;
+  --color-accent-soft: #3a2015;
+  --color-danger: #fca5a5;
+  --color-success: #6ee7a0;
+  --color-warning-fg: #fcd34d;
+  --color-focus-ring: #fb923c;
+  --status-assigned-bg: #1e2a44;
+  --status-assigned-fg: #a8c5ff;
+  --status-in_progress-bg: #3a2f10;
+  --status-in_progress-fg: #fcd34d;
+  --status-pending_review-bg: #2a2140;
+  --status-pending_review-fg: #cbb6ff;
+  --status-closed-bg: #12321f;
+  --status-closed-fg: #6ee7a0;
+  --status-draft-bg: #26313d;
+  --status-draft-fg: #c2cfdc;
+}
+
+/* Fuerza claro sobre un SO oscuro (elección explícita). Re-declara los valores claros. */
+:root[data-theme="light"] {
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-surface-2: #eef2f7;
+  --color-border: #cbd5e1;
+  --color-text: #1e293b;
+  --color-text-muted: #475569;
+  --color-text-on-accent: #ffffff;
+  --color-primary: #c2410c;
+  --color-primary-hover: #9a3412;
+  --color-accent-soft: #fff1e9;
+  --color-danger: #b91c1c;
+  --color-success: #15803d;
+  --color-warning-fg: #92400e;
+  --color-focus-ring: #c2410c;
+  --status-assigned-bg: #dbeafe;
+  --status-assigned-fg: #1e40af;
+  --status-in_progress-bg: #fef9c3;
+  --status-in_progress-fg: #854d0e;
+  --status-pending_review-bg: #ede9fe;
+  --status-pending_review-fg: #5b21b6;
+  --status-closed-bg: #dcfce7;
+  --status-closed-fg: #166534;
+  --status-draft-bg: #f1f5f9;
+  --status-draft-fg: #334155;
+}
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
 }
 
 body {
@@ -80,11 +180,13 @@ body {
   visibility: hidden;
 }
 
+/* FR-010: respeta prefers-reduced-motion — regla GLOBAL sobre * (aplica a todo componente). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

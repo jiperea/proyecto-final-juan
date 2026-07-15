@@ -45,12 +45,13 @@ que necesite un color usa el token semántico, nunca el hex.
 
 | Token | Valor | Contraste | Uso |
 |---|---|---|---|
-| `--color-primary` | `#1d4ed8` | blanco sobre él ≈7:1 ✓ | Acción principal, enlaces, foco |
-| `--color-primary-hover` | `#1e40af` | — | Estado hover/active |
+| `--color-primary` | `#c2410c` (naranja) | blanco sobre él ≈5.2:1 ✓ | Acción principal, enlaces, foco |
+| `--color-primary-hover` | `#9a3412` | — | Estado hover/active |
+| `--color-accent-soft` | `#fff1e9` | — | Tinte suave del acento (fondos sutiles) |
 | `--color-danger` | `#b91c1c` | blanco ≈6:1 ✓ | Rechazar, destructivo, error |
 | `--color-success` | `#15803d` | blanco ≈5:1 ✓ | Aprobar, éxito |
 | `--color-warning-fg` | `#92400e` | sobre bg ≈6:1 ✓ | Texto de aviso |
-| `--color-focus-ring` | `#1d4ed8` | ≥3:1 con adyacentes | Anillo de foco (2px sólido, visible) |
+| `--color-focus-ring` | `#c2410c` | ≥3:1 con adyacentes | Anillo de foco (2px sólido, visible) |
 
 > **Nota AA:** todos los pares texto/fondo declarados cumplen ≥4.5:1 (texto normal) o ≥3:1 (texto grande
 > ≥18.66px bold / 24px, y bordes/estados de foco). Cualquier token nuevo **debe** validarse antes de
@@ -66,17 +67,33 @@ mostrar `closed`.
 |---|---|---|---|
 | `assigned` | «Asignada» | `#dbeafe` | `#1e40af` |
 | `in_progress` | «En curso» | `#fef9c3` | `#854d0e` |
-| `pending_review` | «En revisión» | `#f3e8ff` | `#6b21a8` |
+| `pending_review` | «En revisión» | `#ede9fe` | `#5b21b6` |
 | `closed` | «Cerrada» | `#dcfce7` | `#166534` |
 | `draft` | «Borrador» | `#f1f5f9` | `#334155` |
 
 > Todos los pares `fg`/`bg` de badge cumplen ≥4.5:1. `draft` se documenta por completitud aunque el
 > contrato no lo exponga a ningún rol en listado/detalle.
 
-### 2.4 Tema oscuro
+### 2.4 Tema oscuro (FE-5 / 017)
 
-**Fuera del MVP** (evitar sobredimensión, Principio XV). Los tokens son **semánticos** para que el tema
-oscuro sea un swap de valores futuro sin tocar las vistas. FE-1 ships **solo tema claro**.
+**Incluido desde FE-5** (decisión del usuario, 2026-07-15; reescribe la exención previa "fuera del MVP").
+Modelo **CSS-first**, sin doble fuente de verdad ni JS de render:
+
+- `:root` define los valores **claros**.
+- `@media (prefers-color-scheme: dark) { :root:not([data-theme]) { … } }` → sigue al SO en modo «sistema»
+  (sin JS; reacciona solo al cambio del SO).
+- `:root[data-theme="dark"]` / `:root[data-theme="light"]` → **elección del usuario** (gana sobre el SO).
+- **Precedencia:** elección del usuario (`data-theme`) > `prefers-color-scheme` > claro.
+
+El cambio de tema es un **swap de variables CSS en `:root`** (no remonta componentes → conserva el foco).
+El **conmutador** (`ThemeToggle`, §6) persiste la elección en `localStorage` (clave `fieldops.theme`,
+valores `light|dark|system`); en «sistema» borra la clave. Un **script inline anti-FOUC** en `index.html`
+aplica `data-theme` antes del primer pintado (misma clave que `ui/theme.ts` — fuente de verdad única).
+
+**Contraste AA en ambos temas** verificado por `tests/a11y/contrast-tokens.test.ts` (lista cerrada de
+pares × claro/oscuro). Valores oscuros (extracto): `--color-bg #0e141a`, `--color-surface #18212b`,
+`--color-text #e7edf3`, `--color-text-muted #aab8c7`, acento `--color-primary #fb923c` con
+`--color-text-on-accent #1a1005`, `--color-focus-ring #fb923c`; estados con fondos tenues + texto claro.
 
 ---
 
@@ -102,8 +119,8 @@ Fuente del sistema (sin descarga de webfont → rendimiento y offline en campo):
 
 - **Espaciado** (escala 4px): `--space-1:4` `--space-2:8` `--space-3:12` `--space-4:16` `--space-6:24`
   `--space-8:32`. Nada de píxeles sueltos.
-- **Radios:** `--radius-sm:6px` `--radius-md:10px` `--radius-full:9999px` (badges/avatar).
-- **Elevación:** `--shadow-1` (tarjeta), `--shadow-2` (panel/menú). Sombras suaves, no color.
+- **Radios (FE-5, más suaves):** `--radius-sm:9px` `--radius-md:14px` `--radius-full:9999px` (badges/avatar).
+- **Elevación:** `--shadow-1` (tarjeta) y `--shadow-2` (panel/menú), **sombras suaves de dos capas**, no color.
 - **Objetivo táctil:** todo control interactivo **≥44×44px** (WCAG 2.5.5 / campo con guantes).
 - **Motion:** transiciones ≤200ms; **respeta `prefers-reduced-motion`** (sin animación si el usuario lo
   pide).
@@ -144,6 +161,8 @@ Componentes propios (sin librería pesada). Cada uno documenta su API de props y
 | `EmptyState` / `Spinner` | texto, no solo icono; `aria-busy` | Estados de carga/vacío |
 | `Modal` (confirmación rechazo con motivo) | foco atrapado, `Esc` cierra, restaura foco | Revisión — FE-4 |
 | `SkipLink` («Saltar al contenido») | visualmente oculto salvo con foco de teclado; usa `--color-focus-ring`/`--space-*`; salta a `<main>` (WCAG 2.4.1) | Shell (todas) |
+| `Stepper` (FE-5) | `<ol>` del ciclo de vida (5 estados); `aria-current="step"` en el actual; estado por color **+ texto** «(actual/completado/pendiente)»; presentación pura (props) | Detalle de orden |
+| `ThemeToggle` (FE-5) | grupo de botones (claro/oscuro/sistema) con `aria-pressed`; foco visible; sin datos de negocio; persiste en `localStorage` | Shell (todas) |
 | `BackToList` («Volver a la lista») | control de retorno visible al colapsar master-detail <1024px; foco al activar; ≥44px; texto español; tokens de `ui/` (no estilos sueltos) | MasterDetail colapsado (FE-1) |
 
 **Estados obligatorios de toda vista de datos:** *cargando · vacío · error · sin-permiso*. Un endpoint que

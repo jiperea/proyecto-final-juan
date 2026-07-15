@@ -62,7 +62,14 @@ export function IncidentSummaryPanel({ orderId }: { orderId: string }) {
       </h3>
       <div role="status" aria-live="polite">
         {state.kind === 'summary' ? (
-          <p className="ai-summary__text">{state.text}</p>
+          <>
+            <p className="ai-summary__text">{state.text}</p>
+            {/* Nota de guardián (texto estático, FR-008): explica el origen y el no-inventar. */}
+            <p className="ai-summary__guard">
+              Generado a partir de las notas y la evidencia. Si no hubiera material suficiente, el
+              asistente lo indica y no inventa el resumen.
+            </p>
+          </>
         ) : state.kind === 'insufficient' ? (
           <p>No hay material suficiente para generar un resumen. No se ha inventado nada.</p>
         ) : state.kind === 'unavailable' ? (
