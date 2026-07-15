@@ -27,7 +27,10 @@ contrato. Esto es el espejo, en el front, de la disciplina de capas del backend 
 ## 2. Reglas de React (con su porqué y su nivel de enforcement)
 
 Cada regla lleva un **nivel**: `enforced` (eslint da error), `recomendación` (documentada, no bloqueante) o
-`guía` (juicio humano, no mecanizable). Los niveles los fijó el **baseline** (§3).
+`guía` (juicio humano, no mecanizable). Los niveles los fijó el **baseline** (§3). Cada regla tiene **un
+único nivel primario** (el de su cabecera, FR-002a); cuando una regla `guía` tiene además una parte
+mecanizada por otra regla (p. ej. (b) por `exhaustive-deps`, (d) por FR-017c), se indica en su cuerpo, sin
+que eso cambie su nivel primario.
 
 ### (a) Separación presentacional vs contenedor — `guía`
 Un componente que *pinta* (presentacional: recibe props, no sabe de dónde vienen) debe separarse del que
@@ -35,7 +38,7 @@ Un componente que *pinta* (presentacional: recibe props, no sabe de dónde viene
 testear y reutilizar, y el acoplamiento a la fuente de datos queda aislado en un solo sitio. No es
 mecanizable de forma fiable por lint (es un juicio de diseño), así que queda como guía verificada en revisión.
 
-### (b) La lógica vive en hooks `use*`, no en el JSX — `guía` (+ `enforced` parcial: `exhaustive-deps`)
+### (b) La lógica vive en hooks `use*`, no en el JSX — nivel: `guía`
 El *fetching*, el estado, los *side-effects* y las reglas de negocio de UI se extraen a hooks `use*`; el
 componente se queda con el render. El porqué: mantiene los componentes legibles y la lógica testeable de
 forma aislada, y evita efectos enredados en el árbol JSX. La parte **mecanizable** —que los hooks declaren
@@ -51,7 +54,7 @@ concreto (p. ej. detalle de una orden, reasignar/revisar por `orderId`) el backe
 vez de 403**, y el front **respeta ese 404 tal cual, sin reconstruir un 403 distinto** (patrón ya
 implementado en `OrderDetailView`/`useOrderMutations`, a preservar). No es un único lint rule, por eso es guía.
 
-### (d) Componentes base propios en `ui/` consumiendo tokens — `guía` (+ `enforced` vía FR-017c)
+### (d) Componentes base propios en `ui/` consumiendo tokens — nivel: `guía`
 Sin librería de componentes pesada: si falta una pieza, se crea como base en `ui/` consumiendo tokens y se
 reutiliza. El porqué: control total del look accesible y del bundle, y coherencia con el design system. La
 parte mecanizable (cero literales de estilo fuera de `ui/`) ya la hace cumplir la regla FR-017c.
@@ -61,7 +64,7 @@ Cero colores/tamaños/tipografías **literales** fuera de `src/ui/`: todo sale d
 punto de verdad visual permite el tema claro/oscuro y los cambios globales sin cazar literales dispersos. Se
 hace cumplir con `no-restricted-syntax` (literales de color/px/fuente) + stylelint, ya en verde.
 
-### (f) Accesibilidad WCAG 2.1 AA — `enforced` parcial (`jsx-a11y`) + `guía`
+### (f) Accesibilidad WCAG 2.1 AA — nivel: `enforced`
 Contraste (texto ≥4.5:1, grande/componentes ≥3:1), roles/labels correctos, foco visible y navegación por
 teclado. El porqué: es requisito del brief y de la constitution, y no negociable para el usuario de campo. La
 parte automatizable la cubre `jsx-a11y/recommended` (ya activo) + los tests de ratio de token; el resto
