@@ -17,16 +17,17 @@ function ratio(a: string, b: string): number {
 // Quita comentarios para no confundir el selector real con el ejemplo de la cabecera documental.
 const CSS = readFileSync('src/ui/tokens.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
-// Extrae el bloque de un selector (primer `{ … }` tras el selector). Para claro usamos el `:root {` inicial.
-function block(selector: string): string {
-  const idx = CSS.indexOf(selector);
-  if (idx < 0) throw new Error(`selector ${selector} no encontrado`);
-  const open = CSS.indexOf('{', idx);
+// Extrae el bloque de un selector (primer `{ … }` tras el selector), tolerante a reformateo (espacios,
+// comillas simples/dobles del atributo). H-006: no depende del formato exacto de tokens.css.
+function block(selectorRe: RegExp): string {
+  const m = CSS.match(selectorRe);
+  if (!m || m.index === undefined) throw new Error(`selector ${selectorRe} no encontrado`);
+  const open = CSS.indexOf('{', m.index);
   const close = CSS.indexOf('}', open);
   return CSS.slice(open, close);
 }
-const LIGHT = block(':root {');
-const DARK = block(':root[data-theme="dark"]');
+const LIGHT = block(/:root\s*\{/); // primer :root (valores claros)
+const DARK = block(/:root\[data-theme=['"]dark['"]\]\s*\{/);
 
 function token(theme: string, name: string): string {
   const src = theme === 'dark' ? DARK : LIGHT;

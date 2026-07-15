@@ -47,7 +47,9 @@ export function setChoice(choice: ThemeChoice): void {
 // Sincroniza entre pestañas: cuando otra pestaña cambia la clave, reaplica en ésta (FR-004b).
 export function subscribeToStorage(onChange: (choice: ThemeChoice) => void): () => void {
   const handler = (e: StorageEvent) => {
-    if (e.key !== null && e.key !== THEME_STORAGE_KEY) return;
+    // Solo reacciona a NUESTRA clave. Un `localStorage.clear()` de otra pestaña (e.key === null, p. ej. en
+    // logout) NO debe resetear el tema de las demás pestañas (H-005).
+    if (e.key !== THEME_STORAGE_KEY) return;
     const choice = getStoredChoice();
     applyChoice(choice);
     onChange(choice);

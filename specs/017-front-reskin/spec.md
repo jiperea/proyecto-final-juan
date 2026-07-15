@@ -225,9 +225,10 @@ paso actual y los anteriores como completados; pasa axe-core sin violaciones ser
 - **FR-013**: WHEN el documento carga THE front SHALL aplicar el tema efectivo **antes del primer pintado**
   mediante un script inline en `<head>` previo a React: si hay elección guardada en `localStorage` fija
   `data-theme`, si no, no toca la raíz (gobierna la `@media`). **Fuente de verdad única**: el store de tema
-  de React **no recalcula** el tema al montar; **lee el `data-theme` ya presente en la raíz** (el que fijó
-  el script inline) como estado inicial, y comparte con el script inline la **misma** utilidad/clave de
-  lectura. Así no hay un segundo swap tras la hidratación (no hay FOUC "de segunda mano").
+  de React inicializa desde la **misma utilidad y clave** (`theme.ts` → `getStoredChoice()` /
+  `THEME_STORAGE_KEY`) que usa el script inline, con **lógica idéntica**, de modo que ambos computan el
+  **mismo** valor y no hay un segundo swap tras la hidratación (no hay FOUC "de segunda mano"). No hay dos
+  fuentes de verdad: hay **una** clave y **una** utilidad compartida (verificado por `theme-fouc-sync`).
 - **FR-014**: WHILE se implementa el **Stepper** THE front SHALL mantenerlo **puro de presentación**: recibe
   por props solo el estado de la orden ya autorizado y obtenido por la vista padre, **no** hace llamadas de
   red ni accede a datos fuera del alcance filtrado por rol/`assigned_to` por el backend. WHILE se implementa
@@ -280,8 +281,11 @@ los contratos congelados y los consume la UI sin redefinirlos.
 
 ### Measurable Outcomes
 
-- **SC-001**: `stylelint` reporta **0** estilos sueltos (0 literales de color/tamaño/tipografía fuera de
-  `frontend/src/ui/tokens.css`).
+- **SC-001**: `stylelint` + `eslint` reportan **0** violaciones de la regla de estilos sueltos: 0 literales
+  de color/tamaño/tipografía en las **propiedades cubiertas** por `.stylelintrc.json`/FR-017c (fuera de
+  `src/ui/`). **Alcance explícito (H-001):** los **anchos de hairline** de `border`/`outline`/`outline-offset`
+  (1–4px) son una **convención documentada** del design system (los controles se identifican por relleno +
+  etiqueta, no por el ancho del borde) y **no** están en el conjunto enforced; no cuentan como estilo suelto.
 - **SC-002**: `tsc --noEmit` y `eslint` terminan con **0 errores**; `npm run build` del front termina con
   éxito.
 - **SC-003a**: el test de ratios sobre `tokens.css` recorre la **lista cerrada** de «Pares de contraste a

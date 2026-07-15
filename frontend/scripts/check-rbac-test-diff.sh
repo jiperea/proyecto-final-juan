@@ -34,8 +34,9 @@ violations=0
 # Diff con contexto 0; solo líneas +/- (no cabeceras +++/---).
 while IFS= read -r line; do
   content="${line:1}"
-  # Permitido: cambios que solo tocan literales de clase.
-  if printf '%s' "$content" | grep -Eq 'className=|\.btn--|badge--'; then continue; fi
+  # Una línea es VIOLACIÓN si contiene un patrón de aserción, INDEPENDIENTEMENTE de que también toque una
+  # clase (evita el blind spot de líneas que mezclan className + aserción, I-003). Solo se permite (skip)
+  # una línea que NO matchee ningún patrón de aserción.
   if printf '%s' "$content" | grep -Eq "$ASSERT_RE"; then
     echo "SC-004 VIOLACIÓN (línea de aserción cambiada): $line"
     violations=$((violations + 1))
