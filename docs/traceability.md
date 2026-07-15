@@ -266,3 +266,87 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > Deuda trazada: **F-005** (Zod de `schemas.ts` hand-derived, no generado; endurecer con openapi-zod-client);
 > **axe color-contrast** no corre en jsdom (cubierto de forma determinista por el test por token T050); los
 > **workflows CI de front** son la fase DevOps **DO-6** (inerte hasta FE-1, ahora desbloqueada).
+
+## FE-2 · Front del técnico (014-front-tecnico) — write-side
+
+> Iniciar trabajo + registrar ejecución (notas + ≥1 evidencia metadato) + enviar a revisión. Consume el
+> contrato existente (start/execution), sin backend nuevo. Tests en `frontend/tests/` (no `src/`).
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001 | iniciar trabajo (startOrderWork, assigned→in_progress) | T004/T006/T007 | `unit/fe2-write-api`, `unit/fe2-integration` (SC-001) |
+| FR-002/003/005 | formulario de ejecución (notas 1..2000 imprimible) + enviar (submitOrderExecution) | T010/T011 | `unit/fe2-integration` (camino feliz), `unit/fe2-write-api` |
+| FR-004 | evidencia metadato: object_ref UUID, allowlist+fallback HEIC, rechazo al añadir, preview, eliminar, límite 10, aviso honesto | T008/T009 | `unit/fe2-evidence`, `unit/fe2-evidence-picker` |
+| FR-006 | mapeo de códigos reales (422 no 409; 403 FORBIDDEN_ROLE; 404; K-001 payload-primero) | T003/T004 | `unit/fe2-write-api` |
+| FR-007 | acciones write solo rol technician (K-004, ocultación por rol) | T007/T013 | `unit/fe2-integration` (dispatcher oculto) |
+| FR-008 | tipos del contrato + aserción Zod↔contrato | T002 | `npm run typecheck` (codegen:check + AssertAssignable) |
+| FR-009/010 | borrador de notas (sessionStorage), no persiste evidencias, purga por identidad | T012 | `unit/fe2-draft` |
+| FR-011 | estado en vuelo accesible (aria-busy), errores asociados, estados de carga | T005/T014 | `unit/fe2-integration`, `a11y/fe2` |
+| SC-002 | flujo iniciar→enviar completable; sin textos de ayuda | T014/T015 | `unit/fe2-integration`, inspección (T014) |
+| SC-003 | 100% de códigos mapeados (no crudo/pantalla rota) | T003 | `unit/fe2-write-api` |
+| SC-004 | 0 violaciones axe; teclado; nombres accesibles; tap targets ≥44px | T008/T014 | `a11y/fe2` |
+| SC-005 | object_ref valida contra el contrato antes de añadir | T002 | `unit/fe2-evidence` (evidenceRefSchema.parse) |
+| SC-006 | notas/object_ref fuera de logs/telemetría; fileName no viaja | T014 | `unit/fe2-nolog` (spy console) |
+
+> Deuda trazada: **transporte binario de evidencia = #007** (FE-2 envía metadato; el supervisor FE-4 verá
+> solo count+types hasta que exista el endpoint de subida). Borrador de notas en `sessionStorage` = residual
+> aceptado (purga por identidad; same-origin). e2e Playwright del camino feliz (T015) opcional/justificado.
+
+## FE-3 · Front del dispatcher (015-front-dispatcher) — write-side de reasignación
+
+> Reasignar una orden reasignable a otro técnico (master-detail de escritorio). Consume el contrato 004
+> (`reassignOrder`), sin backend nuevo. Entrada manual del UUID destino (obtenido fuera de banda). Tests en
+> `frontend/tests/`.
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001/018 | reasignar solo dispatcher, estado reasignable y escritorio (oculto por rol/viewport) | T008/T012 | `unit/fe3-detail-rbac` (rol+viewport), `unit/fe3-integration` |
+| FR-002/003 | enviar {assignee_id,reason} (reassignOrder) y reflejar nuevo asignatario sin recarga | T002/T004/T005/T006/T008 | `unit/fe3-write-api`, `unit/fe3-integration`, `e2e/fe3` (SC-001) |
+| FR-004 | control siempre accionable; en vuelo aria-busy+aria-disabled (no disabled nativo, F-101) | T006 | `unit/fe3-reassign-form` |
+| FR-005/014/017 | validación cliente (trim+UUID RFC4122; motivo 1..500); ambos errores a la vez; aria-describedby+aria-invalid; limpia al editar | T006/T009 | `unit/fe3-reassign-form` |
+| FR-006/007 | VALIDATION_ERROR→campo motivo; INVALID_ASSIGNEE→campo destino (conserva lo introducido) | T004/T010 | `unit/fe3-write-api`, `unit/fe3-reassign-form` |
+| FR-008 | 404 genérico no-enumerante; limpia detalle + refresca listado | T004/T011 | `unit/fe3-write-api` (404), `useReassign` onError invalida |
+| FR-009/010/015/016 | FORBIDDEN_ROLE/401; 500→genérico sin boundary; red→conectividad; sin traza cruda | T004/T010 | `unit/fe3-write-api`, `unit/fe3-reassign-form` |
+| FR-011 | reason/assignee_id fuera de logs/telemetría/storage | T014 | `unit/fe3-nolog` (spy consola + storage) |
+| FR-012/013 | teclado; foco al asignatario + aria-live=polite nombrando destino; tokens (sin estilos sueltos) | T006/T007/T013 | `unit/fe3-integration`, `a11y/fe3`, `npm run lint` (stylelint) |
+| SC-001 | camino feliz sin recarga (UUID conocido fuera de banda) | T008/T016 | `unit/fe3-integration`, `e2e/fe3` |
+| SC-002 | 100% de códigos mapeados (incl. 500 y red) | T004/T010 | `unit/fe3-write-api`, `unit/fe3-reassign-form` |
+| SC-003 | 0 violaciones axe (form/error/en vuelo); contraste ≥4.5:1/≥3:1; tap targets ≥44px | T013 | `a11y/fe3` |
+| SC-004 | control no visible salvo dispatcher+escritorio | T012 | `unit/fe3-detail-rbac` |
+| SC-005 | no-fuga + validación cliente antes del backend | T002/T014 | `unit/fe3-nolog`, `unit/fe3-write-api` |
+
+> Deuda de backend trazada (regla XV): **no hay endpoint de listado de técnicos** → entrada manual del UUID
+> (obtenido fuera de banda) como interino; feature futura de backend para el selector real. Diferidos a
+> plan documentados: contract-test del mock, riesgo CD por fases (404 infra vs negocio), i18n, lint de
+> estilos, verificación de telemetría. e2e Playwright del camino feliz (T016) opcional/justificado.
+
+## FE-4 · Front del supervisor (016-front-supervisor) — revisión + resumen IA
+
+> Aprobar/rechazar en `pending_review` (con confirmación / motivo) + panel de resumen IA bajo demanda.
+> Consume 006 (reviewOrder) y 007 (summarizeOrderIncident), sin backend nuevo. FE-4 solo muestra el
+> resultado IA (distingue por `sufficient`, no inventa); el eval de la IA es del backend 007. Tests en
+> `frontend/tests/`.
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001/015 | revisión + panel IA solo supervisor, pending_review y escritorio; aviso móvil | T010/T013 | `unit/fe4-detail-rbac` |
+| FR-002/003 | reviewOrder (approve→closed / reject→in_progress), sin recarga, sale de la cola | T005/T006/T007/T008/T010 | `unit/fe4-write-api`, `unit/fe4-integration` |
+| FR-004/006 | validación cliente del motivo (no-vacío + imprimible; efectivo 1..1000 = backend) + INVALID_REASON al campo | T006/T008 | `unit/fe4-review-actions` |
+| FR-005/009b | aria-busy/aria-disabled en vuelo; sin auto-reintento del approve | T008 | `unit/fe4-review-actions` |
+| FR-007 | 409 EVIDENCE_MISSING + deshabilitar Aprobar si evidence.count===0 | T008 | `unit/fe4-review-actions` |
+| FR-008/009 | 404 genérico + limpiar detalle; 401(refresh)/403(permiso)/500/503, conservar motivo | T006/T010 | `unit/fe4-write-api`, `unit/fe4-integration` |
+| FR-010/016 | resumen bajo demanda; región "Resumen (IA)" texto plano; sufficient decide (no inventa) | T011/T012 | `unit/fe4-summary-panel`, `unit/fe4-integration` (no auto-llamada) |
+| FR-011/011b | 429 (Retry-After, cooldown) / 503 / 500 sin bloquear revisión; descartar respuesta fuera de orden | T006/T011 | `unit/fe4-write-api`, `unit/fe4-summary-panel` |
+| FR-012 | reason/last_rejection_reason/summary fuera de consola/telemetría/storage | T014 | `unit/fe4-nolog` |
+| FR-013/014/017 | a11y: alertdialog (foco atrapado/retorno, Esc, overlay no cierra), foco+aria-live separadas, contraste, tap targets | T002/T003/T015 | `unit/fe4-confirm-dialog`, `a11y/fe4` |
+| SC-001 | camino feliz aprobar (confirmación) + resumen sin recarga | T010/T012/T017 | `unit/fe4-integration`, `e2e/fe4` |
+| SC-002 | 100% de códigos (revisión 422/409/404/403/401/500/503; resumen 200 t/f/429/503/500/404/403/401) | T006/T008/T011 | `unit/fe4-write-api`, `unit/fe4-review-actions`, `unit/fe4-summary-panel` |
+| SC-003 | axe 0 (acciones/alertdialog/panel IA/éxito); teclado; contraste; tap targets | T015 | `a11y/fe4`, `unit/fe4-confirm-dialog` |
+| SC-004 | oculto salvo supervisor+escritorio; 403 en bypass | T013 | `unit/fe4-detail-rbac`, `unit/fe4-write-api` (403) |
+| SC-005 | sufficient=false → nunca resumen fabricado | T011 | `unit/fe4-summary-panel` |
+| SC-006 | no-fuga + validación cliente del motivo | T014/T008 | `unit/fe4-nolog`, `unit/fe4-review-actions` |
+
+> Novedad: primer **`ConfirmDialog`** del design system (alertdialog accesible, tokens de overlay/elevación).
+> Motivo del rechazo: pre-check de cliente (no-vacío + imprimible); la longitud efectiva 1..1000 la valida el
+> backend tras saneo (`INVALID_REASON`) — el cliente NO es más estricto (lección del UUIDv7 de FE-3). e2e
+> Playwright del camino feliz (T017) opcional/justificado. IA: eval en backend 007 (promptfoo N/A en FE-4).

@@ -1,0 +1,46 @@
+{
+  "gate": "G3 (implementación vs spec · panel de front · acumulativo G1+G2)",
+  "feature": "015-front-dispatcher",
+  "fecha": "2026-07-15",
+  "artefactos": ["frontend/src/features/orders/*", "frontend/src/api/schemas.ts", "frontend/src/api/types.ts", "frontend/src/ui/{TextField,TextArea}.tsx", "frontend/src/ui/components.css", "frontend/tests/**", "docs/traceability.md"],
+  "panel": ["revisor-implementacion", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
+  "veredicto_global": "PASS (ronda 2) — bloqueante 0; ALTAS de ronda 1 cerradas; verificado por 120 tests + 12 e2e verdes",
+  "rondas": 2,
+  "ronda_1": {
+    "veredicto_impl": "REQUIERE_CAMBIOS",
+    "veredicto_rbac": "APROBADA_CON_COMENTARIOS",
+    "veredicto_front": "APROBADA_CON_COMENTARIOS",
+    "hallazgos": [
+      {"id": "I-001", "sev": "ALTA", "fuente": "impl", "desc": "FR-008 (404→limpia detalle) sin test de UI.", "resolucion": "Test de integración fe3-integration con mock stateful (GET→404 tras POST 404) que verifica NOT_AVAILABLE y desmontaje del form."},
+      {"id": "F-001", "sev": "ALTA", "fuente": "front", "desc": "axe en jsdom no verifica contraste → SC-003 sin comprobación real.", "resolucion": "Test dirigido fe3-contrast: lee tokens.css y calcula ratio WCAG (text-muted/danger ≥4.5:1, focus ≥3:1)."},
+      {"id": "I-002", "sev": "MEDIA", "fuente": "impl", "desc": "límite del motivo por .length (UTF-16), spec pide code points.", "resolucion": "schemas.ts + ReassignForm cuentan [...s].length; test con 501 emojis astrales."},
+      {"id": "I-003", "sev": "MEDIA", "fuente": "impl", "desc": "'sin recarga' sin verificación literal.", "resolucion": "e2e marca window.__noReload y asserta que sobrevive tras reasignar."},
+      {"id": "I-004", "sev": "MEDIA", "fuente": "impl", "desc": "e2e 'mobile' forzaba escritorio.", "resolucion": "Nuevo e2e FR-018 (viewport 375px → control oculto)."},
+      {"id": "F-002", "sev": "MEDIA", "fuente": "front", "desc": "sin test del estado en vuelo.", "resolucion": "Test con POST diferido: aria-disabled sin disabled nativo."},
+      {"id": "F-003", "sev": "MEDIA", "fuente": "front", "desc": "sin aserción de aria-describedby dual.", "resolucion": "Test: 2 ids (hint+error) + aria-invalid."},
+      {"id": "F-004", "sev": "MEDIA", "fuente": "front", "desc": "axe no cubría estado de éxito.", "resolucion": "Tercer caso axe (región viva + foco)."},
+      {"id": "F-005", "sev": "MEDIA", "fuente": "front", "desc": "campo motivo sin hint (inconsistente).", "resolucion": "hint añadido a TextArea (espejo de TextField) + REASON_HINT."},
+      {"id": "S-001/S-002", "sev": "MEDIA", "fuente": "rbac", "desc": "autofill nativo del UUID; el anuncio muestra assigned_to.", "resolucion": "Aceptados: assignee_id/assigned_to = identificador de técnico (no PII de cliente); autoComplete=off; assigned_to ya visible en FE-1. FR-011 protege el request, no el response operativo."}
+    ]
+  },
+  "ronda_2": {
+    "veredicto_impl": "APROBADA",
+    "veredicto_front": "APROBADA",
+    "cierres": "I-001, F-001 (ALTAS) y I-002/I-003/I-004/F-002/F-003/F-004/F-005 (MEDIAS) verificados cerrados por el panel; 0 huecos nuevos.",
+    "huecos": []
+  },
+  "validacion_stack_real": {
+    "fecha": "2026-07-15",
+    "entorno": "docker compose (db+backend imagen local con 004; frontend nginx reconstruido con FE-3 en :8080 proxy /v1→:3001)",
+    "backend_api": "login dispatcher1 → listOrders → reassignOrder a technician2/3: 200 (assigned_to nuevo, status sin cambio, version+1); destino inexistente→422 INVALID_ASSIGNEE; motivo vacío→422 VALIDATION_ERROR. Confirma empíricamente mock↔contrato real (cierra G1-M01).",
+    "front_e2e_real": "Playwright contra :8080 (backend real): dispatcher inicia sesión, abre orden, reasigna → 'Orden reasignada a <uuid>' sin recarga; FR-018 verificado (control oculto <1024px).",
+    "defecto_encontrado_y_corregido": {
+      "id": "R-001",
+      "sev": "ALTA",
+      "desc": "La validación de cliente del assignee_id fijaba UUID RFC 4122 v1–v5, pero el backend emite UUIDv7 → el front rechazaba destinos legítimos (camino feliz roto en prod).",
+      "fix": "src/api/schemas.ts: UUID_RE = forma general 8-4-4-4-12 sin fijar versión. Tests actualizados a UUIDs v7 reales (regresión blindada). Spec/tasks (M08/FR-014/SC-005) corregidos. Re-verificado por live e2e."
+    }
+  },
+  "verificacion": "typecheck (tsc strict + codegen:check + AssertAssignable ReassignmentRequest) OK; lint (eslint+stylelint 'sin estilos sueltos') OK; **120 tests** (25 ficheros; FE-1+FE-2+FE-3 sin regresión, UUIDs v7 reales) + axe (form/error/éxito) + contraste dirigido; **12 e2e** (fe1+fe2+fe3 camino feliz + FR-018 móvil, desktop+mobile); build OK; **validado contra el stack real (docker) end-to-end**.",
+  "resumen": "G3 PASS en ronda 2. Ronda 1: 2 ALTAS (FR-008 sin test de UI; contraste no verificado por axe-jsdom) + 7 MEDIAS → remediadas por skill/tests. Ronda 2: panel de front APROBADA (0 huecos); rbac ya APROBADA_CON_COMENTARIOS (sin defectos). FE-3 cumple spec+contrato; 18 FR y 5 SC cubiertos y verificados. 0 bloqueantes → merge permitido. Deuda de backend (selector de técnicos) registrada."
+}

@@ -21,7 +21,7 @@ export function OrdersView() {
         hasSelection={orderId !== undefined}
         onBack={() => navigate('/orders')}
         list={<OrderList role={role} selectedId={orderId} />}
-        detail={orderId !== undefined ? <OrderDetailView orderId={orderId} /> : null}
+        detail={orderId !== undefined ? <OrderDetailView key={orderId} orderId={orderId} /> : null}
       />
     </section>
   );

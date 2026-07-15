@@ -30,6 +30,7 @@
 }
 .field__input:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
 .field__error { font: var(--font-caption); color: var(--color-danger); }
+.field__hint { font: var(--font-caption); color: var(--color-text-muted); }
 
 .badge {
   display: inline-block;
@@ -63,3 +64,54 @@
   .master-detail--wide { display: grid; grid-template-columns: minmax(0, 20rem) 1fr; gap: var(--space-4); }
 }
 .back-to-list { margin-bottom: var(--space-4); }
+
+/* FE-2: textarea de notas y aviso informativo (design system, solo tokens) */
+.field__input--area { min-height: calc(var(--touch-target) * 2); resize: vertical; }
+
+.notice {
+  font: var(--font-caption);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* Lista de evidencias: thumbnails con control de eliminar por ítem */
+.evidence-list { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; padding: 0; }
+.evidence-item { display: flex; flex-direction: column; gap: var(--space-1); }
+.evidence-item__thumb { width: var(--touch-target); height: var(--touch-target); object-fit: cover; border-radius: var(--radius-sm); }
+
+.evidence { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-3); margin-bottom: var(--space-4); }
+.evidence > legend { font: var(--font-label); padding: 0 var(--space-1); }
+
+/* FE-4 · Diálogo modal (ConfirmDialog) — solo tokens */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-scrim);
+}
+.dialog {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  max-width: var(--dialog-max-width);
+  width: 100%;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.dialog__title { font: var(--font-h2); margin: 0; }
+.dialog__body { font: var(--font-body); }
+.dialog__actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
+
+/* FE-4 · Panel de resumen IA */
+.ai-summary { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+.ai-summary__text { white-space: pre-wrap; }

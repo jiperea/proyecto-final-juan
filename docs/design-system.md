@@ -180,7 +180,8 @@ Gate de a11y (verificable, no subjetivo — lo exige `auditor-spec-theater` y lo
 | `UNAUTHENTICATED` / 401 | «Tu sesión ha caducado. Vuelve a iniciar sesión.» |
 | `FORBIDDEN_ROLE` / 403 | «No tienes permiso para esta acción.» |
 | `NOT_FOUND` / 404 | «Esta orden no existe o no está disponible para ti.» |
-| `INVALID_TRANSITION` / 409 | «La orden ha cambiado de estado. Actualiza y reinténtalo.» |
+| `INVALID_TRANSITION` (422 en start/execution; 409 solo en el guard de evidencia de review) | «La orden ha cambiado de estado. Actualiza y reinténtalo.» |
+| `EVIDENCE_REQUIRED` / 422 | «Añade al menos una foto antes de enviar.» |
 | `INVALID_ASSIGNEE` / 422 | «El técnico destino no es válido.» |
 | `INVALID_EVIDENCE` / 422 | «La evidencia no cumple los requisitos (formato/tamaño).» |
 | `INVALID_REASON` / 422 | «Indica un motivo válido.» |

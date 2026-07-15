@@ -1,0 +1,35 @@
+{
+  "gate": "G3 (implementación vs spec · panel de front · acumulativo G1+G2)",
+  "feature": "016-front-supervisor",
+  "fecha": "2026-07-15",
+  "artefactos": ["frontend/src/ui/ConfirmDialog.tsx", "frontend/src/features/orders/{ReviewActions,IncidentSummaryPanel,OrderDetailView}.tsx", "frontend/src/features/orders/{write-api,useOrderMutations}.ts", "frontend/src/api/{schemas,client,types}.ts", "frontend/src/i18n/errors.ts", "frontend/src/ui/{tokens,components}.css", "frontend/tests/**", "docs/traceability.md"],
+  "panel": ["revisor-implementacion", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
+  "veredicto_global": "PASS (ronda 2) — 2 BLOQUEANTES + ALTAS de ronda 1 cerradas; verificado por 170 tests + e2e verdes",
+  "rondas": 2,
+  "ronda_1": {
+    "veredicto_impl": "BLOQUEADA",
+    "veredicto_rbac": "REQUIERE_CAMBIOS",
+    "veredicto_front": "REQUIERE_CAMBIOS",
+    "hallazgos": [
+      {"id": "I-001", "sev": "BLOQUEANTE", "desc": "FR-004: límite 1000 code points del motivo no validado en cliente.", "resolucion": "ReviewActions cuenta effective = [...trim+colapso].length y bloquea >1000; test 1001."},
+      {"id": "I-002", "sev": "BLOQUEANTE", "desc": "FR-009b: apiFetch reintentaba el approve tras 401.", "resolucion": "apiFetch opts.retryOn401=false (invalida+propaga sin retry); reviewOrder lo pasa; test 1 llamada."},
+      {"id": "S-001", "sev": "ALTA", "fuente": "rbac", "desc": "OrdersView sin key={orderId} → reason de una orden visible/enviable en otra.", "resolucion": "key={orderId} en OrderDetailView (remonta por orden; estado limpio)."},
+      {"id": "I-003", "sev": "ALTA", "desc": "SC-002: faltaban tests de UI de 404/403/500/503 en revisión.", "resolucion": "it.each de códigos → alerta + motivo conservado."},
+      {"id": "I-004", "sev": "ALTA", "desc": "FR-011b: botón resumen con disabled nativo (pierde foco).", "resolucion": "aria-disabled + guard; test aria-disabled/not disabled."},
+      {"id": "I-005", "sev": "ALTA", "desc": "FR-008: foco no gestionado tras 404.", "resolucion": "notAvailableRef + useEffect enfoca el mensaje NOT_AVAILABLE."},
+      {"id": "F-001", "sev": "ALTA", "fuente": "front", "desc": "sin test del foco atrapado del alertdialog.", "resolucion": "test Tab/Shift+Tab wrap-around."},
+      {"id": "I-006", "sev": "MEDIA", "desc": "effect del diálogo dependía de onCancel inline.", "resolucion": "onCancelRef + deps [open]."},
+      {"id": "I-007", "sev": "MEDIA", "desc": "429 no mostraba Retry-After.", "resolucion": "mensaje 'Espera {secs} s'; test /30 s/."},
+      {"id": "S-002/F-002/F-003", "sev": "MEDIA", "desc": "flash de resumen entre órdenes; axe de estados error; magic number 32rem.", "resolucion": "key remount; axe error/insuficiente; token --dialog-max-width."}
+    ]
+  },
+  "ronda_2": {
+    "veredicto_impl": "APROBADA",
+    "veredicto_rbac": "APROBADA_CON_COMENTARIOS",
+    "veredicto_front": "APROBADA",
+    "cierres": "2 BLOQUEANTES + 5 ALTAS + MEDIAS cerrados; verificados línea a línea con tests que ejercitan el caso (170/170). Sin regresiones ni huecos nuevos.",
+    "huecos": []
+  },
+  "verificacion": "typecheck (tsc strict + codegen:check + AssertAssignable) OK; lint (eslint+stylelint, ConfirmDialog tokenizado) OK; **170 tests** (35 ficheros; FE-1/2/3 sin regresión) + axe (acciones/alertdialog/resumen/error/insuficiente) + e2e fe4 (aprobar con confirmación + resumen, desktop+mobile); build OK.",
+  "resumen": "G3 PASS en ronda 2. Ronda 1: 2 BLOQUEANTES (límite 1000 cliente; no-reintento del approve tras 401) + 5 ALTAS (key remount, tests de error UI, aria-disabled, foco 404, test foco-atrapado) + MEDIAS → remediados. Ronda 2: panel de front APROBADA; rbac APROBADA_CON_COMENTARIOS (backend autoridad confirmado). Cierra los ítems 3 y 5 del brief en UI. 0 bloqueantes → merge permitido. IA: solo-display (promptfoo N/A; eval en backend 007)."
+}

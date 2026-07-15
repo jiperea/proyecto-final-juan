@@ -10,6 +10,11 @@ export type Order = OrdersComponents['schemas']['Order'];
 export type OrderListResponse = OrdersComponents['schemas']['OrderListResponse'];
 export type OrderDetailResponse = OrdersComponents['schemas']['OrderDetailResponse'];
 export type ErrorResponse = OrdersComponents['schemas']['ErrorResponse'];
+export type EvidenceRef = OrdersComponents['schemas']['EvidenceRef'];
+export type ExecutionRequest = OrdersComponents['schemas']['ExecutionRequest'];
+export type ReassignmentRequest = OrdersComponents['schemas']['ReassignmentRequest'];
+export type ReviewRequest = OrdersComponents['schemas']['ReviewRequest'];
+export type IncidentSummaryResponse = OrdersComponents['schemas']['IncidentSummaryResponse'];
 
 // Vista de sesión (data-model.md §1): identidad en memoria.
 export interface SessionUser {

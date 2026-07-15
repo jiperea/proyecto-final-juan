@@ -1,0 +1,61 @@
+{
+  "gate": "G1 (panel de calidad de spec · panel de front)",
+  "feature": "016-front-supervisor",
+  "fecha": "2026-07-15",
+  "artefactos": ["specs/016-front-supervisor/spec.md", "specs/016-front-supervisor/checklists/requirements.md"],
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-front-a11y-ux"],
+  "veredicto_global": "PASS (ronda 2) — bloqueante y ALTAS de ronda 1 cerradas; ALTA/MEDIAS del re-ataque encodadas. 0 BLOQUEANTES.",
+  "rondas": 2,
+  "ronda_1": {
+    "veredicto_cinico": "REQUIERE_CAMBIOS",
+    "veredicto_spec_theater": "REQUIERE_CAMBIOS",
+    "veredicto_rbac": "REQUIERE_CAMBIOS",
+    "veredicto_front": "REQUIERE_CAMBIOS",
+    "bloqueantes": [
+      {"id": "G1-B01", "fuente": "spec-theater(T-001)+front(F-001)", "desc": "FR-017 (confirmación de aprobar) no fija el patrón (modal vs inline) ni la a11y del diálogo (rol, foco atrapado/inicial/retorno) → 2 implementaciones incompatibles y riesgo de foco perdido. DECISIÓN: patrón concreto accesible."}
+    ],
+    "altas": [
+      {"id": "G1-A01", "fuente": "cinico(H-001)", "desc": "'last-write-wins' (Assumptions) contradice el 404 por estado de FR-008 (first-decision-wins por estado)."},
+      {"id": "G1-A02", "fuente": "cinico(H-003)+front(F-003)", "desc": "Botón 'Resumir con IA' sin aria-busy/anti-doble-clic; respuesta fuera de orden puede contaminar el panel de otra orden."},
+      {"id": "G1-A03", "fuente": "spec-theater(T-003)+rbac(S-002)", "desc": "401 vs 403 mezclados en FR-009 (uniforme/refresco)."},
+      {"id": "G1-A04", "fuente": "cinico(H-007)", "desc": "Tras 401 en vuelo de un approve YA confirmado, ¿reintento automático sin re-confirmar? (rompe anti-fat-finger)."},
+      {"id": "G1-A05", "fuente": "spec-theater(T-002)", "desc": "FR-014 'foco predecible' sin destino concreto tras aprobar/rechazar/resumen."},
+      {"id": "G1-A06", "fuente": "cinico(H-013)", "desc": "500/503 'con reintento' (FR-009) no garantiza conservar el motivo tecleado."},
+      {"id": "G1-A07", "fuente": "front(F-002)+spec-theater(T-004)", "desc": "Región del resumen 'distinguida de las notas' sin estructura semántica (solo visual)."},
+      {"id": "G1-A08", "fuente": "front(F-004)", "desc": "El paso de confirmación es un patrón nuevo (¿existe Dialog en el DS?); riesgo de estilos sueltos."},
+      {"id": "G1-A09", "fuente": "rbac(S-001)", "desc": "Scope del supervisor (¿pool único vs por equipo?) — responsabilidad del BACKEND (contrato autoriza por rol); no corregible en FE-4 front → assumption + backlog."}
+    ],
+    "medias": [
+      {"id": "G1-M01", "fuente": "cinico(H-004)", "desc": "Estados vacío/cargando del panel IA no tienen FR (SC-003 los exige)."},
+      {"id": "G1-M02", "fuente": "cinico(H-005)", "desc": "Caché del resumen al cambiar de orden y volver (definir 'sesión de la vista')."},
+      {"id": "G1-M03", "fuente": "cinico(H-006)", "desc": "Deshabilitar/avisar 'Aprobar' si evidence.count===0 (dato ya en cliente) antes del 409."},
+      {"id": "G1-M04", "fuente": "cinico(H-008)", "desc": "La orden decidida debe salir de la cola pending_review sin recarga."},
+      {"id": "G1-M05", "fuente": "cinico(H-009)+front", "desc": "Render del summary como texto plano escapado (no HTML/markdown)."},
+      {"id": "G1-M06", "fuente": "cinico(H-010)", "desc": "Verificar que 006/007 están mergeados/congelados (assumption)."},
+      {"id": "G1-M07", "fuente": "cinico(H-012)", "desc": "Paridad de saneo/conteo del motivo cliente↔backend (el backend es la autoridad)."},
+      {"id": "G1-M08", "fuente": "rbac(S-003)", "desc": "last_rejection_reason: misma protección no-log/no-storage que reason/summary."},
+      {"id": "G1-M09", "fuente": "rbac(S-005)", "desc": "Test que fuerza review/ai-summary con sesión no-supervisor → 403 manejado (ocultación solo estética)."},
+      {"id": "G1-M10", "fuente": "front(F-005)", "desc": "Foco tras limpiar el detalle por 404."},
+      {"id": "G1-M11", "fuente": "front(F-006)+front(F-007)", "desc": "Fallback accesible en móvil (FR-015); regiones aria-live separadas revisión vs resumen."}
+    ]
+  },
+  "ronda_2": {
+    "motivo": "Re-verificación tras remediación (2ª ronda /speckit-clarify). Panel de front + rbac.",
+    "veredicto_cinico": "APROBADA_CON_COMENTARIOS",
+    "veredicto_spec_theater": "APROBADA_CON_COMENTARIOS",
+    "veredicto_rbac": "APROBADA_CON_COMENTARIOS",
+    "veredicto_front": "APROBADA_CON_COMENTARIOS",
+    "cierres": "Bloqueante G1-B01 CERRADO (FR-017 alertdialog con foco atrapado/retorno/Esc, click-outside no cierra). 9 ALTAS de ronda 1 CERRADAS. MEDIAS encodadas o assumption (scope supervisor).",
+    "hallazgos_encodados": [
+      {"id": "r2-H-001", "sev": "ALTA", "desc": "500 en ai-summary faltaba en FR-011/SC-002.", "fix": "FR-011 500→estado error; SC-002 añade 500."},
+      {"id": "r2-H-002", "sev": "MEDIA", "desc": "mecanismo de re-confirmar tras 401.", "fix": "FR-009b: botón vuelve a idle, el modal NO se reabre solo."},
+      {"id": "r2-H-003", "sev": "MEDIA", "desc": "cooldown 429.", "fix": "FR-011: botón deshabilitado durante Retry-After."},
+      {"id": "r2-T-005", "sev": "MEDIA", "desc": "aria-live del resumen sin nivel.", "fix": "FR-014: aria-live=polite explícito."},
+      {"id": "r2-S-006", "sev": "MEDIA", "desc": "401 en ai-summary reintento.", "fix": "FR-011b: refresh + no auto-retry, re-pulsar."},
+      {"id": "r2-F-101", "sev": "MEDIA", "desc": "tokens del aviso móvil.", "fix": "FR-015: maquetado con tokens, contraste ≥4.5:1."},
+      {"id": "r2-F-102", "sev": "MEDIA", "desc": "click-outside del alertdialog.", "fix": "FR-017: no cierra (patrón estricto)."}
+    ]
+  },
+  "verificacion": "Panel adversarial sobre spec.md (sin código). Convergencia en 2 rondas: bloqueante (confirmación) y ALTAS cerradas; 1 ALTA (500 ai-summary) + MEDIAS del re-ataque encodadas. 0 bloqueantes.",
+  "resumen": "G1 FAIL. Bloqueante: concretar el paso de confirmación de aprobar (alertdialog accesible). ALTAS: reetiquetar concurrencia, endurecer el botón de resumen (in-flight/orden), separar 401/403 y no reintentar approve sin re-confirmar, fijar destino de foco, conservar motivo en reintento, estructura semántica del resumen, componente Dialog del DS. Remediación por skill (2ª ronda /speckit-clarify). S-001 (scope supervisor) = backend/assumption, fuera del front de FE-4. Avance detenido hasta 0 bloqueantes."
+}

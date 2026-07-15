@@ -51,6 +51,10 @@
   --radius-full: 9999px;
   --shadow-1: 0 1px 3px rgba(15, 23, 42, 0.12);
   --shadow-2: 0 4px 12px rgba(15, 23, 42, 0.16);
+  --shadow-modal: 0 10px 40px rgba(15, 23, 42, 0.28);
+  --color-scrim: rgba(15, 23, 42, 0.5);
+  --z-modal: 1000;
+  --dialog-max-width: 32rem;
   --touch-target: 44px;
 
   /* Breakpoints (referencia; se usan en media queries) */
