@@ -7,11 +7,16 @@
 
 ## Phase 1: Baseline (bloquea la clasificación de reglas)
 
-- [ ] T001 Ejecutar el **baseline determinista** (FR-003a) de las 10 reglas candidatas (a)–(j) con la config
-  del front (`cd frontend && npm run lint` / API ESLint), **secuencial y aislado** sobre base limpia, midiendo
-  con `git diff --numstat` (añadidas+eliminadas; ficheros de producción, excl. `src/api/generated`/tests/
-  fixtures). Clasificar cada regla `enforced` (verde o ≤3 fich/≤10 líneas) vs `recomendación` (>umbral), y
-  revertir los fixes de medición de las degradadas. Anotar el **conteo por regla** para T004.
+- [ ] T001 Ejecutar el **baseline determinista** (FR-003a) con la config del front (`cd frontend && npm run
+  lint` / API ESLint), **secuencial y aislado** sobre base limpia, midiendo con `git diff --numstat`
+  (añadidas+eliminadas; ficheros de producción, excl. `src/api/generated`/tests/fixtures). **Solo las reglas
+  mecanizables** por eslint pasan por baseline —candidatas: `no-default-exports` (g), `react-hooks/exhaustive-deps`
+  (parte de b), `no-restricted-imports`/límite de capas (j), y cualquier otra de (a)–(i) con regla eslint real.
+  Las **reglas NO mecanizables** (juicio humano: p. ej. (a) presentacional/contenedor, (i) responsive) se
+  clasifican directamente como **`guía`** y se deja constancia explícita ("sin baseline: no mecanizable"),
+  **sin** intentar correr eslint sobre ellas (H-003). Clasificar cada regla mecanizable `enforced` (verde o
+  ≤3 fich/≤10 líneas) vs `recomendación` (>umbral), revertir los fixes de medición de las degradadas, y anotar
+  el **conteo por regla** para T004. **El conjunto `enforced` resultante fija el nº de fixtures de T005.**
 
 ## Phase 2: User Story 1 — Documento explicativo (Priority: P1)
 
@@ -36,42 +41,63 @@
 **Objetivo**: las reglas `enforced` se hacen cumplir por eslint; una violación falla; el código actual queda verde.
 **Test independiente**: `eslint` front = 0 errores; el test-fixture detecta una violación por cada regla `enforced`.
 
-- [ ] T005 [P] [US2] **[Fase Red]** Crear `frontend/tests/lint-fixtures/` con un snippet "malo" por regla
-  candidata a `enforced` (mínimo `no-default-exports`, `react-hooks/exhaustive-deps`) + un test Vitest que
-  corre ESLint **programático** sobre cada snippet y **asserta que produce error**. Commit del test en **rojo**
-  (aún sin las reglas activas) (FR-007/FR-007a, SC-003).
+- [ ] T005 [US2] **[Fase Red · depende de T001]** Crear `frontend/tests/lint-fixtures/` con un snippet "malo"
+  por **cada regla que T001 haya clasificado `enforced`** (el conjunto EXACTO del baseline, no una lista fija;
+  típicamente `no-default-exports` + `react-hooks/exhaustive-deps`, y (j) si quedó enforced) + un test Vitest
+  que corre ESLint **programático** sobre cada snippet y **asserta que produce error**. El **nº de fixtures =
+  nº de reglas enforced** (FR-007): ni de más (una regla degradada no lleva fixture, nunca pasaría) ni de menos.
+  Commit del test en **rojo** (aún sin las reglas activas en `.eslintrc.cjs`) (FR-007/FR-007a, SC-003).
 - [ ] T006 [US2] Editar `frontend/.eslintrc.cjs`: activar como **error** las reglas `enforced` del baseline
   (T001) — `no-default-exports`, `react-hooks/exhaustive-deps`, y el límite de importación entre capas
   (`no-restricted-imports`) **si el baseline lo dejó enforced**; **excluir del run principal solo**
   `tests/lint-fixtures/**` (glob acotado). Pone T005 en **verde** (FR-003/004/005/006).
-- [ ] T007 [US2] Añadir la comprobación **doc↔config** (FR-010/SC-006): test o script que verifica que cada
-  regla etiquetada `enforced` en `docs/front-architecture.md` existe **como error** en `.eslintrc.cjs`.
+- [ ] T007 [US2] Añadir dos comprobaciones **automatizables** (test o script en CI):
+  (a) **doc↔config** (FR-010/SC-006): cada regla etiquetada `enforced` en `docs/front-architecture.md` existe
+  **como error** en `.eslintrc.cjs`;
+  (b) **cupo/formato de `eslint-disable`** (FR-005a/SC-002, cierra K-003/H-005/S-002): el nº total de
+  `eslint-disable` de reglas de la feature es **≤3**, cada uno con formato `-- <razón>` de **≥15 caracteres**,
+  y se respeta la **prioridad RBAC** (los disables RBAC no ceden ante genéricos; H-016/H-019). Si el conteo es
+  0 (esperado), la comprobación pasa trivialmente.
 
 ## Phase 4: User Story 3 — Cero regresión y alcance acotado (Priority: P2)
 
 **Objetivo**: sin regresión ni cambios fuera de alcance.
 **Test independiente**: gates de front verdes; `git diff --name-only` sin backend/contracts/domain.
 
-- [ ] T008 [US3] Correr los gates del front y dejarlos **verdes**: `cd frontend && npm run lint`, `tsc --noEmit`,
-  `stylelint`, `build`, `vitest`. Aplicar fixes de producción **solo** si el baseline los exigió, dentro del
-  umbral (≤3 fich/≤10 líneas por regla, ≤6/≤20 agregado sobre el diff dedup) y **sin tocar lógica RBAC**
-  (FR-008a); si excede, degradar la regla (FR-003b/FR-008/FR-009, SC-002/SC-004).
+- [ ] T008 [US3] **Aplicación final + gates.** Si el baseline (T001) exigió fixes, **re-aplicarlos todos en un
+  solo paso sobre base limpia** (no asumir que la suma de mediciones aisladas es el diff final) y **re-medir el
+  agregado** `git diff --numstat develop -- frontend/src` (dedup): debe cumplir **≤6 ficheros/≤20 líneas**; si
+  excede, degradar reglas en el orden canónico hasta cumplir (FR-003b/H-006/H-031). Correr los gates del front
+  y dejarlos **verdes**: `npm run lint`, `tsc --noEmit`, `stylelint`, `build`, `vitest`. **Salvaguardas RBAC
+  ejecutables (FR-008a — cierra K-002/H-004/S-001):** (1) correr un **grep de patrones RBAC**
+  (`role`/`assignedTo`/`status`/`permission`/`useAuth`/`useSession`) sobre el **diff final**; si toca un
+  fichero no listado en el inventario (T004), detenerse y reclasificarlo; (2) para cualquier fix en un fichero
+  del inventario, aplicar el criterio de **nodo AST** (no tocar el `CallExpression` completo con lógica de
+  rol); (3) **nombrar explícitamente** el subconjunto de **tests de vista por rol** (dispatcher/technician/
+  supervisor) y confirmar que quedan **verdes** (no basta el `vitest` genérico). Nunca alterar lógica RBAC
+  (FR-008/FR-009, SC-002/SC-004).
 - [ ] T009 [US3] Verificar **alcance**: `git diff --name-only develop` no contiene ficheros bajo `backend/`,
   `contracts/`, `src/domain/`; solo `docs/` y `frontend/` (FR-008, SC-005).
 
 ## Phase 5: Polish / cierre
 
-- [ ] T010 Actualizar `docs/traceability.md` (fila FE-6/020: RF→artefacto/regla→test) y `docs/06-roadmap.md`
-  (estado FE-6). Preparar G3 (informe del gate).
+- [ ] T010 Reconciliar/cerrar trazabilidad y estado: (a) la tabla de trazabilidad de **`spec.md`** ya lleva
+  los IDs reales (T001–T010) — verificar 0 `T0xx` residuales (cierra K-001/H-007/T-002); (b) actualizar
+  `docs/traceability.md` (fila FE-6/020: RF→artefacto/regla→test) y `docs/06-roadmap.md` (estado FE-6); (c)
+  confirmar `checklists/requirements.md` sincronizado a 10 reglas. Preparar G3 (informe del gate).
 
 ## Dependencias
 
-- **T001** (baseline) bloquea T003/T004 (nivel de cada regla) y T006 (qué activar).
+- **T001** (baseline) bloquea T003/T004 (nivel de cada regla), **T005** (nº y conjunto de fixtures = enforced)
+  y T006 (qué activar).
 - **T005 (Red)** antes de **T006 (verde)**. T007 tras T006.
-- US1 (T002–T004) y US2 (T005–T007) pueden solaparse salvo la dependencia T001→{T003,T004,T006}.
+- US1 (T002–T004) y US2 (T005–T007) pueden solaparse salvo las dependencias de T001 → {T003, T004, **T005**,
+  T006}.
 - US3 (T008–T009) tras US1+US2. T010 al final.
 
-## MVP
+## MVP y obligatoriedad
 
-US1 (el documento) + US2 (enforcement de al menos `no-default-exports` y `exhaustive-deps`) ya entregan el
-valor central; US3 es la red de no-regresión/alcance.
+**MVP = orden de prioridad de implementación**, NO alcance de cierre: US1 (documento) + US2 (enforcement)
+entregan primero el valor central. **US3 (T008–T009) es OBLIGATORIA para mergear** (H-002): FR-008, FR-009,
+SC-004 y SC-005 son requisitos de cierre (no incrementales) — la feature **no** está lista para PR sin correr
+los gates de front y verificar el alcance/las salvaguardas RBAC.

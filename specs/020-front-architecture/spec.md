@@ -336,24 +336,24 @@ alterar lógica RBAC (FR-008a). *(Coherente con SC-005 — T-005.)*
 
 | FR | Artefacto / regla de lint | Tarea(s) | Test / verificación |
 |----|---------------------------|----------|---------------------|
-| FR-001 | `docs/front-architecture.md` §capas | T0xx | checklist de contenido (5 capas) |
-| FR-002 | `docs/front-architecture.md` §reglas | T0xx | checklist de contenido (10 reglas (a)–(j) + justificación) |
-| FR-002a | doc: nivel por regla | T0xx | checklist: 10/10 reglas (a)–(j) con nivel enforced/recomendación/guía |
-| FR-002b | doc: justif. regla (h) | T0xx | checklist: cita "UI nunca autoriza; backend único (Const. IV)" |
-| FR-002c | doc: justif. regla (c) | T0xx | checklist: distingue 401/403/404 |
-| FR-003 | `.eslintrc.cjs` (reglas nuevas) | T0xx | `eslint` front = 0 errores |
-| FR-003a | baseline registrado en el doc | T0xx | conteo por regla (ficheros/líneas) en `front-architecture.md` |
-| FR-003b | tope agregado | T0xx | total ≤6 ficheros/≤20 líneas en el diff de la feature |
-| FR-004 | regla no-default-export | T0xx | test negativo: `export default` ⇒ error |
-| FR-005 | `react-hooks/exhaustive-deps: error` | T0xx | test negativo: deps incompletas ⇒ error |
-| FR-005a | `eslint-disable` ≤3 justificados | T0xx | conteo de disables + comentario en línea |
-| FR-006 | `no-restricted-imports` (límite de capa) | T0xx | nivel decidido por baseline (falsable) |
-| FR-007 | fixtures negativos en CI | T0xx | nº fixtures = nº reglas enforced; test pasa |
-| FR-007a | aislamiento del fixture | T0xx | exclusión = solo dir de fixtures; lint programático |
-| FR-008 | alcance acotado + umbral | T0xx | `git diff` sin backend/contracts/domain; ≤3 fich/≤10 líneas por regla |
-| FR-008a | no regresión RBAC | T0xx | tests de vista por rol verdes tras fix |
-| FR-009 | gates de front | T0xx | tsc/eslint/stylelint/build/tests verdes |
-| FR-010 | sincronía doc↔config | T0xx | cada regla `enforced` del doc existe como error en `.eslintrc.cjs` |
+| FR-001 | `docs/front-architecture.md` §capas | T002 | checklist de contenido (5 capas) |
+| FR-002 | `docs/front-architecture.md` §reglas | T003 | checklist de contenido (10 reglas (a)–(j) + justificación) |
+| FR-002a | doc: nivel por regla | T001, T003 | checklist: 10/10 reglas (a)–(j) con nivel enforced/recomendación/guía |
+| FR-002b | doc: justif. regla (h) | T003 | checklist: cita "UI nunca autoriza; backend único (Const. IV)" |
+| FR-002c | doc: justif. regla (c) | T003 | checklist: distingue 401/403/404 + anti-enumeración |
+| FR-003 | `.eslintrc.cjs` (reglas nuevas) | T006, T008 | `eslint` front = 0 errores |
+| FR-003a | baseline registrado en el doc | T001, T004 | conteo por regla (ficheros/líneas) en `front-architecture.md` |
+| FR-003b | tope agregado | T001, T008 | total ≤6 ficheros/≤20 líneas en el diff dedup de la feature |
+| FR-004 | regla no-default-export | T005, T006 | test negativo: `export default` ⇒ error |
+| FR-005 | `react-hooks/exhaustive-deps: error` | T005, T006 | test negativo: deps incompletas ⇒ error |
+| FR-005a | `eslint-disable` ≤3 justificados | T004, T007 | conteo ≤3 + formato `-- <razón>` ≥15 chars + prioridad RBAC |
+| FR-006 | `no-restricted-imports` (límite de capa) | T001, T006 | nivel decidido por baseline (falsable) |
+| FR-007 | fixtures negativos en CI | T005, T006 | nº fixtures = nº reglas enforced; test pasa |
+| FR-007a | aislamiento del fixture | T005 | exclusión = solo dir de fixtures; lint programático |
+| FR-008 | alcance acotado + umbral | T008, T009 | `git diff` sin backend/contracts/domain; ≤3 fich/≤10 líneas por regla |
+| FR-008a | no regresión RBAC (grep + AST + tests rol) | T004, T008 | grep RBAC sobre diff final + tests de vista por rol verdes |
+| FR-009 | gates de front | T008 | tsc/eslint/stylelint/build/tests verdes |
+| FR-010 | sincronía doc↔config | T007 | cada regla `enforced` del doc existe como error en `.eslintrc.cjs` |
 
 ## Assumptions
 

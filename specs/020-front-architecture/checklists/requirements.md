@@ -19,7 +19,7 @@
 
 - [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous (EARS, pass/fail objetivo)
-- [x] Success criteria are measurable (conteos: 5 capas, 9 reglas, 0 errores, ≥2 casos negativos, 5/5 gates)
+- [x] Success criteria are measurable (conteos: 5 capas, 10 reglas (a)–(j), 0 errores, nº fixtures = nº reglas enforced, 5/5 gates)
 - [x] Success criteria are technology-agnostic (miden resultados: doc completo, lint verde, cero regresión,
       alcance acotado — no atan a un *cómo* interno)
 - [x] All acceptance scenarios are defined
