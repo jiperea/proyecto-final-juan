@@ -1,0 +1,21 @@
+{
+  "gate": "G1",
+  "feature": "017-front-reskin",
+  "fecha": "2026-07-15",
+  "artefactos": ["spec.md (+ clarifications)"],
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad"],
+  "rondas": 3,
+  "veredicto_global": "PASS",
+  "bloqueantes_abiertos": 0,
+  "resumen": "3 rondas. Ronda 1: 2 BLOQUEANTES (T-001 pares de contraste no enumerados; H-001 contradicción de alcance) + 7 ALTA + 8 MEDIA. Remediados en spec.md. Ronda 2: originales cerrados; la remediación introdujo 2 ALTA nuevos sobre el mecanismo de tema (H-013 modo sistema; H-016 doble flash). Remediados (modelo CSS-first, fuente de verdad única). Ronda 3 (acotada): residuo textual del edge case alineado. Convergencia: 0 huecos abiertos en los 3 agentes.",
+  "veredictos_por_agente": {
+    "revisor-rbac-seguridad": "APROBADA_CON_COMENTARIOS (0 huecos)",
+    "auditor-spec-theater": "APROBADA_CON_COMENTARIOS (0 huecos; T-002-bis MEDIA cerrado en spec)",
+    "revisor-cinico": "APROBADA_CON_COMENTARIOS (0 huecos)"
+  },
+  "historial_huecos": {
+    "BLOQUEANTE": ["T-001 lista cerrada de pares de contraste (RESUELTO §Pares de contraste)", "H-001 contradicción alcance solo-presentación vs nuevo (RESUELTO §Alcance)"],
+    "ALTA": ["S-001 campos tarjeta IA (FR-008)", "S-002 pureza componentes (FR-014)", "T-002 mecanismo no-cambio aserciones RBAC (SC-004/FR-015)", "H-002 axe css:false tautológico (FR-007)", "H-003 FR-012 segmentado descartado", "H-004 fidelidad del acento (Assumptions)", "H-005 prioridad Stepper (US3/FR-006/SC-005)", "H-013 modo sistema CSS-first (FR-004)", "H-016 doble flash / fuente única (FR-013)"],
+    "MEDIA": ["S-003 RBAC detalle closed/draft (Edge Cases)", "S-004 localStorage solo tema (FR-016/SC-007)", "S-005 test regresión RBAC (FR-015/SC-010)", "T-003 propiedades de 'tamaño' (FR-001)", "H-006 FOUC (FR-013/SC-009)", "H-007 fallo localStorage (FR-004b)", "H-008 cambio en caliente (FR-004 CSS-first)", "H-009 sync entre pestañas (FR-004b storage)", "H-010 reduced-motion global (FR-010)", "H-011 no truncar guardián (FR-008)", "H-012 acento en cada primaria (FR-002)", "H-014 foco preservado (SC-006)", "H-015 FR-014 separa Stepper/ThemeToggle (SC-008)", "T-002-bis patrón línea de aserción (SC-004)"]
+  }
+}
