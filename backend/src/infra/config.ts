@@ -45,6 +45,9 @@ export interface Config {
   readonly aiProvider: 'claude-cli' | 'mock';
   readonly aiTimeoutMs: number;
   readonly aiTemperature: number;
+  // 018/FR-006 — guard dev-only deny-by-default: el proveedor IA se considera operable SOLO en desarrollo
+  // o con proveedor mock (tests). En pre/prod con claude-cli → no operable → AI_UNAVAILABLE (501).
+  readonly aiOperable: boolean;
   readonly aiMinNotesChars: number;
   readonly aiMinEvidence: number;
   readonly aiRateMax: number;
@@ -76,6 +79,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   const v = parsed.data;
   assertSecretsDistinct(v.JWT_SECRET, v.CSRF_HMAC_SECRET, v.LOCKOUT_HMAC_SECRET);
+  // 018/H-002 fail-fast: el proveedor mock produce resúmenes plantilla (sufficient:true SIEMPRE); NUNCA debe
+  // llegar a producción (daría resúmenes falsos con apariencia de IA real). El guard dev-only no cubre el
+  // branch mock del contenedor, así que se prohíbe aquí de forma estructural.
+  if (v.NODE_ENV === 'production' && v.AI_PROVIDER === 'mock') {
+    throw new Error('Config inválida (fail-fast, 018): AI_PROVIDER=mock no permitido con NODE_ENV=production.');
+  }
   return {
     jwtSecret: v.JWT_SECRET,
     csrfSecret: v.CSRF_HMAC_SECRET,
@@ -93,6 +102,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     aiProvider: v.AI_PROVIDER,
     aiTimeoutMs: v.AI_TIMEOUT_MS,
     aiTemperature: v.AI_TEMPERATURE,
+    aiOperable: v.NODE_ENV === 'development' || v.AI_PROVIDER === 'mock',
     aiMinNotesChars: v.AI_MIN_NOTES_CHARS,
     aiMinEvidence: v.AI_MIN_EVIDENCE,
     aiRateMax: v.AI_RATE_MAX,
