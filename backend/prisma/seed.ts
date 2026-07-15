@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
 import { v7 as uuidv7 } from 'uuid';
@@ -58,6 +59,9 @@ async function seedOrders(): Promise<void> {
   for (let i = 0; i < 10; i++) push(i % 2 === 0 ? 'assigned' : 'in_progress', t2);
   push('pending_review', t2, SEED_ORDERS.tech2PendingReview);
 
+  // 019 — pending_review de technician1 CON evidencia (ancla approvableReview): aprobable desde arranque limpio.
+  push('pending_review', t1, SEED_ORDERS.approvableReview);
+
   // technician3: solo closed → alcance activo VACÍO (lista vacía → 200)
   push('closed', t3);
 
@@ -66,11 +70,79 @@ async function seedOrders(): Promise<void> {
   push('draft', null);
 
   await prisma.order.createMany({ data: rows });
+  await seedApprovableReviewArtifacts(t1);
+}
+
+// 019 — audit de la transición (in_progress→pending_review) + notas + evidencia para la orden APROBABLE.
+// OrderEvidence/Notes exigen un OrderAudit (FK). Sin esto, aprobar da 409 EVIDENCE_MISSING (guard de 006).
+async function seedApprovableReviewArtifacts(actorId: string): Promise<void> {
+  const orderId = SEED_ORDERS.approvableReview;
+  const auditId = uuidv7();
+  await prisma.orderAudit.create({
+    data: {
+      id: auditId,
+      orderId,
+      actorId,
+      eventType: 'transition',
+      fromStatus: 'in_progress',
+      toStatus: 'pending_review',
+      reason: null, // marcador opaco de ejecución; las notas van en OrderExecutionNotes (no aquí)
+    },
+  });
+  await prisma.orderExecutionNotes.create({
+    data: {
+      id: uuidv7(),
+      orderId,
+      auditId,
+      notes: 'Sustituida la polea de tracción y engrasado el guiado. Cabina nivela correctamente.',
+      attempt: 1,
+      createdBy: actorId,
+    },
+  });
+  await prisma.orderEvidence.create({
+    data: {
+      id: uuidv7(),
+      orderId,
+      auditId,
+      objectRef: '018f2000-0000-7000-8000-0000000000a1-ev1',
+      contentType: 'image/jpeg',
+      sizeBytes: 204800,
+      uploadedBy: actorId,
+      attempt: 1,
+    },
+  });
+  // 019/H-002 — coherencia con el invariante «version == nº de transiciones auditadas»: la orden ancla
+  // tiene 1 transición auditada (in_progress→pending_review), luego su version es 1 (no 0 del createMany).
+  await prisma.order.update({ where: { id: orderId }, data: { version: 1 } });
+}
+
+export const RESEED_HINT =
+  'BD no vacía (datos append-only de un seed previo). Re-siembra con: ' +
+  'npx prisma migrate reset --force --skip-seed && npx tsx prisma/seed.ts';
+
+// 019/H-001 — re-seed sobre BD con datos append-only: order_evidence/audit/notes prohíben DELETE (trigger)
+// y su FK a Order es Restrict, así que `order.deleteMany()` fallaría con un P2003 críptico en la 2ª
+// ejecución. Se detecta ANTES (cualquiera de las 3 tablas append-only con filas, H-101) y se falla con un
+// mensaje ACCIONABLE (no un stack trace de Prisma).
+export async function ensureSeedableOrThrow(db: PrismaClient): Promise<void> {
+  const [audits, evidence, notes] = await Promise.all([
+    db.orderAudit.count(),
+    db.orderEvidence.count(),
+    db.orderExecutionNotes.count(),
+  ]);
+  if (audits + evidence + notes > 0) throw new Error(RESEED_HINT);
 }
 
 async function main(): Promise<void> {
-  // Orden inverso de FK para re-seed idempotente.
-  await prisma.order.deleteMany();
+  await ensureSeedableOrThrow(prisma);
+  // Orden inverso de FK para el borrado. NOTA (019): order_evidence/audit/notes son APPEND-ONLY (DELETE
+  // prohibido); este seed asume BD fresca en esas tablas (así corre db-test, efímera). Cinturón y tirantes
+  // (H-101): si aun así deleteMany fallara por FK Restrict, se traduce a un mensaje accionable.
+  try {
+    await prisma.order.deleteMany();
+  } catch {
+    throw new Error(RESEED_HINT);
+  }
   await prisma.refreshToken.deleteMany();
   await prisma.session.deleteMany();
   await prisma.identifier.deleteMany();
@@ -116,11 +188,15 @@ async function main(): Promise<void> {
   console.log('Seed OK: usuarios + probes + órdenes creados.');
 }
 
-main()
-  .catch((e: unknown) => {
-    console.error(e);
-    process.exitCode = 1;
-  })
-  .finally(() => {
-    void prisma.$disconnect();
-  });
+// Solo auto-ejecuta si este módulo ES el entrypoint (permite importar ensureSeedableOrThrow desde tests
+// sin disparar el seed real).
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main()
+    .catch((e: unknown) => {
+      console.error(e);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      void prisma.$disconnect();
+    });
+}

@@ -80,6 +80,9 @@ export const SEED_ORDERS = {
   tech2PendingReview: '018f2000-0000-7000-8000-0000000000b2', // pending_review de technician2 (IDOR)
   tiePairHi: '018f2000-0000-7000-8000-0000000000f2', // mismo created_at que tiePairLo; id mayor
   tiePairLo: '018f2000-0000-7000-8000-0000000000f1', // mismo created_at que tiePairHi; id menor
+  // 019 — pending_review de technician1 CON evidencia+audit sembrados → APROBABLE desde un arranque limpio
+  // (para demostrar el flujo aprobar del supervisor sin tener que ejecutar antes el paso del técnico).
+  approvableReview: '018f2000-0000-7000-8000-0000000000a1',
 } as const;
 
 // created_at compartido por el par de tiebreak (mismo instante) → obliga a desempatar por id.

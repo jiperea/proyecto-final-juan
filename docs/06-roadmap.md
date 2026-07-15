@@ -84,6 +84,11 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > DNI/NIF/NIE, matrícula, IBAN, tarjeta}: pasaporte, nº póliza/cliente, cuenta no-IBAN, etc. — residual
 > best-effort (prompt+eval), a endurecer (patrones adicionales o NER) antes de datos reales sensibles.
 
+> **Fixture de demostrabilidad → feature #019 (`019-seed-approvable-review`)**: el seed añade una orden
+> `pending_review` de technician1 **con evidencia + audit** (ancla `SEED_ORDERS.approvableReview`) para que
+> el flujo **aprobar** del supervisor sea demostrable desde un arranque limpio (sin ejecutar antes el paso
+> del técnico). Solo datos semilla; sin lógica/contratos. Nota: evidencia/audit/notas son **append-only**
+> (DELETE prohibido) → re-seed de una BD con datos = `prisma migrate reset`. Suite de backend en verde.
 > **Resolución de BL-072 → feature #018 (`018-ai-summary-dev-only`)**, decisión del usuario (2026-07-15):
 > el resumen IA es **dev-only** (proveedor `claude-cli` en host; `mock` en tests). En el entorno
 > **desplegado** (contenedor/Render, sin binario `claude`) el producto **declara la IA no disponible**
