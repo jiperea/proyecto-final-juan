@@ -9,6 +9,7 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string | undefined,
     readonly userMessage: string,
+    readonly retryAfterSeconds?: number, // solo en 429 (cabecera Retry-After); FE-4 lo usa para el cooldown
   ) {
     super(code ?? `HTTP ${status}`);
     this.name = 'ApiError';
@@ -28,6 +29,10 @@ interface Options {
   body?: unknown;
   auth?: boolean; // adjunta Authorization + Cache-Control:no-store
   cookieEndpoint?: boolean; // adjunta CSRF double-submit (refresh/logout)
+  // FR-009b (FE-4): para mutaciones IRREVERSIBLES ya confirmadas (approve/reject), un 401 NO debe
+  // refrescar+reintentar automáticamente (se aplicaría sin confirmación vigente). Con false, un 401
+  // invalida la sesión y propaga el error; el usuario re-autentica y re-confirma.
+  retryOn401?: boolean;
 }
 
 async function raw(path: string, opts: Options): Promise<Response> {
@@ -54,7 +59,12 @@ async function parseError(res: Response): Promise<ApiError> {
     code = undefined;
   }
   const msg = code ? messageForCode(code) : FALLBACK_MESSAGE;
-  return new ApiError(res.status, code, msg);
+  let retryAfter: number | undefined;
+  if (res.status === 429) {
+    const h = Number(res.headers.get('Retry-After'));
+    if (Number.isFinite(h) && h > 0) retryAfter = h;
+  }
+  return new ApiError(res.status, code, msg, retryAfter);
 }
 
 // apiFetch: token en memoria, no-store, CSRF en endpoints de cookie, 401→refresh(dedup)+reintento único,
@@ -69,6 +79,11 @@ export async function apiFetch<T>(path: string, opts: Options = {}): Promise<T> 
   }
   if (currentEpoch() !== startEpoch) throw new SessionChangedError();
 
+  if (res.status === 401 && opts.auth !== false && opts.retryOn401 === false) {
+    // Mutación irreversible ya confirmada (FR-009b): no refrescar+reintentar; invalidar y propagar.
+    invalidateSession();
+    throw new ApiError(401, 'UNAUTHENTICATED', messageForCode('UNAUTHENTICATED'));
+  }
   if (res.status === 401 && opts.auth !== false) {
     const refreshed = await refreshOnce();
     if (currentEpoch() !== startEpoch) throw new SessionChangedError();

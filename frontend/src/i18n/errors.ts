@@ -9,6 +9,7 @@ const MESSAGES: Record<string, string> = {
   INVALID_EVIDENCE: 'La evidencia no cumple los requisitos (formato/tamaño).',
   EVIDENCE_REQUIRED: 'Añade al menos una foto antes de enviar.',
   INVALID_REASON: 'Indica un motivo válido.',
+  EVIDENCE_MISSING: 'No se puede aprobar: la orden no tiene evidencia.',
   VALIDATION_ERROR: 'Revisa los campos marcados.',
   RATE_LIMITED: 'Demasiadas solicitudes. Espera unos segundos.',
   SERVICE_UNAVAILABLE: 'Servicio no disponible temporalmente. Reinténtalo.',

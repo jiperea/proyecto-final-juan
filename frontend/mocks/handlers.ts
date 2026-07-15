@@ -69,6 +69,27 @@ export const handlers = [
       { status: 200 },
     );
   }),
+  // FE-4 review (por defecto approve→closed; los tests sobreescriben con server.use).
+  http.post(`${BASE}/orders/:orderId/review`, async ({ params, request }) => {
+    const body = (await request.json().catch(() => ({}))) as { decision?: string };
+    return HttpResponse.json(
+      {
+        id: String(params.orderId),
+        title: 'Orden',
+        description: 'desc',
+        status: body.decision === 'reject' ? 'in_progress' : 'closed',
+        assigned_to: TECH_USER.id,
+        version: 3,
+        created_at: '2026-07-14T00:00:00Z',
+        updated_at: '2026-07-14T00:04:00Z',
+      },
+      { status: 200 },
+    );
+  }),
+  // FE-4 resumen IA (por defecto sufficient=true).
+  http.post(`${BASE}/orders/:orderId/ai-summary`, () =>
+    HttpResponse.json({ sufficient: true, summary: 'Resumen de la incidencia.' }, { status: 200 }),
+  ),
   http.get(`${BASE}/orders/:orderId`, ({ params }) =>
     HttpResponse.json(
       {

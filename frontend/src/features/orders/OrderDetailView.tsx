@@ -1,11 +1,13 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { NOT_AVAILABLE_MESSAGE } from '../../i18n/errors';
 import { Button, StatusBadge, useWideViewport } from '../../ui';
 import { InlineError, Spinner } from '../../ui';
 import { useSession } from '../auth/session';
 import { ExecutionForm } from './ExecutionForm';
+import { IncidentSummaryPanel } from './IncidentSummaryPanel';
 import { ReassignForm } from './ReassignForm';
+import { ReviewActions } from './ReviewActions';
 import { StartWorkButton } from './StartWorkButton';
 import { useOrderDetail } from './useOrders';
 import './orders.css';
@@ -19,6 +21,15 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   const [showReassign, setShowReassign] = useState(false);
   const [reassignAnnounce, setReassignAnnounce] = useState('');
   const assigneeRef = useRef<HTMLSpanElement>(null);
+  // Write-side del supervisor (FE-4).
+  const [reviewAnnounce, setReviewAnnounce] = useState('');
+  const statusRef = useRef<HTMLDivElement>(null);
+  const notAvailableRef = useRef<HTMLDivElement>(null);
+  // FR-008: si la orden deja de ser visible (404), mover el foco al mensaje estable (no huérfano).
+  const is404 = query.isError && query.error instanceof ApiError && query.error.status === 404;
+  useEffect(() => {
+    if (is404) notAvailableRef.current?.focus();
+  }, [is404]);
 
   if (query.isPending) return <Spinner label="Cargando detalle…" />;
 
@@ -27,7 +38,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
     // 404 (o fuera de ámbito) → mensaje uniforme (no distingue 403; no filtra existencia).
     if (err instanceof ApiError && err.status === 404) {
       return (
-        <div className="state" role="status">
+        <div ref={notAvailableRef} tabIndex={-1} className="state" role="status">
           {NOT_AVAILABLE_MESSAGE}
         </div>
       );
@@ -47,12 +58,20 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
     user?.role === 'dispatcher' &&
     (order.status === 'assigned' || order.status === 'in_progress') &&
     wide;
+  // FR-001/015: revisión solo a supervisor, en pending_review y en escritorio.
+  const isSupervisorPending = user?.role === 'supervisor' && order.status === 'pending_review';
+  const canReview = isSupervisorPending && wide;
+  const statusLabel: Record<string, string> = {
+    closed: 'aprobada y cerrada',
+    in_progress: 'rechazada; vuelve a en curso',
+  };
   return (
     <article className="order-detail" aria-busy={query.isFetching}>
       <h2 tabIndex={-1}>{order.title}</h2>
-      {/* F-001: región viva → un lector de pantalla anuncia el cambio de estado (Iniciar/Enviar). */}
-      <div role="status" aria-live="polite">
+      {/* F-001/FR-014: región viva → un lector de pantalla anuncia el cambio de estado; foco tras decidir. */}
+      <div ref={statusRef} tabIndex={-1} role="status" aria-live="polite">
         <StatusBadge status={order.status} />
+        {reviewAnnounce ? <p className="order-detail__desc">{reviewAnnounce}</p> : null}
       </div>
       <p className="order-detail__desc">{order.description}</p>
 
@@ -92,6 +111,29 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           ) : (
             <Button onClick={() => setShowReassign(true)}>Reasignar</Button>
           )}
+        </section>
+      ) : null}
+
+      {canReview ? (
+        <section aria-label="Revisión de la orden">
+          <h3>Revisión</h3>
+          <ReviewActions
+            orderId={order.id}
+            evidenceCount={evidence?.count}
+            onReviewed={(updated) => {
+              setReviewAnnounce(`Orden ${statusLabel[updated.status] ?? updated.status}`);
+              statusRef.current?.focus(); // foco al estado (coincide con el anuncio)
+            }}
+          />
+          <IncidentSummaryPanel orderId={order.id} />
+        </section>
+      ) : null}
+      {/* FR-015: bajo el breakpoint de escritorio, aviso accesible (no ausencia silenciosa). */}
+      {isSupervisorPending && !wide ? (
+        <section aria-label="Revisión de la orden">
+          <p className="order-detail__desc" role="note">
+            La revisión de órdenes está disponible en la versión de escritorio.
+          </p>
         </section>
       ) : null}
 

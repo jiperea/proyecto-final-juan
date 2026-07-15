@@ -319,3 +319,34 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > (obtenido fuera de banda) como interino; feature futura de backend para el selector real. Diferidos a
 > plan documentados: contract-test del mock, riesgo CD por fases (404 infra vs negocio), i18n, lint de
 > estilos, verificación de telemetría. e2e Playwright del camino feliz (T016) opcional/justificado.
+
+## FE-4 · Front del supervisor (016-front-supervisor) — revisión + resumen IA
+
+> Aprobar/rechazar en `pending_review` (con confirmación / motivo) + panel de resumen IA bajo demanda.
+> Consume 006 (reviewOrder) y 007 (summarizeOrderIncident), sin backend nuevo. FE-4 solo muestra el
+> resultado IA (distingue por `sufficient`, no inventa); el eval de la IA es del backend 007. Tests en
+> `frontend/tests/`.
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001/015 | revisión + panel IA solo supervisor, pending_review y escritorio; aviso móvil | T010/T013 | `unit/fe4-detail-rbac` |
+| FR-002/003 | reviewOrder (approve→closed / reject→in_progress), sin recarga, sale de la cola | T005/T006/T007/T008/T010 | `unit/fe4-write-api`, `unit/fe4-integration` |
+| FR-004/006 | validación cliente del motivo (no-vacío + imprimible; efectivo 1..1000 = backend) + INVALID_REASON al campo | T006/T008 | `unit/fe4-review-actions` |
+| FR-005/009b | aria-busy/aria-disabled en vuelo; sin auto-reintento del approve | T008 | `unit/fe4-review-actions` |
+| FR-007 | 409 EVIDENCE_MISSING + deshabilitar Aprobar si evidence.count===0 | T008 | `unit/fe4-review-actions` |
+| FR-008/009 | 404 genérico + limpiar detalle; 401(refresh)/403(permiso)/500/503, conservar motivo | T006/T010 | `unit/fe4-write-api`, `unit/fe4-integration` |
+| FR-010/016 | resumen bajo demanda; región "Resumen (IA)" texto plano; sufficient decide (no inventa) | T011/T012 | `unit/fe4-summary-panel`, `unit/fe4-integration` (no auto-llamada) |
+| FR-011/011b | 429 (Retry-After, cooldown) / 503 / 500 sin bloquear revisión; descartar respuesta fuera de orden | T006/T011 | `unit/fe4-write-api`, `unit/fe4-summary-panel` |
+| FR-012 | reason/last_rejection_reason/summary fuera de consola/telemetría/storage | T014 | `unit/fe4-nolog` |
+| FR-013/014/017 | a11y: alertdialog (foco atrapado/retorno, Esc, overlay no cierra), foco+aria-live separadas, contraste, tap targets | T002/T003/T015 | `unit/fe4-confirm-dialog`, `a11y/fe4` |
+| SC-001 | camino feliz aprobar (confirmación) + resumen sin recarga | T010/T012/T017 | `unit/fe4-integration`, `e2e/fe4` |
+| SC-002 | 100% de códigos (revisión 422/409/404/403/401/500/503; resumen 200 t/f/429/503/500/404/403/401) | T006/T008/T011 | `unit/fe4-write-api`, `unit/fe4-review-actions`, `unit/fe4-summary-panel` |
+| SC-003 | axe 0 (acciones/alertdialog/panel IA/éxito); teclado; contraste; tap targets | T015 | `a11y/fe4`, `unit/fe4-confirm-dialog` |
+| SC-004 | oculto salvo supervisor+escritorio; 403 en bypass | T013 | `unit/fe4-detail-rbac`, `unit/fe4-write-api` (403) |
+| SC-005 | sufficient=false → nunca resumen fabricado | T011 | `unit/fe4-summary-panel` |
+| SC-006 | no-fuga + validación cliente del motivo | T014/T008 | `unit/fe4-nolog`, `unit/fe4-review-actions` |
+
+> Novedad: primer **`ConfirmDialog`** del design system (alertdialog accesible, tokens de overlay/elevación).
+> Motivo del rechazo: pre-check de cliente (no-vacío + imprimible); la longitud efectiva 1..1000 la valida el
+> backend tras saneo (`INVALID_REASON`) — el cliente NO es más estricto (lección del UUIDv7 de FE-3). e2e
+> Playwright del camino feliz (T017) opcional/justificado. IA: eval en backend 007 (promptfoo N/A en FE-4).
