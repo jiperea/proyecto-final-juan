@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { NOT_AVAILABLE_MESSAGE } from '../../i18n/errors';
-import { Button, StatusBadge, useWideViewport } from '../../ui';
+import { Button, StatusBadge, Stepper, useWideViewport } from '../../ui';
 import { InlineError, Spinner } from '../../ui';
 import { useSession } from '../auth/session';
 import { ExecutionForm } from './ExecutionForm';
@@ -73,6 +73,8 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
         <StatusBadge status={order.status} />
         {reviewAnnounce ? <p className="order-detail__desc">{reviewAnnounce}</p> : null}
       </div>
+      {/* FE-5 (FR-006): stepper del ciclo de vida; refleja el estado ya autorizado (presentación pura). */}
+      <Stepper status={order.status} />
       <p className="order-detail__desc">{order.description}</p>
 
       {isTechnician && order.status === 'assigned' ? (

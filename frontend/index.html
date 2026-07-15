@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FieldOps</title>
+    <!-- FE-5 (017) · Anti-FOUC (FR-013): aplica el tema elegido ANTES del primer pintado, antes de React.
+         La clave 'fieldops.theme' debe coincidir con THEME_STORAGE_KEY de src/ui/theme.ts (test theme-fouc-sync). -->
+    <script>
+      (function () {
+        try {
+          var t = window.localStorage.getItem('fieldops.theme');
+          if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {
+          /* sin storage: gobierna prefers-color-scheme */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
