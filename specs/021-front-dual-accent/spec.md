@@ -91,14 +91,14 @@ vivo (componente/gráfico/foco) vs su fondo adyacente ≥**3:1**; en **claro y o
 **Independent Test**: `tsc`/`eslint`/`stylelint`/`build`/`vitest` del front en verde; `git diff --name-only`:
 los únicos ficheros de **producción** cambiados son **`.css`** (`frontend/src/ui/*.css` +
 `frontend/src/features/orders/orders.css`); **0** ficheros de producción `.ts`/`.tsx` (los `.ts` del diff son
-solo **tests** bajo `tests/`), `docs/design-system.md` permitido; **0** bajo `backend/`/`contracts/`/`src/domain/`.
+solo **tests** bajo `tests/`), `docs/design-system.md` y `docs/traceability.md` permitidos; **0** bajo `backend/`/`contracts/`/`src/domain/`.
 
 **Acceptance Scenarios**:
 
 1. **Given** la rama, **When** corren los gates de front, **Then** todos verdes (sin regresión funcional/visual).
 2. **Given** el diff, **Then** los únicos ficheros de producción son `.css` (`frontend/src/ui/*.css` +
    `frontend/src/features/orders/orders.css`); 0 ficheros de producción `.ts`/`.tsx`; `.ts` solo en `tests/`;
-   `docs/design-system.md` permitido; 0 bajo `backend/`/`contracts/`/`src/domain/`.
+   `docs/design-system.md` y `docs/traceability.md` permitidos; 0 bajo `backend/`/`contracts/`/`src/domain/`.
 
 ### Edge Cases
 
@@ -189,7 +189,7 @@ solo **tests** bajo `tests/`), `docs/design-system.md` permitido; **0** bajo `ba
   endpoints/roles/estados/lógica). Criterio **objetivo y verificable** por `git diff --name-only`: los únicos
   ficheros de **producción** modificados SHALL ser **`.css`** —`frontend/src/ui/*.css` (incl. `tokens.css`) y
   `frontend/src/features/orders/orders.css`—; **0** ficheros de producción **`.ts`/`.tsx`** (ningún cambio de
-  lógica; los `.ts` del diff son solo **tests** bajo `tests/`); `docs/design-system.md` permitido; **0**
+  lógica; los `.ts` del diff son solo **tests** bajo `tests/`); `docs/design-system.md` y `docs/traceability.md` permitidos; **0**
   ficheros bajo `backend/`, `contracts/`, `src/domain/`. El token nuevo vive en `tokens.css` (que stylelint
   **ignora**) y se consume por `var()` → **no requiere cambiar la config de lint** (H-009); "token o nada"
   (FR-017c) y las reglas de FE-6 quedan en verde.
@@ -223,15 +223,15 @@ solo **tests** bajo `tests/`), `docs/design-system.md` permitido; **0** bajo `ba
 
 | FR | Artefacto | Tarea(s) | Test / verificación |
 |----|-----------|----------|---------------------|
-| FR-001 | `tokens.css` (`--color-accent-vivid`, sin hover) | T0xx | **test automatizado** de los 4 bloques (mismo valor por tema) + contrast test |
-| FR-002 | `src/ui/` + `orders.css`: foco (`--color-focus-ring`), `.stepper__step--current .stepper__dot`, `.order-item[aria-current="true"]` | T0xx | `tests/unit/accent-vivid.test.ts` (uso de `var()` en los 3 sitios) |
-| FR-003/003a | texto en `--color-primary`; sustitución + check inverso/anti-hex | T0xx | `tests/unit/accent-vivid.test.ts` (grep: sin `#DC5A24`/`#FF7A45` literal fuera de tokens.css; vivo solo en los 3 selectores) + `unit/accent-primary` |
-| FR-004 | `tests/a11y/contrast-tokens.test.ts` (umbral 3:1) | T0xx | vivo vs bg/surface/surface-2 ≥3:1, 2 temas |
-| FR-005 | suite axe | T0xx | `a11y/*` |
-| FR-006 | capturas Playwright MCP + aprobación humana | T0xx | screenshots claro/oscuro (3 pantallas), OK en G3/PR |
-| FR-007 | alcance acotado + token o nada (sin cambio de lint) | T0xx | `git diff` + `lint` |
-| FR-008 | gates de front | T0xx | tsc/eslint/stylelint/build/vitest |
-| FR-009 | entrada de `--color-accent-vivid` en design-system.md | T0xx | inspección del doc |
+| FR-001 | `tokens.css` (`--color-accent-vivid`, sin hover) | T002, T003 | **test automatizado** de los 4 bloques (mismo valor por tema) + contrast test |
+| FR-002 | `src/ui/` + `orders.css`: foco (`--color-focus-ring`), `.stepper__step--current .stepper__dot`, `.order-item[aria-current="true"]` | T003, T004, T005 | `tests/unit/accent-vivid.test.ts` (uso de `var()` en los 3 sitios + offset ≥2px en los 4 consumidores del foco) |
+| FR-003/003a | texto en `--color-primary`; sustitución + check inverso/anti-hex | T002, T004, T005 | `tests/unit/accent-vivid.test.ts` (grep: sin `#DC5A24`/`#FF7A45` literal fuera de tokens.css; vivo solo en los 3 selectores) + `unit/accent-primary` |
+| FR-004 | `tests/a11y/contrast-tokens.test.ts` (umbral 3:1) | T001, T006 | vivo vs bg/surface/surface-2 ≥3:1, 2 temas |
+| FR-005 | suite axe | T007 | `a11y/*` |
+| FR-006 | capturas Playwright MCP + aprobación humana | T010 | screenshots claro/oscuro (3 pantallas), OK en G3/PR |
+| FR-007 | alcance acotado + token o nada (sin cambio de lint) | T008 | `git diff` + `lint` |
+| FR-008 | gates de front | T007 | tsc/eslint/stylelint/build/vitest |
+| FR-009 | entrada de `--color-accent-vivid` en design-system.md | T009 | inspección del doc |
 
 ## Assumptions
 

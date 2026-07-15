@@ -52,6 +52,7 @@ frontend/
     ├── a11y/contrast-tokens.test.ts   # ampliado: vivo vs bg/surface/surface-2 ≥3:1 (2 temas)
     └── unit/accent-vivid.test.ts      # token en 4 bloques + uso var() + anti-hex + check inverso
 docs/design-system.md               # entrada de --color-accent-vivid (regla de uso)
+docs/traceability.md                # fila FE-7 (RF→artefacto→test) — entregable de doc (K-003)
 ```
 
 **Structure Decision**: intervención **solo CSS** en `src/ui/` + `features/orders/orders.css` (donde vive el
