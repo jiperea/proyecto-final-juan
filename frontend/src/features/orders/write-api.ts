@@ -1,6 +1,6 @@
 import { apiFetch } from '../../api/client';
-import { executionRequestSchema, orderSchema } from '../../api/schemas';
-import type { ExecutionRequest, Order } from '../../api/types';
+import { executionRequestSchema, orderSchema, reassignmentRequestSchema } from '../../api/schemas';
+import type { ExecutionRequest, Order, ReassignmentRequest } from '../../api/types';
 
 // FE-2 · acciones write del técnico. apiFetch ya mapea los códigos del contrato (422 INVALID_TRANSITION/
 // EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR, 404 uniforme, 403 FORBIDDEN_ROLE, 401→refresh,
@@ -17,5 +17,15 @@ export async function submitOrderExecution(orderId: string, body: ExecutionReque
   const validated = executionRequestSchema.parse(body);
   return orderSchema.parse(
     await apiFetch<unknown>(`/v1/orders/${orderId}/execution`, { method: 'POST', body: validated }),
+  );
+}
+
+// FE-3 · reassignOrder (dispatcher): reasignable→mismo estado, nuevo assigned_to. POST
+// /v1/orders/{id}/reassignments → Order (version+1). Valida el body contra el contrato ANTES de enviar
+// (FR-002/FR-014: assignee_id UUID + reason 1..500 imprimible). El actor se deriva del token server-side.
+export async function reassignOrder(orderId: string, body: ReassignmentRequest): Promise<Order> {
+  const validated = reassignmentRequestSchema.parse(body);
+  return orderSchema.parse(
+    await apiFetch<unknown>(`/v1/orders/${orderId}/reassignments`, { method: 'POST', body: validated }),
   );
 }

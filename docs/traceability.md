@@ -291,3 +291,31 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > Deuda trazada: **transporte binario de evidencia = #007** (FE-2 envía metadato; el supervisor FE-4 verá
 > solo count+types hasta que exista el endpoint de subida). Borrador de notas en `sessionStorage` = residual
 > aceptado (purga por identidad; same-origin). e2e Playwright del camino feliz (T015) opcional/justificado.
+
+## FE-3 · Front del dispatcher (015-front-dispatcher) — write-side de reasignación
+
+> Reasignar una orden reasignable a otro técnico (master-detail de escritorio). Consume el contrato 004
+> (`reassignOrder`), sin backend nuevo. Entrada manual del UUID destino (obtenido fuera de banda). Tests en
+> `frontend/tests/`.
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001/018 | reasignar solo dispatcher, estado reasignable y escritorio (oculto por rol/viewport) | T008/T012 | `unit/fe3-detail-rbac` (rol+viewport), `unit/fe3-integration` |
+| FR-002/003 | enviar {assignee_id,reason} (reassignOrder) y reflejar nuevo asignatario sin recarga | T002/T004/T005/T006/T008 | `unit/fe3-write-api`, `unit/fe3-integration`, `e2e/fe3` (SC-001) |
+| FR-004 | control siempre accionable; en vuelo aria-busy+aria-disabled (no disabled nativo, F-101) | T006 | `unit/fe3-reassign-form` |
+| FR-005/014/017 | validación cliente (trim+UUID RFC4122; motivo 1..500); ambos errores a la vez; aria-describedby+aria-invalid; limpia al editar | T006/T009 | `unit/fe3-reassign-form` |
+| FR-006/007 | VALIDATION_ERROR→campo motivo; INVALID_ASSIGNEE→campo destino (conserva lo introducido) | T004/T010 | `unit/fe3-write-api`, `unit/fe3-reassign-form` |
+| FR-008 | 404 genérico no-enumerante; limpia detalle + refresca listado | T004/T011 | `unit/fe3-write-api` (404), `useReassign` onError invalida |
+| FR-009/010/015/016 | FORBIDDEN_ROLE/401; 500→genérico sin boundary; red→conectividad; sin traza cruda | T004/T010 | `unit/fe3-write-api`, `unit/fe3-reassign-form` |
+| FR-011 | reason/assignee_id fuera de logs/telemetría/storage | T014 | `unit/fe3-nolog` (spy consola + storage) |
+| FR-012/013 | teclado; foco al asignatario + aria-live=polite nombrando destino; tokens (sin estilos sueltos) | T006/T007/T013 | `unit/fe3-integration`, `a11y/fe3`, `npm run lint` (stylelint) |
+| SC-001 | camino feliz sin recarga (UUID conocido fuera de banda) | T008/T016 | `unit/fe3-integration`, `e2e/fe3` |
+| SC-002 | 100% de códigos mapeados (incl. 500 y red) | T004/T010 | `unit/fe3-write-api`, `unit/fe3-reassign-form` |
+| SC-003 | 0 violaciones axe (form/error/en vuelo); contraste ≥4.5:1/≥3:1; tap targets ≥44px | T013 | `a11y/fe3` |
+| SC-004 | control no visible salvo dispatcher+escritorio | T012 | `unit/fe3-detail-rbac` |
+| SC-005 | no-fuga + validación cliente antes del backend | T002/T014 | `unit/fe3-nolog`, `unit/fe3-write-api` |
+
+> Deuda de backend trazada (regla XV): **no hay endpoint de listado de técnicos** → entrada manual del UUID
+> (obtenido fuera de banda) como interino; feature futura de backend para el selector real. Diferidos a
+> plan documentados: contract-test del mock, riesgo CD por fases (404 infra vs negocio), i18n, lint de
+> estilos, verificación de telemetría. e2e Playwright del camino feliz (T016) opcional/justificado.
