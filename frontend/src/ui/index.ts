@@ -6,3 +6,5 @@ export { Spinner, EmptyState, InlineError, Notice } from './states';
 export { SkipLink } from './SkipLink';
 export { MasterDetail, BackToList, useWideViewport } from './MasterDetail';
 export { ConfirmDialog } from './ConfirmDialog';
+export { Stepper } from './Stepper';
+export { ThemeToggle } from './ThemeToggle';

@@ -112,6 +112,82 @@
 .dialog__body { font: var(--font-body); }
 .dialog__actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
 
-/* FE-4 · Panel de resumen IA */
-.ai-summary { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
-.ai-summary__text { white-space: pre-wrap; }
+/* FE-4 · Panel de resumen IA — reestilado FE-5 (acento de revisión, guardián completo sin truncar) */
+.ai-summary {
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: var(--space-1) solid var(--status-pending_review-fg);
+  border-radius: var(--radius-md);
+  background: var(--status-pending_review-bg);
+  color: var(--color-text);
+}
+.ai-summary h3 { color: var(--status-pending_review-fg); }
+/* Guardián completo: sin altura fija ni overflow:hidden ni line-clamp (FR-008). */
+.ai-summary__text { white-space: pre-wrap; overflow: visible; }
+.ai-summary__guard {
+  font: var(--font-caption);
+  color: var(--color-text-muted);
+  border-top: 1px dashed var(--color-border);
+  padding-top: var(--space-2);
+  margin: 0;
+  overflow: visible;
+}
+
+/* FE-5 · Conmutador de tema (control segmentado accesible; solo tokens) */
+.theme-toggle {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+}
+.theme-toggle__option {
+  font: var(--font-caption);
+  min-height: var(--touch-target);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.theme-toggle__option[aria-pressed="true"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-1);
+}
+.theme-toggle__option:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+/* FE-5 · Stepper del ciclo de vida (FR-006; estado por color + texto) */
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+}
+.stepper__step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: var(--font-caption);
+  color: var(--color-text-muted);
+}
+.stepper__dot {
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+  border: 2px solid var(--color-border);
+}
+.stepper__step--done { color: var(--color-text); }
+.stepper__step--done .stepper__dot { background: var(--color-success); border-color: var(--color-success); }
+.stepper__step--current { color: var(--color-primary); font: var(--font-label); }
+.stepper__step--current .stepper__dot { background: var(--color-primary); border-color: var(--color-primary); }
+/* el estado se comunica también por texto (.stepper__state); no depende solo del color */

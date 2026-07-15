@@ -1,7 +1,7 @@
 import { useNavigate, Outlet } from 'react-router-dom';
 import { useSession } from '../auth/session';
 import { useRouteFocus } from '../../routes/focus';
-import { Button, SkipLink } from '../../ui';
+import { Button, SkipLink, ThemeToggle } from '../../ui';
 import './shell.css';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -27,16 +27,19 @@ export function AppShell() {
       <SkipLink />
       <header className="shell__header">
         <span className="shell__brand">FieldOps</span>
-        {user ? (
-          <div className="shell__identity">
-            <span>
-              {user.name} · {ROLE_LABEL[user.role] ?? user.role}
-            </span>
-            <Button variant="secondary" onClick={onLogout}>
-              Cerrar sesión
-            </Button>
-          </div>
-        ) : null}
+        <div className="shell__identity">
+          <ThemeToggle />
+          {user ? (
+            <>
+              <span>
+                {user.name} · {ROLE_LABEL[user.role] ?? user.role}
+              </span>
+              <Button variant="secondary" onClick={onLogout}>
+                Cerrar sesión
+              </Button>
+            </>
+          ) : null}
+        </div>
       </header>
       <main id="main">
         <Outlet />
