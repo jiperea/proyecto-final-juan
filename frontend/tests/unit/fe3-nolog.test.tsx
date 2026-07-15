@@ -7,7 +7,7 @@ import { server } from '../../mocks/server';
 
 // FR-011/SC-005 · reason/assignee_id no se emiten a consola ni se persisten en storage del navegador.
 const OID = '00000000-0000-7000-8000-0000000000ff';
-const DEST = '22222222-2222-4222-8222-222222222222';
+const DEST = '018f1000-0000-7000-8000-000000000006';
 const REASON = 'motivo-secreto-de-reasignacion';
 
 afterEach(() => {

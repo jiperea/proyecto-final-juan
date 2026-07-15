@@ -5,7 +5,7 @@ import { server } from '../../mocks/server';
 
 // FR-002/003/006/007/008/009/015/016 · capa api de reasignación (mapeo de códigos reales del contrato).
 const OID = '00000000-0000-7000-8000-0000000000cc';
-const DEST = '11111111-1111-4111-8111-111111111111';
+const DEST = '018f1000-0000-7000-8000-000000000006';
 const body = { assignee_id: DEST, reason: 'Cambio de zona' };
 
 describe('FE-3 · capa api reassign', () => {

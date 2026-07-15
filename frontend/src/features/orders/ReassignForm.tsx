@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
-import { REASON_MAX_CODEPOINTS, UUID_RFC4122, reasonHasPrintable } from '../../api/schemas';
+import { REASON_MAX_CODEPOINTS, UUID_RE, reasonHasPrintable } from '../../api/schemas';
 import { Button, TextArea, TextField } from '../../ui';
 import type { Order } from '../../api/types';
 import { useReassign } from './useOrderMutations';
@@ -41,7 +41,7 @@ export function ReassignForm({
 
   function validateAssignee(): string | undefined {
     const v = assignee.trim();
-    return UUID_RFC4122.test(v) ? undefined : DESTINO_INVALID;
+    return UUID_RE.test(v) ? undefined : DESTINO_INVALID;
   }
   function validateReason(): string | undefined {
     const cps = [...reason].length; // conteo por code point (no UTF-16) — spec Edge Cases

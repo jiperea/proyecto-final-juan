@@ -6,7 +6,7 @@ import { renderApp } from '../test-utils';
 import { server } from '../../mocks/server';
 
 const OID = '00000000-0000-7000-8000-0000000000dd';
-const DEST = '11111111-1111-4111-8111-111111111111';
+const DEST = '018f1000-0000-7000-8000-000000000006';
 
 function fillValid() {
   fireEvent.change(screen.getByLabelText('Técnico destino'), { target: { value: `  ${DEST}  ` } }); // con espacios (trim)

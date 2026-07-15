@@ -8,7 +8,7 @@ import { server } from '../../mocks/server';
 
 // SC-001 · integración del camino feliz en OrderDetailView (dispatcher, escritorio).
 const OID = '00000000-0000-7000-8000-00000000ac01';
-const DEST = '33333333-3333-4333-8333-333333333333';
+const DEST = '018f1000-0000-7000-8000-000000000007';
 const DISP = { id: '00000000-0000-7000-8000-000000000009', email: 'd@x.test', username: 'dis', role: 'dispatcher' as const };
 
 afterEach(() => setViewportWide(false));

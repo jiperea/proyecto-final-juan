@@ -29,6 +29,18 @@
     "cierres": "I-001, F-001 (ALTAS) y I-002/I-003/I-004/F-002/F-003/F-004/F-005 (MEDIAS) verificados cerrados por el panel; 0 huecos nuevos.",
     "huecos": []
   },
-  "verificacion": "typecheck (tsc strict + codegen:check + AssertAssignable ReassignmentRequest) OK; lint (eslint+stylelint 'sin estilos sueltos') OK; **120 tests** (25 ficheros; FE-1+FE-2+FE-3 sin regresión) + axe (form/error/éxito) + contraste dirigido; **12 e2e** (fe1+fe2+fe3 camino feliz + FR-018 móvil, desktop+mobile); build OK.",
+  "validacion_stack_real": {
+    "fecha": "2026-07-15",
+    "entorno": "docker compose (db+backend imagen local con 004; frontend nginx reconstruido con FE-3 en :8080 proxy /v1→:3001)",
+    "backend_api": "login dispatcher1 → listOrders → reassignOrder a technician2/3: 200 (assigned_to nuevo, status sin cambio, version+1); destino inexistente→422 INVALID_ASSIGNEE; motivo vacío→422 VALIDATION_ERROR. Confirma empíricamente mock↔contrato real (cierra G1-M01).",
+    "front_e2e_real": "Playwright contra :8080 (backend real): dispatcher inicia sesión, abre orden, reasigna → 'Orden reasignada a <uuid>' sin recarga; FR-018 verificado (control oculto <1024px).",
+    "defecto_encontrado_y_corregido": {
+      "id": "R-001",
+      "sev": "ALTA",
+      "desc": "La validación de cliente del assignee_id fijaba UUID RFC 4122 v1–v5, pero el backend emite UUIDv7 → el front rechazaba destinos legítimos (camino feliz roto en prod).",
+      "fix": "src/api/schemas.ts: UUID_RE = forma general 8-4-4-4-12 sin fijar versión. Tests actualizados a UUIDs v7 reales (regresión blindada). Spec/tasks (M08/FR-014/SC-005) corregidos. Re-verificado por live e2e."
+    }
+  },
+  "verificacion": "typecheck (tsc strict + codegen:check + AssertAssignable ReassignmentRequest) OK; lint (eslint+stylelint 'sin estilos sueltos') OK; **120 tests** (25 ficheros; FE-1+FE-2+FE-3 sin regresión, UUIDs v7 reales) + axe (form/error/éxito) + contraste dirigido; **12 e2e** (fe1+fe2+fe3 camino feliz + FR-018 móvil, desktop+mobile); build OK; **validado contra el stack real (docker) end-to-end**.",
   "resumen": "G3 PASS en ronda 2. Ronda 1: 2 ALTAS (FR-008 sin test de UI; contraste no verificado por axe-jsdom) + 7 MEDIAS → remediadas por skill/tests. Ronda 2: panel de front APROBADA (0 huecos); rbac ya APROBADA_CON_COMENTARIOS (sin defectos). FE-3 cumple spec+contrato; 18 FR y 5 SC cubiertos y verificados. 0 bloqueantes → merge permitido. Deuda de backend (selector de técnicos) registrada."
 }
