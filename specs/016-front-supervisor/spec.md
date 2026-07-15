@@ -153,19 +153,19 @@ FE-4 **no crea contrato**; consume el existente `contracts/orders.openapi.yaml` 
 
 | FR | Endpoint(s) | Tarea(s) | Test(s) |
 |----|-------------|----------|---------|
-| FR-001/015 | `getOrderDetail` (render por rol/viewport) | (plan) | `should mostrar revisión solo a supervisor en escritorio` |
-| FR-002/003 | `reviewOrder` | (plan) | `should aprobar→closed y rechazar→in_progress sin recarga` |
-| FR-016 | `summarizeOrderIncident` | (plan) | `should pedir el resumen solo al pulsar el botón (no al abrir)` |
-| FR-004/006 | `reviewOrder` | (plan) | `should validar motivo en cliente y mapear INVALID_REASON al campo` |
-| FR-005 | `reviewOrder` | (plan) | `should marcar aria-busy/aria-disabled en vuelo` |
-| FR-007 | `reviewOrder` | (plan) | `should mostrar EVIDENCE_MISSING y deshabilitar aprobar si evidence.count===0` |
-| FR-008 | `reviewOrder` | (plan) | `should mostrar 404 genérico, limpiar detalle y reubicar foco` |
-| FR-009/009b | `reviewOrder` | (plan) | `should separar 401(refresh)/403(permiso); no reintentar approve sin re-confirmar; conservar motivo en 500/503` |
-| FR-010 | `summarizeOrderIncident` | (plan) | `should mostrar summary (región 'Resumen (IA)', texto plano) si sufficient=true; mensaje honesto si false` |
-| FR-011/011b | `summarizeOrderIncident` | (plan) | `should mapear 429/503 sin bloquear revisión; aria-busy en vuelo; descartar respuesta fuera de orden` |
-| FR-012 | ambos | (plan) | `should no filtrar reason/last_rejection_reason/summary a consola/telemetría/storage` |
-| FR-013/014 | — | (plan) | `axe sin violaciones` · `teclado` · `foco a estado/encabezado resumen` · `aria-live separadas` · `aria-describedby+aria-invalid` |
-| FR-017 | `reviewOrder` | (plan) | `should abrir alertdialog con foco atrapado/retorno; confirmar envía, cancelar no` |
+| FR-001/015 | `getOrderDetail` (render por rol/viewport) | T010, T013 | `should mostrar revisión solo a supervisor en escritorio` |
+| FR-002/003 | `reviewOrder` | T005, T006, T007, T008, T010 | `should aprobar→closed y rechazar→in_progress sin recarga` |
+| FR-016 | `summarizeOrderIncident` | T011, T012 | `should pedir el resumen solo al pulsar el botón (no al abrir)` |
+| FR-004/006 | `reviewOrder` | T006, T008 | `should validar motivo en cliente y mapear INVALID_REASON al campo` |
+| FR-005 | `reviewOrder` | T008 | `should marcar aria-busy/aria-disabled en vuelo` |
+| FR-007 | `reviewOrder` | T008 | `should mostrar EVIDENCE_MISSING y deshabilitar aprobar si evidence.count===0` |
+| FR-008 | `reviewOrder` | T006, T010 | `should mostrar 404 genérico, limpiar detalle y reubicar foco` |
+| FR-009/009b | `reviewOrder` | T006, T008 | `should separar 401(refresh)/403(permiso); no reintentar approve sin re-confirmar; conservar motivo en 500/503` |
+| FR-010 | `summarizeOrderIncident` | T011, T012 | `should mostrar summary (región 'Resumen (IA)', texto plano) si sufficient=true; mensaje honesto si false` |
+| FR-011/011b | `summarizeOrderIncident` | T006, T007, T011 | `should mapear 429/503 sin bloquear revisión; aria-busy en vuelo; descartar respuesta fuera de orden` |
+| FR-012 | ambos | T014 | `should no filtrar reason/last_rejection_reason/summary a consola/telemetría/storage` |
+| FR-013/014 | — | T002, T012, T015 | `axe sin violaciones` · `teclado` · `foco a estado/encabezado resumen` · `aria-live separadas` · `aria-describedby+aria-invalid` |
+| FR-017 | `reviewOrder` | T002, T003, T008, T009 | `should abrir alertdialog con foco atrapado/retorno; confirmar envía, cancelar no` |
 
 ## Eval de objetivos (promptfoo) *(Constitution XIV)*
 

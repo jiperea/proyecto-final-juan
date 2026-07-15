@@ -1,0 +1,24 @@
+{
+  "gate": "G2 (consistencia spec↔plan↔tasks · acumulativo G1 + revisor-consistencia)",
+  "feature": "016-front-supervisor",
+  "fecha": "2026-07-15",
+  "artefactos": ["specs/016-front-supervisor/spec.md", "specs/016-front-supervisor/plan.md", "specs/016-front-supervisor/tasks.md"],
+  "panel": ["(G1 previo: cinico, spec-theater, rbac, front-a11y — PASS)", "revisor-consistencia"],
+  "veredicto_global": "PASS (ronda 2) — 0 bloqueantes; ALTAS/MEDIA de consistencia remediadas",
+  "rondas": 2,
+  "ronda_1": {
+    "veredicto_consistencia": "REQUIERE_CAMBIOS",
+    "hallazgos": [
+      {"id": "K-001", "sev": "ALTA", "desc": "tabla de trazabilidad de spec.md con placeholder '(plan)' en vez de IDs.", "resolucion": "Tabla actualizada con T001-T018 reales por FR (0 '(plan)' restantes; verificados contra tasks.md)."},
+      {"id": "K-002", "sev": "ALTA", "desc": "el test nombrado de FR-016 (no auto-llamada a ai-summary al abrir) no estaba en ninguna tarea.", "resolucion": "T012 incluye el test negativo explícito de FR-016."},
+      {"id": "K-003", "sev": "MEDIA", "desc": "divergencia summarizeIncident (wrapper) vs summarizeOrderIncident (contrato).", "resolucion": "plan.md documenta el alias 1:1 (mismo endpoint)."}
+    ]
+  },
+  "ronda_2": {
+    "veredicto_consistencia": "APROBADA",
+    "cierres": "K-001/K-002/K-003 cerrados y verificados contra el contenido real de tasks.md (no solo presencia de IDs). Sin IDs huérfanos, FRs sin cobertura ni deriva nueva.",
+    "huecos": []
+  },
+  "verificacion": "/speckit-analyze: 19 FR + 6 SC, cobertura 100%, 0 unmapped, 0 conflictos con la constitution (front-only, IA solo-display, gates backend N/A). Consistencia verificada en 2 rondas.",
+  "resumen": "G2 PASS en ronda 2. Ronda 1: 2 ALTAS (trazabilidad con placeholders; test de FR-016 sin tarea) + 1 MEDIA (alias) → remediadas. Ronda 2: cierres confirmados, 0 huecos. 0 bloqueantes → avance a implementación permitido."
+}
