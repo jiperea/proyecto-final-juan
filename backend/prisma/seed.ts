@@ -69,15 +69,19 @@ async function seedOrders(): Promise<void> {
   push('draft', null);
 
   await prisma.order.createMany({ data: rows });
+  await seedApprovableReviewArtifacts(t1);
+}
 
-  // 019 — audit de la transición (in_progress→pending_review) + evidencia para la orden aprobable.
-  // OrderEvidence exige un OrderAudit (FK). Sin esto, aprobar da 409 EVIDENCE_MISSING (guard de 006).
+// 019 — audit de la transición (in_progress→pending_review) + notas + evidencia para la orden APROBABLE.
+// OrderEvidence/Notes exigen un OrderAudit (FK). Sin esto, aprobar da 409 EVIDENCE_MISSING (guard de 006).
+async function seedApprovableReviewArtifacts(actorId: string): Promise<void> {
+  const orderId = SEED_ORDERS.approvableReview;
   const auditId = uuidv7();
   await prisma.orderAudit.create({
     data: {
       id: auditId,
-      orderId: SEED_ORDERS.approvableReview,
-      actorId: t1,
+      orderId,
+      actorId,
       eventType: 'transition',
       fromStatus: 'in_progress',
       toStatus: 'pending_review',
@@ -87,31 +91,42 @@ async function seedOrders(): Promise<void> {
   await prisma.orderExecutionNotes.create({
     data: {
       id: uuidv7(),
-      orderId: SEED_ORDERS.approvableReview,
+      orderId,
       auditId,
       notes: 'Sustituida la polea de tracción y engrasado el guiado. Cabina nivela correctamente.',
       attempt: 1,
-      createdBy: t1,
+      createdBy: actorId,
     },
   });
   await prisma.orderEvidence.create({
     data: {
       id: uuidv7(),
-      orderId: SEED_ORDERS.approvableReview,
+      orderId,
       auditId,
       objectRef: '018f2000-0000-7000-8000-0000000000a1-ev1',
       contentType: 'image/jpeg',
       sizeBytes: 204800,
-      uploadedBy: t1,
+      uploadedBy: actorId,
       attempt: 1,
     },
   });
+  // 019/H-002 — coherencia con el invariante «version == nº de transiciones auditadas»: la orden ancla
+  // tiene 1 transición auditada (in_progress→pending_review), luego su version es 1 (no 0 del createMany).
+  await prisma.order.update({ where: { id: orderId }, data: { version: 1 } });
 }
 
 async function main(): Promise<void> {
-  // Orden inverso de FK para re-seed idempotente. NOTA (019): order_evidence/audit/notes son APPEND-ONLY
-  // por trigger de BD (DELETE prohibido); por eso este seed asume BD fresca/vacía en esas tablas (así corre
-  // db-test, efímera). Para re-sembrar el dev main con datos previos: `prisma migrate reset --force`.
+  // 019/H-001 — re-seed sobre BD con datos append-only: order_evidence/audit/notes prohíben DELETE (trigger)
+  // y su FK a Order es Restrict, así que `order.deleteMany()` fallaría con un P2003 críptico en la 2ª
+  // ejecución. Detectamos el caso ANTES y fallamos con un mensaje ACCIONABLE (no un stack trace de Prisma).
+  if ((await prisma.orderAudit.count()) > 0) {
+    throw new Error(
+      'BD no vacía (datos append-only de un seed previo). Re-siembra con: ' +
+        'npx prisma migrate reset --force --skip-seed && npx tsx prisma/seed.ts',
+    );
+  }
+  // Orden inverso de FK para el borrado. NOTA (019): order_evidence/audit/notes son APPEND-ONLY (DELETE
+  // prohibido); este seed asume BD fresca en esas tablas (así corre db-test, efímera).
   await prisma.order.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.session.deleteMany();
