@@ -84,3 +84,34 @@
 
 .evidence { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-3); margin-bottom: var(--space-4); }
 .evidence > legend { font: var(--font-label); padding: 0 var(--space-1); }
+
+/* FE-4 · Diálogo modal (ConfirmDialog) — solo tokens */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-scrim);
+}
+.dialog {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  max-width: var(--dialog-max-width);
+  width: 100%;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.dialog__title { font: var(--font-h2); margin: 0; }
+.dialog__body { font: var(--font-body); }
+.dialog__actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
+
+/* FE-4 · Panel de resumen IA */
+.ai-summary { margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+.ai-summary__text { white-space: pre-wrap; }

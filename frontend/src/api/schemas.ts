@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import type { EvidenceRef, ExecutionRequest, Order, OrderStatus, ReassignmentRequest } from './types';
+import type {
+  EvidenceRef,
+  ExecutionRequest,
+  IncidentSummaryResponse,
+  Order,
+  OrderStatus,
+  ReassignmentRequest,
+  ReviewRequest,
+} from './types';
 
 // Validación runtime en el boundary (FR-016). Derivado del contrato; en CI el objetivo es generarlo
 // (openapi-zod-client) y difear contra el contrato (SC-008b). Aquí se define alineado a los tipos
@@ -83,6 +91,24 @@ export const reassignmentRequestSchema = z.object({
     .refine(reasonHasPrintable, 'motivo: ≥1 carácter imprimible'),
 });
 
+// ── Write-side del supervisor (FE-4, FR-002/FR-006) ──────────────────────────────────────────────
+// Derivado del contrato (ReviewRequest). `reason` opcional a nivel de esquema (obligatorio en reject lo
+// exige el componente). Cota de payload cruda 4000 (igual que el contrato); la longitud efectiva
+// 1..1000 la mide el BACKEND tras saneo (INVALID_REASON) — el cliente NO es más estricto (evita falsos
+// rechazos con whitespace, misma lección que el UUIDv7 de FE-3).
+export const REVIEW_REASON_MAX_RAW = 4000;
+
+export const reviewRequestSchema = z.object({
+  decision: z.enum(['approve', 'reject']),
+  reason: z.string().max(REVIEW_REASON_MAX_RAW).optional(),
+});
+
+// Respuesta del resumen IA (007): el cliente distingue por `sufficient` (no por heurística de texto).
+export const incidentSummaryResponseSchema = z.object({
+  summary: z.string().nullable(),
+  sufficient: z.boolean(),
+});
+
 export const userIdentitySchema = z.object({
   id: z.string(),
   email: z.string(),
@@ -114,3 +140,13 @@ export type _ExecBack = AssertAssignable<ZodExecutionRequest, ExecutionRequest>;
 type ZodReassignmentRequest = z.infer<typeof reassignmentRequestSchema>;
 export type _ReassignFwd = AssertAssignable<ReassignmentRequest, ZodReassignmentRequest>;
 export type _ReassignBack = AssertAssignable<ZodReassignmentRequest, ReassignmentRequest>;
+// ReviewRequest: `decision` se asegura estructuralmente; el `reason` opcional no se asserta
+// bidireccionalmente por la fricción de exactOptionalPropertyTypes (`.optional()` de Zod añade
+// `| undefined`, incompatible con `reason?: string`). El drift de tipos lo cubre `codegen:check` y el
+// runtime lo valida `reviewRequestSchema.parse`. Se asegura al menos el enum de decisión:
+type ZodReviewDecision = z.infer<typeof reviewRequestSchema>['decision'];
+export type _ReviewDecisionFwd = AssertAssignable<ReviewRequest['decision'], ZodReviewDecision>;
+export type _ReviewDecisionBack = AssertAssignable<ZodReviewDecision, ReviewRequest['decision']>;
+type ZodIncidentSummary = z.infer<typeof incidentSummaryResponseSchema>;
+export type _SummaryFwd = AssertAssignable<IncidentSummaryResponse, ZodIncidentSummary>;
+export type _SummaryBack = AssertAssignable<ZodIncidentSummary, IncidentSummaryResponse>;
