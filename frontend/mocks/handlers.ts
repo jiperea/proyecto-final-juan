@@ -52,6 +52,23 @@ export const handlers = [
       { status: 200 },
     ),
   ),
+  // FE-3 reassign (por defecto éxito → Order con el nuevo assigned_to del cuerpo; los tests sobreescriben).
+  http.post(`${BASE}/orders/:orderId/reassignments`, async ({ params, request }) => {
+    const body = (await request.json().catch(() => ({}))) as { assignee_id?: string };
+    return HttpResponse.json(
+      {
+        id: String(params.orderId),
+        title: 'Orden',
+        description: 'desc',
+        status: 'assigned',
+        assigned_to: body.assignee_id ?? null,
+        version: 1,
+        created_at: '2026-07-14T00:00:00Z',
+        updated_at: '2026-07-14T00:03:00Z',
+      },
+      { status: 200 },
+    );
+  }),
   http.get(`${BASE}/orders/:orderId`, ({ params }) =>
     HttpResponse.json(
       {

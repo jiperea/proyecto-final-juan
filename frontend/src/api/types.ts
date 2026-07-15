@@ -12,6 +12,7 @@ export type OrderDetailResponse = OrdersComponents['schemas']['OrderDetailRespon
 export type ErrorResponse = OrdersComponents['schemas']['ErrorResponse'];
 export type EvidenceRef = OrdersComponents['schemas']['EvidenceRef'];
 export type ExecutionRequest = OrdersComponents['schemas']['ExecutionRequest'];
+export type ReassignmentRequest = OrdersComponents['schemas']['ReassignmentRequest'];
 
 // Vista de sesión (data-model.md §1): identidad en memoria.
 export interface SessionUser {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { EvidenceRef, ExecutionRequest, Order, OrderStatus } from './types';
+import type { EvidenceRef, ExecutionRequest, Order, OrderStatus, ReassignmentRequest } from './types';
 
 // Validación runtime en el boundary (FR-016). Derivado del contrato; en CI el objetivo es generarlo
 // (openapi-zod-client) y difear contra el contrato (SC-008b). Aquí se define alineado a los tipos
@@ -58,6 +58,30 @@ export const executionRequestSchema = z.object({
   evidence: z.array(evidenceRefSchema).min(1).max(EVIDENCE_MAX_ITEMS),
 });
 
+// ── Write-side del dispatcher (FE-3, FR-002/FR-014) ──────────────────────────────────────────────
+// Derivado del contrato (ReassignmentRequest). assignee_id = UUID (RFC 4122 v1–v5); reason 1..500 code
+// points con ≥1 imprimible; nunca viaja el actor (server-side).
+export const UUID_RFC4122 =
+  // eslint-disable-next-line no-useless-escape
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// Longitud del motivo contada por CODE POINT (no por unidad UTF-16) — spec Edge Cases.
+export const REASON_MAX_CODEPOINTS = 500;
+export function reasonHasPrintable(s: string): boolean {
+  return [...s].some((ch) => {
+    const c = ch.codePointAt(0) ?? 0;
+    return c > 0x20 && c !== 0x7f;
+  });
+}
+
+export const reassignmentRequestSchema = z.object({
+  assignee_id: z.string().regex(UUID_RFC4122, 'assignee_id: formato UUID no válido'),
+  reason: z
+    .string()
+    .refine((s) => [...s].length >= 1 && [...s].length <= REASON_MAX_CODEPOINTS, 'motivo: 1..500 code points')
+    .refine(reasonHasPrintable, 'motivo: ≥1 carácter imprimible'),
+});
+
 export const userIdentitySchema = z.object({
   id: z.string(),
   email: z.string(),
@@ -86,3 +110,6 @@ export type _EvidenceFwd = AssertAssignable<EvidenceRef, ZodEvidenceRef>;
 export type _EvidenceBack = AssertAssignable<ZodEvidenceRef, EvidenceRef>;
 export type _ExecFwd = AssertAssignable<ExecutionRequest, ZodExecutionRequest>;
 export type _ExecBack = AssertAssignable<ZodExecutionRequest, ExecutionRequest>;
+type ZodReassignmentRequest = z.infer<typeof reassignmentRequestSchema>;
+export type _ReassignFwd = AssertAssignable<ReassignmentRequest, ZodReassignmentRequest>;
+export type _ReassignBack = AssertAssignable<ZodReassignmentRequest, ReassignmentRequest>;

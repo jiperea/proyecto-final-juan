@@ -1,9 +1,11 @@
+import { useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { NOT_AVAILABLE_MESSAGE } from '../../i18n/errors';
-import { StatusBadge } from '../../ui';
+import { Button, StatusBadge, useWideViewport } from '../../ui';
 import { InlineError, Spinner } from '../../ui';
 import { useSession } from '../auth/session';
 import { ExecutionForm } from './ExecutionForm';
+import { ReassignForm } from './ReassignForm';
 import { StartWorkButton } from './StartWorkButton';
 import { useOrderDetail } from './useOrders';
 import './orders.css';
@@ -12,6 +14,11 @@ import './orders.css';
 export function OrderDetailView({ orderId }: { orderId: string }) {
   const query = useOrderDetail(orderId);
   const { user } = useSession();
+  const wide = useWideViewport();
+  // Hooks del write-side del dispatcher (antes de returns tempranos — reglas de hooks).
+  const [showReassign, setShowReassign] = useState(false);
+  const [reassignAnnounce, setReassignAnnounce] = useState('');
+  const assigneeRef = useRef<HTMLSpanElement>(null);
 
   if (query.isPending) return <Spinner label="Cargando detalle…" />;
 
@@ -34,6 +41,12 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   // FR-007 (K-004): las acciones write se ofrecen SOLO al rol technician (ocultación por rol; el scope de
   // getOrderDetail ya garantiza que el técnico solo ve sus órdenes → el chequeo de pertenencia es redundante).
   const isTechnician = user?.role === 'technician';
+  // FR-001/FR-018: la acción de reasignar se ofrece SOLO a dispatcher, en estados reasignables y en
+  // escritorio (por debajo del breakpoint se oculta; el backend sigue siendo la autoridad).
+  const canReassign =
+    user?.role === 'dispatcher' &&
+    (order.status === 'assigned' || order.status === 'in_progress') &&
+    wide;
   return (
     <article className="order-detail" aria-busy={query.isFetching}>
       <h2 tabIndex={-1}>{order.title}</h2>
@@ -52,6 +65,33 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
         <section aria-label="Registrar ejecución">
           <h3>Registrar ejecución</h3>
           <ExecutionForm orderId={order.id} />
+        </section>
+      ) : null}
+
+      {canReassign ? (
+        <section aria-label="Reasignación">
+          <p className="order-detail__assignee">
+            Asignado a:{' '}
+            <span ref={assigneeRef} tabIndex={-1}>
+              {order.assigned_to ?? '—'}
+            </span>
+          </p>
+          {/* FR-013: región viva que anuncia el resultado nombrando el destino. */}
+          <div role="status" aria-live="polite">
+            {reassignAnnounce}
+          </div>
+          {showReassign ? (
+            <ReassignForm
+              orderId={order.id}
+              onReassigned={(updated) => {
+                setShowReassign(false);
+                setReassignAnnounce(`Orden reasignada a ${updated.assigned_to ?? '—'}`);
+                assigneeRef.current?.focus(); // foco al asignatario (coincide con el anuncio)
+              }}
+            />
+          ) : (
+            <Button onClick={() => setShowReassign(true)}>Reasignar</Button>
+          )}
         </section>
       ) : null}
 
