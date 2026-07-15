@@ -350,3 +350,42 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > Motivo del rechazo: pre-check de cliente (no-vacío + imprimible); la longitud efectiva 1..1000 la valida el
 > backend tras saneo (`INVALID_REASON`) — el cliente NO es más estricto (lección del UUIDv7 de FE-3). e2e
 > Playwright del camino feliz (T017) opcional/justificado. IA: eval en backend 007 (promptfoo N/A en FE-4).
+
+---
+
+# Trazabilidad RF → tarea → test — 017 FE-5 (reskin del front + tema oscuro)
+
+> Feature de presentación (solo `frontend/` + `docs/design-system.md`). Verificación **determinista**
+> (stylelint/eslint/tsc/build/vitest/vitest-axe/ratios de contraste). Sin endpoints ni IA (promptfoo N/A).
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001 | token o nada (0 estilos sueltos: color/tamaño/tipografía) | T006/T007/T008/T010 | `npm run lint` (stylelint + eslint FR-017c) |
+| FR-002 | acción primaria usa el token de acento (naranja); foco | T005/T006 | `unit/accent-primary` |
+| FR-003 | badge de estado = fondo + etiqueta de texto (5 estados) | T005/T006 | `unit/accent-primary`, `unit/orders` |
+| FR-004 | tema CSS-first (@media + [data-theme]); precedencia usuario>SO>claro | T003/T014/T015 | `unit/theme-store`, `a11y/contrast-tokens` |
+| FR-004b | conmutador (claro/oscuro/sistema) + persistencia; fallo localStorage; sync pestañas | T011/T015/T017 | `unit/theme-store`, `unit/theme-toggle` |
+| FR-005 | contraste AA (18 pares × 2 temas) | T004/T004b/T006/T013b/T014 | `a11y/contrast-tokens`, `unit/fe3-contrast` |
+| FR-006 | Stepper del FSM (paso actual + texto) | T020/T022 | `unit/stepper` |
+| FR-007 | axe estructural 0 serias/críticas por pantalla | T019/T025 | `a11y/*` (suite existente + nuevas) |
+| FR-008 | tarjeta IA reestilada, guardián completo, mismas props | T021/T023 | `unit/summary-card` |
+| FR-009 | responsive campo↔oficina; sin overflow-x 320px/zoom200 | T029 | `e2e/reskin-responsive` |
+| FR-010 | prefers-reduced-motion global sobre `*` | T028 | `unit/reduced-motion` |
+| FR-011 | sin regresión funcional; tsc/eslint/stylelint en verde | T010/T019/T025/T031 | suite completa + `lint`/`typecheck` |
+| FR-012 | tokens/componentes nuevos documentados en design-system | T009/T018/T024 | revisión G2/G3 (doc) |
+| FR-013 | anti-FOUC (script inline pre-React) + fuente de verdad única | T016 | `unit/theme-fouc-sync` |
+| FR-014 | Stepper/ThemeToggle puros (sin fetch) | T012/T020/T022 | `unit/theme-toggle`, `unit/stepper` |
+| FR-015 | RBAC de UI espejo preservado tras el reskin | T026/T027 | `unit/rbac-reskin-regression`, `scripts/check-rbac-test-diff.sh` |
+| FR-016 | localStorage sólo la preferencia de tema | T011/T015 | `unit/theme-store` |
+| SC-001 | 0 estilos sueltos | T010 | `lint` |
+| SC-002 | tsc/eslint 0 errores + build | T010/T031 | `typecheck`, `build` |
+| SC-003a | contraste 18 pares × claro y oscuro | T004/T013b | `a11y/contrast-tokens` |
+| SC-003b | axe 0 serias/críticas por pantalla | T019/T025 | `a11y/*` |
+| SC-004 | ninguna aserción RBAC cambiada | T027 | `scripts/check-rbac-test-diff.sh` |
+| SC-005 | stepper con paso actual por cada estado del FSM | T020/T022 | `unit/stepper` |
+| SC-006 | tema fuerza/persiste/revierte; foco preservado | T011/T013 | `unit/theme-store`, `unit/theme-focus` |
+| SC-007 | localStorage sólo clave de tema | T011 | `unit/theme-store` |
+| SC-008 | Stepper/ThemeToggle sin llamadas de red | T012/T020 | `unit/theme-toggle`, `unit/stepper` |
+| SC-009 | anti-FOUC (data-theme antes de React) | T016 | `unit/theme-fouc-sync` |
+| SC-010 | regresión RBAC por rol×estado | T026 | `unit/rbac-reskin-regression` |
+| SC-011 | sin overflow-x 320px/zoom200 (e2e) | T029 | `e2e/reskin-responsive` |
