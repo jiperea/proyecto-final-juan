@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FieldOps · Vistas mínimas del front (exploración)</title>
+<!--
+  REFERENCIA DE DISEÑO NO VINCULANTE — artifact de exploración 69806069-4e8c-4b96-832b-fae4d23b3abe.
+  Guardado verbatim (sin el frame-runtime de claude.ai) como fuente visual de FE-5 (017-front-reskin) y
+  FE-7 (021-front-dual-accent). NO es la spec del front ni se sirve en la app. Ver README.md de esta carpeta.
+-->
+<style>
+  :root {
+    --ground: #F4F6F8;
+    --surface: #FFFFFF;
+    --surface-2: #EDF0F3;
+    --ink: #1A2430;
+    --ink-muted: #5C6B7A;
+    --border: #E1E6EB;
+    --accent: #DC5A24;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #FBE7DD;
+
+    --st-draft: #64748B;   --st-draft-bg: #EAEDF1;
+    --st-assigned: #2563EB;--st-assigned-bg: #E4ECFD;
+    --st-progress: #0E7C9B;--st-progress-bg: #DEF0F5;
+    --st-review: #7C3AED;  --st-review-bg: #EDE6FC;
+    --st-closed: #178A4E;  --st-closed-bg: #DDF1E5;
+
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 1px 2px rgba(16,24,32,.05), 0 8px 24px rgba(16,24,32,.06);
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0E141A;
+      --surface: #18212B;
+      --surface-2: #212C38;
+      --ink: #E7EDF3;
+      --ink-muted: #93A2B2;
+      --border: #2A3744;
+      --accent: #FF7A45;
+      --accent-ink: #1A1005;
+      --accent-soft: #3A2015;
+
+      --st-draft: #94A3B4;   --st-draft-bg: #26313D;
+      --st-assigned: #6FA0FF;--st-assigned-bg: #1E2A44;
+      --st-progress: #4FC2DE;--st-progress-bg: #123039;
+      --st-review: #B896FF;  --st-review-bg: #2A2140;
+      --st-closed: #4FC98A;  --st-closed-bg: #12321F;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #F4F6F8; --surface: #FFFFFF; --surface-2: #EDF0F3;
+    --ink: #1A2430; --ink-muted: #5C6B7A; --border: #E1E6EB;
+    --accent: #DC5A24; --accent-ink: #FFFFFF; --accent-soft: #FBE7DD;
+    --st-draft:#64748B;--st-draft-bg:#EAEDF1;--st-assigned:#2563EB;--st-assigned-bg:#E4ECFD;
+    --st-progress:#0E7C9B;--st-progress-bg:#DEF0F5;--st-review:#7C3AED;--st-review-bg:#EDE6FC;
+    --st-closed:#178A4E;--st-closed-bg:#DDF1E5;
+  }
+  :root[data-theme="dark"] {
+    --ground: #0E141A; --surface: #18212B; --surface-2: #212C38;
+    --ink: #E7EDF3; --ink-muted: #93A2B2; --border: #2A3744;
+    --accent: #FF7A45; --accent-ink: #1A1005; --accent-soft: #3A2015;
+    --st-draft:#94A3B4;--st-draft-bg:#26313D;--st-assigned:#6FA0FF;--st-assigned-bg:#1E2A44;
+    --st-progress:#4FC2DE;--st-progress-bg:#123039;--st-review:#B896FF;--st-review-bg:#2A2140;
+    --st-closed:#4FC98A;--st-closed-bg:#12321F;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--ui);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1140px; margin: 0 auto; padding: clamp(20px, 4vw, 56px); }
+
+  /* ---- Page header ---- */
+  .masthead { display: flex; flex-direction: column; gap: 14px; margin-bottom: 8px; }
+  .kicker {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700;
+  }
+  h1 {
+    font-size: clamp(28px, 4.5vw, 44px); line-height: 1.08; margin: 0;
+    letter-spacing: -.02em; text-wrap: balance; font-weight: 800;
+  }
+  .lede { font-size: 17px; color: var(--ink-muted); max-width: 62ch; margin: 0; }
+  .note-strip {
+    margin-top: 10px; padding: 12px 16px; border-radius: var(--radius-sm);
+    background: var(--accent-soft); color: var(--ink);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    font-size: 14px; max-width: 70ch;
+  }
+  .note-strip b { color: var(--accent); }
+
+  /* ---- Legends ---- */
+  .legends { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 34px 0 10px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .card h2 {
+    font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-muted); margin: 0 0 14px; font-weight: 700;
+  }
+  .fsm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .fsm .arrow { color: var(--ink-muted); font-size: 13px; }
+  .roles-list { display: flex; flex-direction: column; gap: 12px; }
+  .role-row { display: flex; gap: 12px; align-items: baseline; }
+  .role-name { font-weight: 700; min-width: 92px; }
+  .role-desc { color: var(--ink-muted); font-size: 14px; }
+
+  /* ---- state chip ---- */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; letter-spacing: .01em;
+    padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .chip.draft { color: var(--st-draft); background: var(--st-draft-bg); }
+  .chip.assigned { color: var(--st-assigned); background: var(--st-assigned-bg); }
+  .chip.progress { color: var(--st-progress); background: var(--st-progress-bg); }
+  .chip.review { color: var(--st-review); background: var(--st-review-bg); }
+  .chip.closed { color: var(--st-closed); background: var(--st-closed-bg); }
+
+  /* ---- screens grid ---- */
+  .screens {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));
+    gap: clamp(24px, 3vw, 40px); margin-top: 40px; align-items: start;
+  }
+  .screen { display: flex; flex-direction: column; gap: 12px; }
+  .screen > .cap {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  .cap .num {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--accent); font-variant-numeric: tabular-nums;
+  }
+  .cap .title { font-weight: 700; font-size: 15px; }
+  .cap .who { font-size: 13px; color: var(--ink-muted); }
+
+  /* ---- phone frame ---- */
+  .phone {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 26px; padding: 10px; box-shadow: var(--shadow);
+  }
+  .phone-inner {
+    background: var(--ground); border-radius: 18px; overflow: hidden;
+    border: 1px solid var(--border); display: flex; flex-direction: column;
+    min-height: 500px;
+  }
+  .statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 16px 4px; font-family: var(--mono); font-size: 11px;
+    color: var(--ink-muted); font-variant-numeric: tabular-nums;
+  }
+  .appbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 8px 16px 12px; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: -.01em; }
+  .brand .mark {
+    width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 900;
+  }
+  .role-chip {
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-muted); border: 1px solid var(--border);
+  }
+  .screen-body { padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+
+  /* segmented */
+  .seg { display: flex; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg span { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 6px 0; border-radius: 999px; color: var(--ink-muted); }
+  .seg span.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+
+  /* order card */
+  .order {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 13px; display: flex; flex-direction: column; gap: 7px;
+  }
+  .order .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .order .code { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .order .name { font-weight: 700; font-size: 14px; line-height: 1.25; }
+  .order .meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink-muted); }
+  .order .meta .tech { font-weight: 600; color: var(--ink); }
+
+  /* login */
+  .login-hero { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 30px 0 18px; }
+  .login-hero .mark-lg {
+    width: 54px; height: 54px; border-radius: 15px; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink); font-weight: 900; font-size: 24px;
+  }
+  .login-hero .wm { font-weight: 800; font-size: 20px; letter-spacing: -.01em; }
+  .login-hero .tag { font-size: 13px; color: var(--ink-muted); }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); }
+  .field .box {
+    border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm);
+    padding: 11px 12px; font-size: 14px; color: var(--ink);
+  }
+  .field .box.ph { color: var(--ink-muted); }
+
+  .btn {
+    border: none; border-radius: var(--radius-sm); padding: 12px 14px;
+    font-family: var(--ui); font-size: 14px; font-weight: 700; cursor: default;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.ghost { background: var(--surface); color: var(--ink); border: 1px solid var(--border); }
+  .btn.ok { background: var(--st-closed); color: #fff; }
+  .btn.danger { background: transparent; color: #C43D3D; border: 1px solid color-mix(in srgb, #C43D3D 40%, transparent); }
+  @media (prefers-color-scheme: dark) { .btn.danger { color: #FF8A8A; } }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { width: auto; flex: 1; }
+
+  /* detail */
+  .detail-head { display: flex; flex-direction: column; gap: 4px; }
+  .detail-head .code { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--ink-muted); }
+  .detail-head .name { font-weight: 800; font-size: 17px; letter-spacing: -.01em; }
+  .detail-head .sub { font-size: 13px; color: var(--ink-muted); }
+
+  .stepper { display: flex; align-items: center; gap: 0; margin: 4px 0 2px; }
+  .stepper .step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; }
+  .stepper .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--border); z-index: 1; }
+  .stepper .step.done .dot { background: var(--st-closed); border-color: var(--st-closed); }
+  .stepper .step.here .dot { background: var(--st-review); border-color: var(--st-review); box-shadow: 0 0 0 4px var(--st-review-bg); }
+  .stepper .lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-muted); text-align: center; }
+  .stepper .step.here .lbl { color: var(--st-review); }
+  .stepper .bar { position: absolute; top: 5px; left: -50%; width: 100%; height: 2px; background: var(--border); z-index: 0; }
+  .stepper .step.done .bar, .stepper .step.here .bar { background: var(--st-closed); }
+  .stepper .step:first-child .bar { display: none; }
+
+  .block { display: flex; flex-direction: column; gap: 7px; }
+  .block .h { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); }
+  .notes { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 12px; font-size: 13px; color: var(--ink); }
+  .evidence { display: flex; gap: 8px; }
+  .thumb {
+    flex: 1; aspect-ratio: 4/3; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: linear-gradient(135deg, var(--surface-2), var(--ground));
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; color: var(--ink-muted);
+  }
+
+  /* role tabs (interactive) */
+  .tabs { display: flex; gap: 4px; background: var(--surface-2); border-radius: 999px; padding: 3px; }
+  .tabs button {
+    flex: 1; border: none; background: transparent; font-family: var(--ui);
+    font-size: 12px; font-weight: 700; padding: 7px 4px; border-radius: 999px;
+    color: var(--ink-muted); cursor: pointer; transition: background .15s, color .15s;
+  }
+  .tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .panel { display: none; flex-direction: column; gap: 9px; }
+  .panel.on { display: flex; }
+  .gate-note { font-size: 11px; color: var(--ink-muted); }
+  .gate-note code { font-family: var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+
+  .ai {
+    border: 1px solid color-mix(in srgb, var(--st-review) 40%, transparent);
+    background: var(--st-review-bg); border-radius: var(--radius-sm); padding: 11px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .ai .h { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--st-review); }
+  .ai p { margin: 0; font-size: 13px; color: var(--ink); }
+  .ai .guard { font-size: 11px; color: var(--ink-muted); border-top: 1px dashed color-mix(in srgb, var(--st-review) 35%, transparent); padding-top: 6px; }
+
+  .backlink { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-muted); }
+
+  /* footer */
+  footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--border); color: var(--ink-muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+  footer code { font-family: var(--mono); background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+  footer .backed { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+
+  /* evidence capture */
+  .capture { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .capture .thumb { aspect-ratio: 1; position: relative; }
+  .capture .thumb .rm {
+    position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(20,26,32,.62); color: #fff; font-size: 12px; line-height: 18px; text-align: center;
+  }
+  .capture .add {
+    aspect-ratio: 1; border: 1.5px dashed var(--border); border-radius: var(--radius-sm);
+    display: grid; place-items: center; color: var(--ink-muted); font-size: 22px; background: var(--surface);
+  }
+  .cap-row { display: flex; gap: 8px; }
+  .cap-row .btn { width: auto; flex: 1; font-size: 13px; padding: 10px; }
+  .req {
+    display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600;
+    color: var(--st-closed); background: var(--st-closed-bg); padding: 7px 10px; border-radius: var(--radius-sm);
+  }
+  .req.unmet { color: #C43D3D; background: color-mix(in srgb, #C43D3D 12%, transparent); }
+  @media (prefers-color-scheme: dark) { .req.unmet { color: #FF8A8A; } }
+  .req::before { content: "✓"; font-weight: 900; }
+  .req.unmet::before { content: "!"; }
+  .ta { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); padding: 11px 12px; font-size: 13px; color: var(--ink-muted); min-height: 62px; }
+
+  /* ---- desktop / office view ---- */
+  .section-band { margin: 48px 0 18px; display: flex; flex-direction: column; gap: 6px; }
+  .section-band .k { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .section-band h2 { margin: 0; font-size: clamp(20px, 2.6vw, 26px); letter-spacing: -.015em; }
+  .section-band p { margin: 0; color: var(--ink-muted); font-size: 15px; max-width: 64ch; }
+
+  .deskwrap { overflow-x: auto; padding-bottom: 6px; }
+  .browser { min-width: 760px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+  .chrome { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+  .chrome .dots { display: flex; gap: 6px; }
+  .chrome .dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--border); display: inline-block; }
+  .chrome .url { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px; font-family: var(--mono); font-size: 12px; color: var(--ink-muted); }
+
+  .desk-topbar { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
+  .desk-topbar .search { flex: 1; max-width: 340px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 13px; color: var(--ink-muted); }
+  .desk-topbar .spacer { flex: 1; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--ink-muted); }
+
+  .desk-main { display: grid; grid-template-columns: 1.25fr 1fr; min-height: 470px; }
+  .desk-list { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .desk-list .seg { margin: 14px 16px 8px; flex: none; }
+  .drow, .dhead {
+    display: grid; grid-template-columns: 74px 1.4fr 1fr 96px; gap: 12px; align-items: center;
+    padding: 11px 16px; font-size: 13px;
+  }
+  .dhead { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); font-weight: 700; border-bottom: 1px solid var(--border); }
+  .drow { border-bottom: 1px solid var(--border); }
+  .drow .code { font-family: var(--mono); font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .drow .oname { font-weight: 600; }
+  .drow .cli { color: var(--ink-muted); }
+  .drow.sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+
+  .desk-detail { padding: 22px 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .desk-detail .stepper { margin: 2px 0; }
+  .desk-detail .evidence .thumb { max-width: 120px; }
+  .desk-actions { display: flex; gap: 10px; margin-top: 2px; }
+  .desk-actions .btn { width: auto; padding: 10px 20px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="masthead">
+    <span class="kicker">FieldOps · Exploración de front</span>
+    <h1>Vistas mínimas deducidas del brief</h1>
+    <p class="lede">Órdenes de trabajo para técnicos de campo. La superficie mínima es <strong>una lista y un detalle</strong>: las acciones aparecen según el <em>rol</em> del usuario y el <em>estado</em> de la orden. App <strong>responsive</strong>: móvil para el técnico en campo, escritorio <em>master-detail</em> para dispatcher y supervisor en oficina — mismo sistema de diseño.</p>
+    <p class="note-strip"><b>Nota:</b> esto es una exploración de diseño no vinculante — deriva de los roles del brief y de los contratos OpenAPI ya congelados. No es la spec del front ni toca el repo; cuando se abra la fase se especificaría con <code>/specify</code>.</p>
+  </header>
+
+  <section class="legends">
+    <div class="card">
+      <h2>Ciclo de vida de la orden</h2>
+      <div class="fsm">
+        <span class="chip draft">draft</span><span class="arrow">→</span>
+        <span class="chip assigned">assigned</span><span class="arrow">→</span>
+        <span class="chip progress">in_progress</span><span class="arrow">→</span>
+        <span class="chip review">pending_review</span><span class="arrow">→</span>
+        <span class="chip closed">closed</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Roles y lo que hacen</h2>
+      <div class="roles-list">
+        <div class="role-row"><span class="role-name">Dispatcher</span><span class="role-desc">organiza y reasigna órdenes entre técnicos</span></div>
+        <div class="role-row"><span class="role-name">Técnico</span><span class="role-desc">inicia el trabajo y registra la ejecución con evidencia</span></div>
+        <div class="role-row"><span class="role-name">Supervisor</span><span class="role-desc">revisa en <span class="chip review" style="font-size:11px;padding:1px 8px;">pending_review</span> y aprueba o rechaza</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screens">
+
+    <!-- 1. LOGIN -->
+    <article class="screen">
+      <div class="cap"><span class="num">01</span><span class="title">Acceso</span><span class="who">· cualquier rol</span></div>
+      <div class="phone"><div class="phone-inner">
+        <div class="statusbar"><span>9:41</span><span>FieldOps</span></div>
+        <div class="screen-body" style="justify-content:center;">
+          <div class="login-hero">
+            <div class="mark-lg">F</div>
+            <div class="wm">FieldOps</div>
+            <div class="tag">Gestión de órdenes de campo</div>
+          </div>
+          <div class="field">
+            <label>Email o usuario</label>
+            <div class="box ph">l.ortega@fieldops.io</div>
+          </div>
+          <div class="field">
+            <label>Contraseña</label>
+            <div class="box ph">••••••••••</div>
+          </div>
+          <button class="btn primary">Entrar</button>
+          <p class="gate-note" style="text-align:center;">Sesión con expiración y revocación · 401 si caduca</p>
+        </div>
+      </div></div>
+    </article>
+
+    <!-- 2. LISTA -->
+    <article class="screen">
+      <div class="cap"><span class="num">02</span><span class="title">Mis órdenes</span><span class="who">· vista de Técnico</span></div>
+      <div class="phone"><div class="phone-inner">
+        <div class="statusbar"><span>9:41</span><span>100%</span></div>
+        <div class="appbar">
+          <div class="brand"><span class="mark">F</span>FieldOps</div>
+          <span class="role-chip">Técnico · L. Ortega</span>
+        </div>
+        <div class="screen-body">
+          <div class="seg"><span class="on">Activas</span><span>Todas</span></div>
+
+          <div class="order">
+            <div class="top"><span class="code">OT-2041</span><span class="chip progress">in_progress</span></div>
+            <span class="name">Reparación de climatización</span>
+            <div class="meta"><span>Mercadona Xàtiva</span><span class="tech">Tú</span></div>
+          </div>
+          <div class="order">
+            <div class="top"><span class="code">OT-2042</span><span class="chip assigned">assigned</span></div>
+            <span class="name">Instalación de router</span>
+            <div class="meta"><span>Gestoría Vidal</span><span class="tech">Tú</span></div>
+          </div>
+          <div class="order">
+            <div class="top"><span class="code">OT-2039</span><span class="chip review">pending_review</span></div>
+            <span class="name">Mantenimiento de ascensor</span>
+            <div class="meta"><span>Comunidad Pl. Mayor 3</span><span class="tech">Tú</span></div>
+          </div>
+          <div class="order">
+            <div class="top"><span class="code">OT-2036</span><span class="chip closed">closed</span></div>
+            <span class="name">Revisión eléctrica</span>
+            <div class="meta"><span>Bar Central</span><span class="tech">Tú</span></div>
+          </div>
+        </div>
+      </div></div>
+    </article>
+
+    <!-- 3. DETALLE + acciones por rol -->
+    <article class="screen">
+      <div class="cap"><span class="num">03</span><span class="title">Detalle de orden</span><span class="who">· acciones por rol</span></div>
+      <div class="phone"><div class="phone-inner">
+        <div class="statusbar"><span>9:41</span><span>100%</span></div>
+        <div class="appbar">
+          <div class="backlink">‹ Órdenes</div>
+          <span class="role-chip" id="roleTag">Supervisor</span>
+        </div>
+        <div class="screen-body">
+          <div class="detail-head">
+            <span class="code">OT-2039</span>
+            <span class="name">Mantenimiento de ascensor</span>
+            <span class="sub">Comunidad Pl. Mayor 3 · Xàtiva</span>
+          </div>
+
+          <div class="stepper" aria-label="Estado: pending_review">
+            <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">draft</span></div>
+            <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">asign.</span></div>
+            <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">progr.</span></div>
+            <div class="step here"><span class="bar"></span><span class="dot"></span><span class="lbl">revisión</span></div>
+            <div class="step"><span class="bar"></span><span class="dot"></span><span class="lbl">cerrada</span></div>
+          </div>
+
+          <div class="block">
+            <span class="h">Notas del técnico</span>
+            <div class="notes">Sustituida polea de tracción y engrasado el guiado. Cabina nivela correctamente. Pendiente revisar ruido leve en planta 2.</div>
+          </div>
+
+          <div class="block">
+            <span class="h">Evidencia</span>
+            <div class="evidence">
+              <div class="thumb">foto 1</div>
+              <div class="thumb">foto 2</div>
+            </div>
+          </div>
+
+          <div class="block">
+            <span class="h">Acciones</span>
+            <div class="tabs" role="tablist" aria-label="Acciones por rol">
+              <button role="tab" aria-selected="false" data-role="Dispatcher" data-panel="p-disp">Dispatcher</button>
+              <button role="tab" aria-selected="false" data-role="Técnico" data-panel="p-tech">Técnico</button>
+              <button role="tab" aria-selected="true" data-role="Supervisor" data-panel="p-sup">Supervisor</button>
+            </div>
+
+            <div class="panel" id="p-disp">
+              <button class="btn ghost">Reasignar a otro técnico</button>
+              <p class="gate-note">Solo dispatcher · disponible en estados reasignables. Endpoint <code>reassignOrder</code>.</p>
+            </div>
+
+            <div class="panel" id="p-tech">
+              <button class="btn ghost">Iniciar trabajo</button>
+              <button class="btn primary">Registrar ejecución · añadir foto</button>
+              <p class="gate-note">Solo técnico asignado · <code>startOrderWork</code> (assigned→in_progress) y <code>submitOrderExecution</code> (≥1 foto → pending_review).</p>
+            </div>
+
+            <div class="panel on" id="p-sup">
+              <div class="ai">
+                <span class="h">◆ Resumen de la incidencia</span>
+                <p>Mantenimiento correctivo del ascensor: sustituida la polea de tracción y engrasado el guiado; nivelación correcta. Queda como observación un ruido leve en planta 2.</p>
+                <span class="guard">Generado a partir de las notas. Si no hubiera evidencia o nota suficiente, el asistente lo indica y no inventa el resumen.</span>
+              </div>
+              <div class="btn-row">
+                <button class="btn ok">Aprobar</button>
+                <button class="btn danger">Rechazar</button>
+              </div>
+              <p class="gate-note">Solo supervisor · en <code>pending_review</code>. Rechazar exige motivo (→ in_progress, evidencia conservada).</p>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </article>
+
+    <!-- 4. REGISTRAR EJECUCIÓN (evidencia) -->
+    <article class="screen">
+      <div class="cap"><span class="num">04</span><span class="title">Registrar ejecución</span><span class="who">· Técnico · evidencia obligatoria</span></div>
+      <div class="phone"><div class="phone-inner">
+        <div class="statusbar"><span>9:41</span><span>100%</span></div>
+        <div class="appbar">
+          <div class="backlink">‹ OT-2041</div>
+          <span class="role-chip">Técnico · L. Ortega</span>
+        </div>
+        <div class="screen-body">
+          <div class="detail-head">
+            <span class="code">OT-2041</span>
+            <span class="name">Reparación de climatización</span>
+            <span class="sub">Mercadona Xàtiva · en curso</span>
+          </div>
+
+          <div class="block">
+            <span class="h">Evidencia fotográfica</span>
+            <div class="capture">
+              <div class="thumb">foto 1<span class="rm">×</span></div>
+              <div class="thumb">foto 2<span class="rm">×</span></div>
+              <div class="add">+</div>
+            </div>
+            <div class="cap-row">
+              <button class="btn ghost">Tomar foto</button>
+              <button class="btn ghost">Subir archivo</button>
+            </div>
+            <div class="req">Requisito cumplido · 2 fotos adjuntas (mínimo 1)</div>
+          </div>
+
+          <div class="block">
+            <span class="h">Notas de la ejecución</span>
+            <div class="ta">Compresor sustituido y recarga de gas R-32. Verificado enfriamiento en las dos unidades interiores…</div>
+          </div>
+
+          <button class="btn primary">Enviar ejecución → revisión</button>
+          <p class="gate-note"><code>submitOrderExecution</code> (in_progress → pending_review). La subida binaria real (multipart, URL firmada ≤300&nbsp;s, PII del binario) es la feature <code>007</code>.</p>
+        </div>
+      </div></div>
+    </article>
+
+  </section>
+
+  <div class="section-band">
+    <span class="k">Mismo sistema · contexto de oficina</span>
+    <h2>En escritorio: dispatcher y supervisor</h2>
+    <p>El mismo listado y detalle, en un layout <em>master-detail</em>: la lista de órdenes a la izquierda, el detalle y las acciones a la derecha — pensado para revisar y reasignar en volumen desde la mesa, no desde el móvil.</p>
+  </div>
+
+  <div class="deskwrap">
+    <div class="browser">
+      <div class="chrome">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="url">app.fieldops.io/orders</span>
+      </div>
+      <div class="desk-topbar">
+        <div class="brand"><span class="mark">F</span>FieldOps</div>
+        <span class="search">Buscar orden, cliente o técnico…</span>
+        <span class="spacer"></span>
+        <span class="role-chip">Supervisor</span>
+        <span class="avatar">MV</span>
+      </div>
+      <div class="desk-main">
+        <div class="desk-list">
+          <div class="seg"><span class="on">Pendientes de revisión</span><span>Todas</span></div>
+          <div class="dhead"><span>Código</span><span>Orden</span><span>Cliente</span><span>Estado</span></div>
+          <div class="drow sel">
+            <span class="code">OT-2039</span><span class="oname">Mantenimiento de ascensor</span><span class="cli">Comunidad Pl. Mayor 3</span><span class="chip review">revisión</span>
+          </div>
+          <div class="drow">
+            <span class="code">OT-2044</span><span class="oname">Cambio de cerradura</span><span class="cli">Oficinas Delta</span><span class="chip review">revisión</span>
+          </div>
+          <div class="drow">
+            <span class="code">OT-2041</span><span class="oname">Reparación de climatización</span><span class="cli">Mercadona Xàtiva</span><span class="chip progress">in&nbsp;progress</span>
+          </div>
+          <div class="drow">
+            <span class="code">OT-2042</span><span class="oname">Instalación de router</span><span class="cli">Gestoría Vidal</span><span class="chip assigned">assigned</span>
+          </div>
+          <div class="drow">
+            <span class="code">OT-2036</span><span class="oname">Revisión eléctrica</span><span class="cli">Bar Central</span><span class="chip closed">closed</span>
+          </div>
+        </div>
+        <div class="desk-detail">
+          <div class="detail-head">
+            <span class="code">OT-2039</span>
+            <span class="name">Mantenimiento de ascensor</span>
+            <span class="sub">Comunidad Pl. Mayor 3 · Xàtiva · técnico: L. Ortega</span>
+          </div>
+          <div class="stepper" aria-label="Estado: pending_review">
+            <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">draft</span></div>
+            <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">asign.</span></div>
+            <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">progr.</span></div>
+            <div class="step here"><span class="bar"></span><span class="dot"></span><span class="lbl">revisión</span></div>
+            <div class="step"><span class="bar"></span><span class="dot"></span><span class="lbl">cerrada</span></div>
+          </div>
+          <div class="block">
+            <span class="h">Evidencia</span>
+            <div class="evidence"><div class="thumb">foto 1</div><div class="thumb">foto 2</div></div>
+          </div>
+          <div class="ai">
+            <span class="h">◆ Resumen de la incidencia</span>
+            <p>Mantenimiento correctivo del ascensor: sustituida la polea de tracción y engrasado el guiado; nivelación correcta. Observación: ruido leve en planta 2.</p>
+            <span class="guard">Generado a partir de las notas. Sin evidencia/nota suficiente, el asistente lo indica y no inventa.</span>
+          </div>
+          <div class="desk-actions">
+            <button class="btn ok">Aprobar</button>
+            <button class="btn danger">Rechazar con motivo</button>
+            <button class="btn ghost">Reasignar</button>
+          </div>
+          <p class="gate-note">Acciones según rol: supervisor aprueba/rechaza en <code>pending_review</code>; el dispatcher ve “Reasignar” en estados reasignables. Misma pantalla, distinto rol.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>Deducido de <code>docs/00-brief-original.md</code> + enunciado del curso + <code>contracts/*.openapi.yaml</code>. Textos de usuario en español; identificadores en inglés (convención de la constitución).</div>
+    <div class="backed">
+      <span><span class="chip closed" style="font-size:11px;padding:1px 8px;">respaldado</span> login · listOrders · reassignOrder · startOrderWork · submitOrderExecution</span>
+      <span><span class="chip review" style="font-size:11px;padding:1px 8px;">pendiente</span> aprobar/rechazar (revisión) · resumen IA (feature 006) · subida binaria de foto (007)</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var tablist = document.querySelector('.tabs');
+    if (!tablist) return;
+    var tabs = Array.prototype.slice.call(tablist.querySelectorAll('button'));
+    var roleTag = document.getElementById('roleTag');
+    function select(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        document.getElementById(t.dataset.panel).classList.toggle('on', on);
+      });
+      roleTag.textContent = tab.dataset.role;
+    }
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function () { select(t); });
+      t.addEventListener('keydown', function (e) {
+        var i = tabs.indexOf(t);
+        if (e.key === 'ArrowRight') { e.preventDefault(); tabs[(i + 1) % tabs.length].focus(); tabs[(i + 1) % tabs.length].click(); }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); tabs[(i - 1 + tabs.length) % tabs.length].focus(); tabs[(i - 1 + tabs.length) % tabs.length].click(); }
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

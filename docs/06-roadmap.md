@@ -124,6 +124,8 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 | FE-3 | `NNN-front-dispatcher` | **Front del dispatcher (escritorio)**: reasignación en master-detail | FE-1, 003 | "reasigno una orden reasignable a otro técnico" |
 | FE-4 | `NNN-front-supervisor` | **Front del supervisor (escritorio)**: aprobar/rechazar + panel de resumen IA | FE-1, revisión (005), 006 | "reviso, veo el resumen y apruebo/rechazo con motivo" |
 | FE-5 | `017-front-reskin` | **Reskin del front + tema oscuro** (transversal, presentación): refresh del design system (acento naranja, paleta de estados, radios/sombras suaves, **Stepper** del FSM, tarjeta de resumen IA) + **tema oscuro** (reescribe §2.4). **Sin ampliar alcance funcional, sin estilos sueltos, WCAG 2.1 AA en ambos temas.** | FE-1..FE-4 | "la app se ve como la exploración y funciona igual, en claro y oscuro" |
+| FE-6 | `020-front-architecture` | **Arquitectura y buenas prácticas de front** (gobernanza): `docs/front-architecture.md` **explicativo** (el porqué de cada convención) que formaliza la estructura ya existente (`features/` + kit `ui/` + capa `api/` + TanStack Query + tokens) y fija reglas de React (presentacional vs contenedor, lógica en hooks, estados carga/error/vacío/sin-permiso, a11y, límites de estado) **enforced por eslint**. Espeja para el front la disciplina que el back tiene en la constitution. | FE-5 | "el front tiene arquitectura documentada y el lint la hace cumplir" |
+| FE-7 | `021-front-dual-accent` | **Fidelidad estética con el artifact — doble token de acento** (presentación): recupera el naranja vivo del artifact (`#DC5A24`) para superficies grandes/decorativas y mantiene un acento **accesible** solo donde hay texto blanco (botones). Máxima fidelidad **sin romper AA**. Verificación visual con **Playwright MCP** (claro/oscuro). Sin ampliar alcance ni estilos sueltos. | FE-5, FE-6 | "el acento se ve como el artifact y sigue cumpliendo AA en ambos temas" |
 
 > **Sistema de diseño (UX/UI) — se define justo antes de FE-1**, no por adelantado: tokens/paleta, tipografía,
 > componentes base, patrón responsive campo↔oficina, accesibilidad **WCAG 2.1 AA** (Constitution, Convenciones).
@@ -138,6 +140,22 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > porque el listado no tiene filtro cliente (el alcance lo fija el backend por rol). El **tema oscuro** reescribe
 > la exención §2.4 del design system (hoy "fuera de MVP"), por decisión explícita del usuario (2026-07-15), con
 > contraste **AA verificado en ambos temas**. Depende de FE-1..4 (repinta lo ya construido).
+>
+> **FE-6 (020-front-architecture) y FE-7 (021-front-dual-accent) — decididas 2026-07-15**: en back se aplicó
+> DDD/hexagonal por constitution, pero el **front nunca fijó arquitectura ni buenas prácticas** documentadas.
+> **FE-6** formaliza (con el *porqué*, porque el equipo controla menos el front) la estructura ya existente y la
+> hace cumplir por eslint — es **gobernanza/doc**, no cambia alcance funcional. **FE-7** cierra la brecha estética:
+> el reskin de FE-5 quedó "parecido pero no igual" al artifact porque el naranja se oscureció (`#c2410c`) para
+> cumplir AA; el **doble token** recupera el `#DC5A24` vivo donde no lleva texto y mantiene el accesible en
+> botones. Orden: FE-6 antes que FE-7 (la estética se ciñe a las convenciones recién documentadas).
+>
+> **Tooling de desarrollo (meta, NO feature de producto → sin gates SDD)** — 2026-07-15: el panel de agentes era
+> **solo de verificación** (gates). Se añaden **agentes de autoría** especializados por stack en `.claude/agents/`:
+> **`dev-backend`** (TS/hexagonal), **`dev-frontend`** (React/design-system), **`dev-tests`** (fase Red TDD),
+> **`steward-contract`** (OpenAPI/Zod contract-first) y **`maintainer-docs`** (trazabilidad/bitácora). Separación
+> de funciones intacta: **el que construye no valida** (los gates siguen siendo independientes). Además se instala
+> el **Playwright MCP** (`.mcp.json`, ámbito de proyecto) para test visual del front (render + captura claro/oscuro
+> + axe interactivo). Al ser tooling/config, se implementa **directo** (rama + PR), sin `specify→G1→G2→G3`.
 >
 > **Deuda trazada → feature #010 — Detalle de orden (read-side, prerequisito de FE-1/FE-4)**: las specs 004–006
 > son *write-side* y **no** exponen la lectura del detalle (notas de ejecución + metadatos de evidencia + motivo
