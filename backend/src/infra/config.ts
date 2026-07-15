@@ -79,6 +79,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   const v = parsed.data;
   assertSecretsDistinct(v.JWT_SECRET, v.CSRF_HMAC_SECRET, v.LOCKOUT_HMAC_SECRET);
+  // 018/H-002 fail-fast: el proveedor mock produce resúmenes plantilla (sufficient:true SIEMPRE); NUNCA debe
+  // llegar a producción (daría resúmenes falsos con apariencia de IA real). El guard dev-only no cubre el
+  // branch mock del contenedor, así que se prohíbe aquí de forma estructural.
+  if (v.NODE_ENV === 'production' && v.AI_PROVIDER === 'mock') {
+    throw new Error('Config inválida (fail-fast, 018): AI_PROVIDER=mock no permitido con NODE_ENV=production.');
+  }
   return {
     jwtSecret: v.JWT_SECRET,
     csrfSecret: v.CSRF_HMAC_SECRET,

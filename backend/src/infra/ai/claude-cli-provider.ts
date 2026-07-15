@@ -16,11 +16,18 @@ export interface ClaudeCliProviderConfig {
 // 018/FR-002: errores de spawn que impiden EJECUTAR el binario → "no operable en este entorno"
 // (AI_UNAVAILABLE, 501, no reintentable); el resto (post-spawn: timeout/exit≠0) → transitorio (503).
 const SPAWN_UNAVAILABLE_CODES = new Set(['ENOENT', 'EACCES', 'ENOEXEC', 'ENOTDIR', 'EPERM']);
-function classifyProviderError(e: unknown): DomainError {
+// FR-005: mensaje/agent_action GENÉRICOS (sin binario/ruta/versión/traza). agent_action guía a clientes
+// automatizados a NO reintentar (a diferencia de SERVICE_UNAVAILABLE, transitorio).
+const AI_UNAVAILABLE_MSG = 'El resumen por IA no está disponible en este entorno.';
+const AI_UNAVAILABLE_ACTION = 'No reintentes: el resumen por IA no está disponible en este entorno.';
+export function aiUnavailableError(): DomainError {
+  return domainError('AI_UNAVAILABLE', AI_UNAVAILABLE_MSG, { agentAction: AI_UNAVAILABLE_ACTION });
+}
+// 018/FR-002: clasifica el error nativo de execFile. Spawn no-ejecutable → AI_UNAVAILABLE (501); resto → 503.
+export function classifyProviderError(e: unknown): DomainError {
   const code = typeof e === 'object' && e !== null && 'code' in e ? (e as { code?: unknown }).code : undefined;
   if (typeof code === 'string' && SPAWN_UNAVAILABLE_CODES.has(code)) {
-    // Mensaje GENÉRICO (FR-005): sin nombre de binario, ruta, versión ni traza.
-    return domainError('AI_UNAVAILABLE', 'El resumen por IA no está disponible en este entorno.');
+    return aiUnavailableError();
   }
   return domainError('SERVICE_UNAVAILABLE', 'El asistente de IA no está disponible.');
 }
@@ -39,7 +46,7 @@ export class ClaudeCliProvider implements AiSummaryProviderPort {
   async generate(input: PromptInput): Promise<Result<ProviderSummary | null, DomainError>> {
     // 018/FR-006: guard dev-only deny-by-default — si no es operable en este entorno, NO se invoca el binario.
     if (!this.cfg.operable) {
-      return err(domainError('AI_UNAVAILABLE', 'El resumen por IA no está disponible en este entorno.'));
+      return err(aiUnavailableError());
     }
     const prompt = buildPrompt(input, this.cfg.temperature);
     let stdout: string;

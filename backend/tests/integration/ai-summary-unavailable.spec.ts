@@ -66,4 +66,11 @@ describe('summarizeOrderIncident — proveedor no operable en este entorno (018)
     expect(res.status).toBe(401);
     expect(res.body.code).not.toBe('AI_UNAVAILABLE');
   });
+
+  it('SC-003 · precedencia: supervisor sobre orden NO visible → 404, no 501 (proveedor no operable)', async () => {
+    const missing = '018f2000-0000-7000-8000-0000000000ff'; // UUID válido, orden inexistente/no visible
+    const res = await request(app).post(`/v1/orders/${missing}/ai-summary`).set('Authorization', `Bearer ${supTok}`);
+    expect(res.status).toBe(404);
+    expect(res.body.code).not.toBe('AI_UNAVAILABLE');
+  });
 });

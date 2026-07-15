@@ -3,10 +3,26 @@
 // - error de spawn no-ejecutable (ENOENT: binario ausente) → AI_UNAVAILABLE (501, no reintentable);
 // - fallo POST-spawn (exit≠0 con binario presente) → SERVICE_UNAVAILABLE (503, transitorio).
 import { describe, expect, it } from 'vitest';
-import { ClaudeCliProvider } from '../../src/infra/ai/claude-cli-provider';
+import { ClaudeCliProvider, classifyProviderError } from '../../src/infra/ai/claude-cli-provider';
 import type { PromptInput } from '../../src/domain/ai/summary-ports';
 
 const INPUT: PromptInput = { notesRedacted: 'notas', evidence: { count: 1, contentTypes: ['image/jpeg'] } };
+
+describe('classifyProviderError (018/FR-002/FR-005)', () => {
+  it.each(['ENOENT', 'EACCES', 'ENOEXEC', 'ENOTDIR', 'EPERM'])(
+    'spawn no-ejecutable %s → AI_UNAVAILABLE con agent_action de no-reintento',
+    (code) => {
+      const de = classifyProviderError(Object.assign(new Error('x'), { code }));
+      expect(de.code).toBe('AI_UNAVAILABLE');
+      expect(de.agentAction).toMatch(/no reintentes/i);
+      // genérico: sin fugas.
+      expect(`${de.message} ${de.agentAction ?? ''}`.toLowerCase()).not.toMatch(/claude|enoent|execfile|\//);
+    },
+  );
+  it.each([1, 127, 'ETIMEDOUT'])('fallo post-spawn (%s) → SERVICE_UNAVAILABLE (transitorio)', (code) => {
+    expect(classifyProviderError(Object.assign(new Error('x'), { code })).code).toBe('SERVICE_UNAVAILABLE');
+  });
+});
 
 describe('ClaudeCliProvider — disponibilidad (018)', () => {
   it('guard dev-only: operable=false → AI_UNAVAILABLE sin invocar el binario', async () => {

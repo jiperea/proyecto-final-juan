@@ -43,6 +43,10 @@ describe('config fail-fast (FR-016)', () => {
     expect(loadConfig({ ...base, NODE_ENV: 'test', AI_PROVIDER: 'mock' }).aiOperable).toBe(true);
   });
 
+  it('018/H-002: aborta si AI_PROVIDER=mock en producción (evita resúmenes falsos)', () => {
+    expect(() => loadConfig({ ...base, NODE_ENV: 'production', AI_PROVIDER: 'mock' })).toThrowError(/mock.*production|production.*mock/i);
+  });
+
   it('aborta nombrando la variable que falta', () => {
     const withoutJwt: Record<string, string> = { ...base };
     delete withoutJwt.JWT_SECRET;

@@ -115,17 +115,18 @@ errores transitorios (429/503) sin cambios.
   (HTTP 503, transitorio/reintentable).
 - **FR-002**: La distinción "no operable" vs "transitorio" SHALL hacerse **clasificando el error nativo del
   `execFile`** en el **adaptador** (`claude-cli-provider`): errores de **spawn que impiden ejecutar el
-  binario** (`ENOENT` binario ausente, `EACCES`/`ENOEXEC` no ejecutable, `ENOTDIR`) → `AI_UNAVAILABLE`;
+  binario** (`ENOENT` ausente, `EACCES`/`EPERM`/`ENOEXEC` no ejecutable, `ENOTDIR`) → `AI_UNAVAILABLE`;
   errores **tras el spawn** (timeout/`killed`, exit≠0, salida no parseable con el binario presente) →
   `SERVICE_UNAVAILABLE` (transitorio). **No** hay probe separado, **ni caché**, **ni** llamada de red, **ni**
   dependencia del texto del error (se usa `error.code`/`error.syscall` nativos). La decisión vive en
   **infra** (el adaptador); el **dominio permanece puro** (recibe un `DomainError` tipado, sin `child_process`).
-- **FR-002b**: WHEN se procesa `ai-summary` THE backend SHALL respetar el **orden**: (1) autenticación
-  (**401** si no autenticado) → (2) autorización: rol supervisor (**403** si otro rol) y visibilidad/estado
-  `pending_review` (**404** si no visible/otro estado, no-enumeración) → (3) **rate-limit** (**429** si
-  excede) → (4) gate de material (`sufficient:false`, **200**, si insuficiente) → (5) invocación del
-  proveedor (de donde puede surgir `AI_UNAVAILABLE`). Un actor no autorizado, orden fuera de
-  `pending_review`, o rate-limited **nunca** recibe `AI_UNAVAILABLE` (recibe 401/403/404/429 antes).
+- **FR-002b**: WHEN se procesa `ai-summary` THE backend SHALL respetar el **orden heredado de 007/FR-012**
+  (no se altera): (1) autenticación (**401**) → (2) rol supervisor (**403**) → (3) **rate-limit** (**429**)
+  → (4) visibilidad/estado `pending_review` (**404**, no-enumeración) → (5) gate de material
+  (`sufficient:false`, **200**, si insuficiente) → (6) invocación del proveedor (de donde puede surgir
+  `AI_UNAVAILABLE`). Un actor no autenticado/no-supervisor/rate-limited/orden-no-visible **nunca** recibe
+  `AI_UNAVAILABLE` (recibe 401/403/429/404 antes). *(Nota: 429 precede a 404, orden canónico de 007
+  verificado por `ai-summary-access-event`; 018 no lo cambia.)*
 - **FR-003**: WHEN la UI de revisión recibe `code:AI_UNAVAILABLE` THE front SHALL mostrar «El resumen por IA
   no está disponible en este entorno», **deshabilitar** el disparador y **no** ofrecer reintento, sin
   bloquear el resto de la revisión (MVP reactivo; ocultación proactiva = stretch).
