@@ -29,7 +29,15 @@ export interface ProviderSummary {
 }
 
 // Outcome del evento de acceso (FR-013). `blocked_pii` (seguridad) distinguible; `denied` cubre 403/404/429.
-export type AccessOutcome = 'success' | 'fallback_insufficient' | 'blocked_pii' | 'error' | 'denied';
+// `unavailable` (018): proveedor IA no operable en este entorno (dev-only) — distinguible de `error` (fallo
+// interno real) para observabilidad; se registra SIN PII (solo actor/orderId/outcome).
+export type AccessOutcome =
+  | 'success'
+  | 'fallback_insufficient'
+  | 'blocked_pii'
+  | 'error'
+  | 'denied'
+  | 'unavailable';
 
 // Sub-tipo del rechazo (S-001, granularidad forense): sólo presente cuando outcome=denied.
 export type DeniedReason = 'role_403' | 'not_visible_404' | 'rate_limited_429';

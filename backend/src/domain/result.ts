@@ -37,6 +37,7 @@ export type ErrorCode =
   // --- 006: revisión del supervisor ---
   | 'INVALID_REASON' // 422 motivo inválido tras saneo (rechazo obligatorio; approve si se aporta) — 1..1000
   | 'EVIDENCE_MISSING' // 409 aprobar una orden visible en pending_review pero SIN ≥1 evidencia (invariante 005 rota)
+  | 'AI_UNAVAILABLE' // 501 proveedor IA no operable en ESTE entorno (dev-only, 018): NO reintentable, distinto de 503
   | 'INTERNAL'; // 500 genérico (error de BD/inesperado); nunca filtra detalle de Postgres (FR-009)
 
 export interface DomainError {

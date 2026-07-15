@@ -34,6 +34,7 @@ const STATUS: Record<ErrorCode, number> = {
   // en approve, orden visible sin evidencia) 409 — DISTINTO de EVIDENCE_REQUIRED (005, payload) que sigue en 422.
   INVALID_REASON: 422,
   EVIDENCE_MISSING: 409,
+  AI_UNAVAILABLE: 501, // 018: proveedor IA no operable en este entorno (dev-only); no reintentable
   INTERNAL: 500,
 };
 

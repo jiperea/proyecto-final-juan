@@ -27,6 +27,8 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     aiProvider: 'mock',
     aiTimeoutMs: 10_000,
     aiTemperature: 0,
+    aiOperable: true, // 018: mock es operable; la indisponibilidad se prueba inyectando el provider (summaryDeps)
+
     aiMinNotesChars: 30,
     aiMinEvidence: 1,
     aiRateMax: 10,

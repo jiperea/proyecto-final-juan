@@ -112,7 +112,10 @@ export function summarizeIncidentHandler(deps: SummarizeIncidentHandlerDeps): Re
         { source },
       );
       if (!result.ok) {
-        deps.accessLog.record({ actor: auth.userId, orderId: safeOrderId, outcome: 'error' }); // 503 (M1)
+        // 018/FR-005: proveedor no operable en este entorno → outcome distinguible `unavailable` (sin PII),
+        // separado del fallo interno real `error` (503). sendError mapea AI_UNAVAILABLE→501 por el Record.
+        const outcome = result.error.code === 'AI_UNAVAILABLE' ? 'unavailable' : 'error';
+        deps.accessLog.record({ actor: auth.userId, orderId: safeOrderId, outcome });
         sendError(res, result.error);
         return;
       }

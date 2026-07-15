@@ -84,6 +84,19 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > DNI/NIF/NIE, matrícula, IBAN, tarjeta}: pasaporte, nº póliza/cliente, cuenta no-IBAN, etc. — residual
 > best-effort (prompt+eval), a endurecer (patrones adicionales o NER) antes de datos reales sensibles.
 
+> **Fixture de demostrabilidad → feature #019 (`019-seed-approvable-review`)**: el seed añade una orden
+> `pending_review` de technician1 **con evidencia + audit** (ancla `SEED_ORDERS.approvableReview`) para que
+> el flujo **aprobar** del supervisor sea demostrable desde un arranque limpio (sin ejecutar antes el paso
+> del técnico). Solo datos semilla; sin lógica/contratos. Nota: evidencia/audit/notas son **append-only**
+> (DELETE prohibido) → re-seed de una BD con datos = `prisma migrate reset`. Suite de backend en verde.
+> **Resolución de BL-072 → feature #018 (`018-ai-summary-dev-only`)**, decisión del usuario (2026-07-15):
+> el resumen IA es **dev-only** (proveedor `claude-cli` en host; `mock` en tests). En el entorno
+> **desplegado** (contenedor/Render, sin binario `claude`) el producto **declara la IA no disponible**
+> ("no disponible en este entorno") con un código distinguible (`AI_UNAVAILABLE`), en vez del 503
+> transitorio con "reintentar", y oculta/deshabilita el disparador. **No** se añade API de pago (respeta
+> "sin API de pago"). Diagnóstico: el endpoint IA es correcto pero el contenedor no puede invocar `claude`
+> → 503; verificado en vivo. Cierra BL-072 como dev-only (no como proveedor de producción por API).
+
 > **Regla de atomización (XV)**: todo cluster que se **saca** de una feature para no sobredimensionarla se
 > registra **aquí como feature propia** (#007–#009, no sólo en backlog) y se **lanza cuando toque** — nunca se
 > deja como scope difuso/olvidado (lección de #003/#004). Trazan al brief: #007 = "foto de evidencia" (Func #2);
@@ -110,11 +123,21 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 | FE-2 | `NNN-front-tecnico` | **Front del técnico (campo/móvil)**: iniciar trabajo + registrar ejecución + captura de evidencia | FE-1, 004 (subida binaria real → #007) | "registro la ejecución con ≥1 foto y la envío a revisión" |
 | FE-3 | `NNN-front-dispatcher` | **Front del dispatcher (escritorio)**: reasignación en master-detail | FE-1, 003 | "reasigno una orden reasignable a otro técnico" |
 | FE-4 | `NNN-front-supervisor` | **Front del supervisor (escritorio)**: aprobar/rechazar + panel de resumen IA | FE-1, revisión (005), 006 | "reviso, veo el resumen y apruebo/rechazo con motivo" |
+| FE-5 | `017-front-reskin` | **Reskin del front + tema oscuro** (transversal, presentación): refresh del design system (acento naranja, paleta de estados, radios/sombras suaves, **Stepper** del FSM, tarjeta de resumen IA) + **tema oscuro** (reescribe §2.4). **Sin ampliar alcance funcional, sin estilos sueltos, WCAG 2.1 AA en ambos temas.** | FE-1..FE-4 | "la app se ve como la exploración y funciona igual, en claro y oscuro" |
 
 > **Sistema de diseño (UX/UI) — se define justo antes de FE-1**, no por adelantado: tokens/paleta, tipografía,
 > componentes base, patrón responsive campo↔oficina, accesibilidad **WCAG 2.1 AA** (Constitution, Convenciones).
 > Referencia de partida: exploración de vistas mínimas (login · lista · detalle por rol · registro de ejecución
 > con evidencia; móvil + escritorio master-detail).
+>
+> **FE-5 (017-front-reskin) — refresh del design system, no una feature funcional**: FE-1..4 se implementaron
+> contra el design system inicial (acento azul, sin tema oscuro). La **exploración visual** mostrada al usuario
+> (acento naranja, tema oscuro, stepper, tarjeta IA) era **no vinculante**; FE-5 acerca el front a ese lenguaje
+> **dentro del design system** (solo tokens/componentes base, cero estilos sueltos) y **sin ampliar alcance**:
+> no añade endpoints/roles/estados/funciones. Se **descartó** el control segmentado de filtros del artifact
+> porque el listado no tiene filtro cliente (el alcance lo fija el backend por rol). El **tema oscuro** reescribe
+> la exención §2.4 del design system (hoy "fuera de MVP"), por decisión explícita del usuario (2026-07-15), con
+> contraste **AA verificado en ambos temas**. Depende de FE-1..4 (repinta lo ya construido).
 >
 > **Deuda trazada → feature #010 — Detalle de orden (read-side, prerequisito de FE-1/FE-4)**: las specs 004–006
 > son *write-side* y **no** exponen la lectura del detalle (notas de ejecución + metadatos de evidencia + motivo
