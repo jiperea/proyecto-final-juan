@@ -8,10 +8,17 @@ import { describe, expect, it } from 'vitest';
 // cwd = frontend/ cuando corre vitest.
 const tokens = readFileSync(resolve(process.cwd(), 'src/ui/tokens.css'), 'utf8');
 
-function tokenHex(name: string): string {
-  const m = tokens.match(new RegExp(`${name}\\s*:\\s*(#[0-9a-fA-F]{6})`));
+// var-aware (FE-7): resuelve `var(--otro)` siguiendo la referencia (p. ej. --color-focus-ring →
+// var(--color-accent-vivid) → #dc5a24). Lee el primer bloque (:root, valores claros).
+function tokenHex(name: string, depth = 0): string {
+  if (depth > 5) throw new Error(`ciclo de var en ${name}`);
+  const m = tokens.match(new RegExp(`${name}\\s*:\\s*([^;]+);`));
   if (!m) throw new Error(`token ${name} no encontrado`);
-  return m[1]!;
+  const val = m[1]!.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(val)) return val;
+  const ref = val.match(/^var\((--[\w-]+)\)$/);
+  if (ref) return tokenHex(ref[1]!, depth + 1);
+  throw new Error(`valor no resoluble para ${name}: ${val}`);
 }
 
 function luminance(hex: string): number {
