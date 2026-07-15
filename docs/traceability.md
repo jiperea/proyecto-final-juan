@@ -441,3 +441,20 @@ Feature de **gobernanza doc + lint** (sin endpoints/IA/backend). La columna "end
 | SC-004 | tsc/eslint/stylelint/build/vitest 5/5 verdes | T008 | suite completa (246/246) |
 | SC-005 | 0 ficheros backend/contracts/domain | T009 | `git diff --name-only` |
 | SC-006 | cada regla enforced del doc existe como error en config | T007 | `front-governance` (doc↔config) |
+
+## FE-7 · 021-front-dual-accent (doble token de acento)
+
+Feature de **presentación (solo CSS)**. Baseline: 3 superficies sin texto usan el acento **vivo**
+(`#dc5a24`/`#ff7a45`) ≥3:1; el texto sigue en `--color-primary` ≥4.5:1. 0 cambios `.ts`/`.tsx` de producción.
+
+| FR | Artefacto | Tarea(s) | Test / verificación |
+|----|-----------|----------|---------------------|
+| FR-001 | `tokens.css` `--color-accent-vivid` (4 bloques) + `--color-focus-ring`→var | T002/T003 | `unit/accent-vivid` (4 bloques) + `a11y/contrast-tokens` |
+| FR-002 | foco (`--color-focus-ring`), `.stepper__step--current .stepper__dot`, `.order-item[aria-current="true"]` | T003/T004/T005 | `unit/accent-vivid` (var() + offset ≥2px) |
+| FR-003/003a | texto en `--color-primary`; sustitución sin residual | T004/T005 | `unit/accent-vivid` (anti-hex + check inverso) |
+| FR-004 | `a11y/contrast-tokens` umbral 3:1 | T001/T006 | vivo vs bg/surface/surface-2 ≥3:1 (claro+oscuro) |
+| FR-005 | suite axe | T007 | `a11y/*` (0 serias/críticas) |
+| FR-006 | capturas Playwright (`e2e/dual-accent-screenshots`) + aprobación humana | T010 | 3 pantallas × 2 temas; OK humano en PR |
+| FR-007 | alcance solo-CSS | T008 | `git diff`: solo `.css` prod + docs + tests |
+| FR-008 | gates de front | T007 | tsc/eslint/stylelint/build/vitest 261/261 |
+| FR-009 | entrada de `--color-accent-vivid` en design-system.md | T009 | inspección del doc |

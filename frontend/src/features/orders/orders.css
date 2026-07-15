@@ -33,7 +33,7 @@
 }
 
 .order-item[aria-current="true"] {
-  border-color: var(--color-primary);
+  border-color: var(--color-accent-vivid);
 }
 
 .order-item__title {

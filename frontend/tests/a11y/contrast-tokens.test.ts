@@ -29,11 +29,18 @@ function block(selectorRe: RegExp): string {
 const LIGHT = block(/:root\s*\{/); // primer :root (valores claros)
 const DARK = block(/:root\[data-theme=['"]dark['"]\]\s*\{/);
 
-function token(theme: string, name: string): string {
+// FE-7 (021): var-aware — resuelve `var(--otro)` siguiendo la referencia (p. ej. --color-focus-ring →
+// var(--color-accent-vivid) → #dc5a24), para que el test lea el hex efectivo sin duplicarlo.
+function token(theme: string, name: string, depth = 0): string {
+  if (depth > 5) throw new Error(`ciclo de var en --${name}`);
   const src = theme === 'dark' ? DARK : LIGHT;
-  const m = src.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{3,8})`));
+  const m = src.match(new RegExp(`--${name}:\\s*([^;]+);`));
   if (!m) throw new Error(`token --${name} no encontrado en tema ${theme}`);
-  return m[1]!;
+  const val = m[1]!.trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(val)) return val;
+  const ref = val.match(/^var\(--([\w-]+)\)$/);
+  if (ref) return token(theme, ref[1]!, depth + 1);
+  throw new Error(`valor no resoluble para --${name}: ${val}`);
 }
 
 // Lista cerrada de pares (spec §Pares de contraste). [nombre, fg, bg, umbral].
@@ -54,13 +61,17 @@ function pairs(theme: string): Array<[string, string, string, number]> {
     ['danger-text/surface', t('color-danger'), t('color-surface'), 4.5],
     ['focus-ring/bg', t('color-focus-ring'), t('color-bg'), 3],
     ['focus-ring/surface', t('color-focus-ring'), t('color-surface'), 3],
+    // FE-7 (021): acento VIVO vs cada fondo adyacente (componente ≥3:1), en ambos temas.
+    ['accent-vivid/bg', t('color-accent-vivid'), t('color-bg'), 3],
+    ['accent-vivid/surface', t('color-accent-vivid'), t('color-surface'), 3],
+    ['accent-vivid/surface-2', t('color-accent-vivid'), t('color-surface-2'), 3],
     ['status-assigned', t('status-assigned-fg'), t('status-assigned-bg'), 4.5],
     ['status-in_progress', t('status-in_progress-fg'), t('status-in_progress-bg'), 4.5],
     ['status-pending_review', t('status-pending_review-fg'), t('status-pending_review-bg'), 4.5],
     ['status-closed', t('status-closed-fg'), t('status-closed-bg'), 4.5],
     ['status-draft', t('status-draft-fg'), t('status-draft-bg'), 4.5],
-    // Stepper (fila 17): color del paso actual/completado vs fondo (componente ≥3:1).
-    ['stepper-current/bg', t('color-primary'), t('color-bg'), 3],
+    // Stepper: punto del paso actual (vivo, FE-7) / completado vs fondo (componente ≥3:1).
+    ['stepper-current/bg', t('color-accent-vivid'), t('color-bg'), 3],
     ['stepper-done/bg', t('color-success'), t('color-bg'), 3],
   ];
 }

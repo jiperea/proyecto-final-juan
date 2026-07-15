@@ -45,13 +45,14 @@ que necesite un color usa el token semántico, nunca el hex.
 
 | Token | Valor | Contraste | Uso |
 |---|---|---|---|
-| `--color-primary` | `#c2410c` (naranja) | blanco sobre él ≈5.2:1 ✓ | Acción principal, enlaces, foco |
+| `--color-primary` | `#c2410c` (naranja) | blanco sobre él ≈5.2:1 ✓ | Acción principal, enlaces, **texto** de acento (≥4.5:1) |
 | `--color-primary-hover` | `#9a3412` | — | Estado hover/active |
+| `--color-accent-vivid` (FE-7) | `#dc5a24` claro / `#ff7a45` oscuro | ≥3:1 vs bg/surface/surface-2 (2 temas) | **Acento VIVO del artifact — SOLO superficies SIN texto** (anillo de foco, punto del Stepper, borde de selección). **Nunca bajo texto** (con blanco ≈3.4:1 < 4.5): ahí va `--color-primary`. |
 | `--color-accent-soft` | `#fff1e9` | — | Tinte suave del acento (fondos sutiles) |
 | `--color-danger` | `#b91c1c` | blanco ≈6:1 ✓ | Rechazar, destructivo, error |
 | `--color-success` | `#15803d` | blanco ≈5:1 ✓ | Aprobar, éxito |
 | `--color-warning-fg` | `#92400e` | sobre bg ≈6:1 ✓ | Texto de aviso |
-| `--color-focus-ring` | `#c2410c` | ≥3:1 con adyacentes | Anillo de foco (2px sólido, visible) |
+| `--color-focus-ring` | `var(--color-accent-vivid)` | ≥3:1 con adyacentes | Anillo de foco (2px sólido + `outline-offset` ≥2px, visible) |
 
 > **Nota AA:** todos los pares texto/fondo declarados cumplen ≥4.5:1 (texto normal) o ≥3:1 (texto grande
 > ≥18.66px bold / 24px, y bordes/estados de foco). Cualquier token nuevo **debe** validarse antes de
@@ -93,7 +94,8 @@ aplica `data-theme` antes del primer pintado (misma clave que `ui/theme.ts` — 
 **Contraste AA en ambos temas** verificado por `tests/a11y/contrast-tokens.test.ts` (lista cerrada de
 pares × claro/oscuro). Valores oscuros (extracto): `--color-bg #0e141a`, `--color-surface #18212b`,
 `--color-text #e7edf3`, `--color-text-muted #aab8c7`, acento `--color-primary #fb923c` con
-`--color-text-on-accent #1a1005`, `--color-focus-ring #fb923c`; estados con fondos tenues + texto claro.
+`--color-text-on-accent #1a1005`, `--color-accent-vivid #ff7a45` (foco/Stepper/selección),
+`--color-focus-ring var(--color-accent-vivid)`; estados con fondos tenues + texto claro.
 
 ---
 

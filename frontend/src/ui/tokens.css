@@ -20,11 +20,13 @@
   /* Semánticos — claro. Acento NARANJA accesible (blanco sobre él ≥4.5:1). */
   --color-primary: #c2410c;
   --color-primary-hover: #9a3412;
+  /* FE-7 (021): acento VIVO del artifact — SOLO superficies sin texto (≥3:1); nunca bajo texto. */
+  --color-accent-vivid: #dc5a24;
   --color-accent-soft: #fff1e9;
   --color-danger: #b91c1c;
   --color-success: #15803d;
   --color-warning-fg: #92400e;
-  --color-focus-ring: #c2410c;
+  --color-focus-ring: var(--color-accent-vivid);
 
   /* Estado de la orden (badge) — claro */
   --status-assigned-bg: #dbeafe;
@@ -85,11 +87,12 @@
     --color-text-on-accent: #1a1005;
     --color-primary: #fb923c;
     --color-primary-hover: #fdba74;
+    --color-accent-vivid: #ff7a45;
     --color-accent-soft: #3a2015;
     --color-danger: #fca5a5;
     --color-success: #6ee7a0;
     --color-warning-fg: #fcd34d;
-    --color-focus-ring: #fb923c;
+    --color-focus-ring: var(--color-accent-vivid);
     --status-assigned-bg: #1e2a44;
     --status-assigned-fg: #a8c5ff;
     --status-in_progress-bg: #3a2f10;
@@ -113,11 +116,12 @@
   --color-text-on-accent: #1a1005;
   --color-primary: #fb923c;
   --color-primary-hover: #fdba74;
+  --color-accent-vivid: #ff7a45;
   --color-accent-soft: #3a2015;
   --color-danger: #fca5a5;
   --color-success: #6ee7a0;
   --color-warning-fg: #fcd34d;
-  --color-focus-ring: #fb923c;
+  --color-focus-ring: var(--color-accent-vivid);
   --status-assigned-bg: #1e2a44;
   --status-assigned-fg: #a8c5ff;
   --status-in_progress-bg: #3a2f10;
@@ -141,11 +145,12 @@
   --color-text-on-accent: #ffffff;
   --color-primary: #c2410c;
   --color-primary-hover: #9a3412;
+  --color-accent-vivid: #dc5a24;
   --color-accent-soft: #fff1e9;
   --color-danger: #b91c1c;
   --color-success: #15803d;
   --color-warning-fg: #92400e;
-  --color-focus-ring: #c2410c;
+  --color-focus-ring: var(--color-accent-vivid);
   --status-assigned-bg: #dbeafe;
   --status-assigned-fg: #1e40af;
   --status-in_progress-bg: #fef9c3;
