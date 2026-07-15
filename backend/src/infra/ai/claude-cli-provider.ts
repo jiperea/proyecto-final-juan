@@ -7,6 +7,22 @@ export interface ClaudeCliProviderConfig {
   readonly timeoutMs: number;
   readonly temperature: number;
   readonly binary?: string; // por defecto 'claude'
+  // 018/FR-006: guard dev-only DENY-BY-DEFAULT. Se calcula de la config validada al arrancar
+  // (NODE_ENV==='development'); en cualquier otro entorno el proveedor claude-cli se trata como NO operable
+  // → AI_UNAVAILABLE, sin invocar el binario (evita que "dev-only" se vuelva IA de pago si cambia la imagen).
+  readonly operable: boolean;
+}
+
+// 018/FR-002: errores de spawn que impiden EJECUTAR el binario → "no operable en este entorno"
+// (AI_UNAVAILABLE, 501, no reintentable); el resto (post-spawn: timeout/exit≠0) → transitorio (503).
+const SPAWN_UNAVAILABLE_CODES = new Set(['ENOENT', 'EACCES', 'ENOEXEC', 'ENOTDIR', 'EPERM']);
+function classifyProviderError(e: unknown): DomainError {
+  const code = typeof e === 'object' && e !== null && 'code' in e ? (e as { code?: unknown }).code : undefined;
+  if (typeof code === 'string' && SPAWN_UNAVAILABLE_CODES.has(code)) {
+    // Mensaje GENÉRICO (FR-005): sin nombre de binario, ruta, versión ni traza.
+    return domainError('AI_UNAVAILABLE', 'El resumen por IA no está disponible en este entorno.');
+  }
+  return domainError('SERVICE_UNAVAILABLE', 'El asistente de IA no está disponible.');
 }
 
 // Adaptador del proveedor IA por CLI (`claude -p`). Constitution IX / FR-009c:
@@ -21,13 +37,17 @@ export class ClaudeCliProvider implements AiSummaryProviderPort {
   constructor(private readonly cfg: ClaudeCliProviderConfig) {}
 
   async generate(input: PromptInput): Promise<Result<ProviderSummary | null, DomainError>> {
+    // 018/FR-006: guard dev-only deny-by-default — si no es operable en este entorno, NO se invoca el binario.
+    if (!this.cfg.operable) {
+      return err(domainError('AI_UNAVAILABLE', 'El resumen por IA no está disponible en este entorno.'));
+    }
     const prompt = buildPrompt(input, this.cfg.temperature);
     let stdout: string;
     try {
       stdout = await this.invoke(prompt);
-    } catch {
-      // timeout, exit≠0, crash, binario ausente → indisponibilidad (503). Sin filtrar detalle.
-      return err(domainError('SERVICE_UNAVAILABLE', 'El asistente de IA no está disponible.'));
+    } catch (e) {
+      // 018/FR-002: clasifica por el error nativo — spawn-no-ejecutable → AI_UNAVAILABLE (501); resto → 503.
+      return err(classifyProviderError(e));
     }
     return ok(parseProviderJson(stdout));
   }

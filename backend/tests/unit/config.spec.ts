@@ -34,6 +34,15 @@ describe('config fail-fast (FR-016)', () => {
     expect(cfg.aiProvider).toBe('claude-cli');
   });
 
+  it('018/FR-006: aiOperable = dev-only deny-by-default (NODE_ENV==development || AI_PROVIDER==mock)', () => {
+    // NODE_ENV=test + claude-cli → NO operable (deny-by-default): evita IA de pago fuera de dev.
+    expect(loadConfig({ ...base, NODE_ENV: 'test', AI_PROVIDER: 'claude-cli' }).aiOperable).toBe(false);
+    expect(loadConfig({ ...base, NODE_ENV: 'production', AI_PROVIDER: 'claude-cli' }).aiOperable).toBe(false);
+    // development → operable; mock (tests) → operable en cualquier entorno.
+    expect(loadConfig({ ...base, NODE_ENV: 'development' }).aiOperable).toBe(true);
+    expect(loadConfig({ ...base, NODE_ENV: 'test', AI_PROVIDER: 'mock' }).aiOperable).toBe(true);
+  });
+
   it('aborta nombrando la variable que falta', () => {
     const withoutJwt: Record<string, string> = { ...base };
     delete withoutJwt.JWT_SECRET;

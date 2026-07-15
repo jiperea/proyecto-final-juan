@@ -719,6 +719,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description AI_UNAVAILABLE (018): el proveedor IA **no es operable en este entorno** (dev-only) — binario ausente/no ejecutable en el despliegue, o guard dev-only en pre/prod. **No reintentable** (distinto del 503 transitorio). Cuerpo genérico (sin nombre de binario/ruta/versión/traza). Sólo puede surgir tras 401/403/429/404 y el gate de material (el front distingue por `code:AI_UNAVAILABLE`). */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description No disponible (SERVICE_UNAVAILABLE): timeout (>10 s) o fallo de proceso del proveedor IA, **o** BD no disponible al leer la fuente (convención 001/006). Cuerpo genérico; nunca filtra detalle. (Una salida vacía/no-conforme/con-PII NO es 503: es 200 fallback.) */
             503: {
                 headers: {

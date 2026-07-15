@@ -350,3 +350,28 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 > Motivo del rechazo: pre-check de cliente (no-vacío + imprimible); la longitud efectiva 1..1000 la valida el
 > backend tras saneo (`INVALID_REASON`) — el cliente NO es más estricto (lección del UUIDv7 de FE-3). e2e
 > Playwright del camino feliz (T017) opcional/justificado. IA: eval en backend 007 (promptfoo N/A en FE-4).
+
+---
+
+# Trazabilidad RF → tarea → test — 018 (resumen IA dev-only + indisponibilidad honesta)
+
+> Cierra BL-072 como decisión dev-only (sin API de pago). Cambio de contrato del puerto
+> `AiSummaryProviderPort` (nuevo `DomainError AI_UNAVAILABLE`). Verificación determinista (vitest, puerto inyectable).
+
+| RF | Descripción | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001 | `AI_UNAVAILABLE` (501) distinguible de 503 | T002/T003 | `unit/claude-cli-provider-availability`, `integration/ai-summary-unavailable` |
+| FR-002 | clasificación del error nativo en el adaptador (spawn→501 / post-spawn→503) | T003 | `unit/claude-cli-provider-availability`, `unit/claude-cli-provider` |
+| FR-002b | orden authz→estado→rate-limit→material→proveedor; nunca 501 a no autorizado | T007 | `integration/ai-summary-unavailable` (403/401), `integration/ai-summary-authz` |
+| FR-003 | UI: mensaje de entorno + botón deshabilitado, sin reintento | T012 | `unit/summary-unavailable` (front) |
+| FR-004 | dev/mock operable, sin disparar AI_UNAVAILABLE (0 regresión) | T014 | suite backend + `integration/ai-summary-ok`/`fallback` |
+| FR-005 | mensaje genérico + log outcome `unavailable` sin PII | T007 | `integration/ai-summary-unavailable` |
+| FR-006 | guard dev-only deny-by-default en el adaptador (config inyectada) | T003/T004 | `unit/claude-cli-provider-availability` (operable:false) |
+| FR-007 | docs (roadmap BL-072 cerrado, design-system §8, traceability) | T013 | revisión G2/G3 |
+| SC-001 | 501 AI_UNAVAILABLE con material suficiente | T005 | `integration/ai-summary-unavailable` |
+| SC-002 | mensaje genérico sin binario/ruta/versión | T005 | `integration/ai-summary-unavailable` |
+| SC-003 | precedencia códigos exactos (401/403) ≠ 501 | T006 | `integration/ai-summary-unavailable` |
+| SC-004 | UI deshabilita y no reintenta | T010 | `unit/summary-unavailable` |
+| SC-005 | 0 regresión con mock | T014 | suite backend/front |
+| SC-006 | guard dev-only por config inyectada | T003 | `unit/claude-cli-provider-availability` |
+| SC-007 | outcome `unavailable` sin PII | T008 | `integration/ai-summary-unavailable` |

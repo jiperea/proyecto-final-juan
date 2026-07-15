@@ -45,6 +45,9 @@ export interface Config {
   readonly aiProvider: 'claude-cli' | 'mock';
   readonly aiTimeoutMs: number;
   readonly aiTemperature: number;
+  // 018/FR-006 — guard dev-only deny-by-default: el proveedor IA se considera operable SOLO en desarrollo
+  // o con proveedor mock (tests). En pre/prod con claude-cli → no operable → AI_UNAVAILABLE (501).
+  readonly aiOperable: boolean;
   readonly aiMinNotesChars: number;
   readonly aiMinEvidence: number;
   readonly aiRateMax: number;
@@ -93,6 +96,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     aiProvider: v.AI_PROVIDER,
     aiTimeoutMs: v.AI_TIMEOUT_MS,
     aiTemperature: v.AI_TEMPERATURE,
+    aiOperable: v.NODE_ENV === 'development' || v.AI_PROVIDER === 'mock',
     aiMinNotesChars: v.AI_MIN_NOTES_CHARS,
     aiMinEvidence: v.AI_MIN_EVIDENCE,
     aiRateMax: v.AI_RATE_MAX,

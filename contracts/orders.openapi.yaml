@@ -403,6 +403,14 @@ paths:
             convención transversal 001/006.)
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '501':
+          description: >
+            AI_UNAVAILABLE (018): el proveedor IA **no es operable en este entorno** (dev-only) — binario
+            ausente/no ejecutable en el despliegue, o guard dev-only en pre/prod. **No reintentable** (distinto
+            del 503 transitorio). Cuerpo genérico (sin nombre de binario/ruta/versión/traza). Sólo puede surgir
+            tras 401/403/429/404 y el gate de material (el front distingue por `code:AI_UNAVAILABLE`).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '503':
           description: >
             No disponible (SERVICE_UNAVAILABLE): timeout (>10 s) o fallo de proceso del proveedor IA, **o** BD no

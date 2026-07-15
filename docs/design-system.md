@@ -188,6 +188,7 @@ Gate de a11y (verificable, no subjetivo — lo exige `auditor-spec-theater` y lo
 | `VALIDATION_ERROR` / 422 | «Revisa los campos marcados.» (detalle por campo desde `details`) |
 | `RATE_LIMITED` / 429 | «Demasiadas solicitudes. Espera unos segundos.» |
 | `SERVICE_UNAVAILABLE` / 503 | «Servicio no disponible temporalmente. Reinténtalo.» |
+| `AI_UNAVAILABLE` / 501 (018, dev-only) | «El resumen por IA no está disponible en este entorno.» (**sin** reintento; el disparador se deshabilita) |
 | `INTERNAL` / 500 · **fallback** (code ausente de esta tabla o respuesta sin `code`) | «Ha ocurrido un error. Reinténtalo.» |
 | *(sin respuesta HTTP: offline / timeout de fetch)* | «Sin conexión. Reinténtalo.» |
 

@@ -8,6 +8,7 @@ type PanelState =
   | { kind: 'loading' }
   | { kind: 'summary'; text: string }
   | { kind: 'insufficient' }
+  | { kind: 'unavailable' } // 018: proveedor IA no operable en este entorno (dev-only) — sin reintento
   | { kind: 'error'; message: string };
 
 // FR-010/011/011b/016 · panel de resumen IA. BAJO DEMANDA (botón); el cliente distingue por `sufficient`
@@ -27,7 +28,7 @@ export function IncidentSummaryPanel({ orderId }: { orderId: string }) {
   }, [orderId]);
 
   async function requestSummary() {
-    if (state.kind === 'loading' || cooldown) return; // sin doble envío / durante cooldown
+    if (state.kind === 'loading' || cooldown || state.kind === 'unavailable') return; // sin doble envío / cooldown / no operable
     const id = (reqId.current += 1);
     setState({ kind: 'loading' });
     try {
@@ -37,6 +38,11 @@ export function IncidentSummaryPanel({ orderId }: { orderId: string }) {
       headingRef.current?.focus();
     } catch (err) {
       if (id !== reqId.current) return;
+      // 018/FR-003: proveedor no operable en ESTE entorno (dev-only) → estado terminal, sin reintento.
+      if (err instanceof ApiError && err.code === 'AI_UNAVAILABLE') {
+        setState({ kind: 'unavailable' });
+        return;
+      }
       if (err instanceof ApiError && err.status === 429) {
         const secs = err.retryAfterSeconds ?? 30;
         setState({ kind: 'error', message: `Demasiadas solicitudes. Espera ${secs} s antes de reintentar.` });
@@ -59,6 +65,8 @@ export function IncidentSummaryPanel({ orderId }: { orderId: string }) {
           <p className="ai-summary__text">{state.text}</p>
         ) : state.kind === 'insufficient' ? (
           <p>No hay material suficiente para generar un resumen. No se ha inventado nada.</p>
+        ) : state.kind === 'unavailable' ? (
+          <p role="note">El resumen por IA no está disponible en este entorno.</p>
         ) : state.kind === 'error' ? (
           <p className="field__error" role="alert">
             {state.message}
@@ -68,7 +76,8 @@ export function IncidentSummaryPanel({ orderId }: { orderId: string }) {
       <Button
         onClick={() => void requestSummary()}
         aria-busy={state.kind === 'loading'}
-        aria-disabled={state.kind === 'loading' || cooldown || undefined}
+        aria-disabled={state.kind === 'loading' || cooldown || state.kind === 'unavailable' || undefined}
+        disabled={state.kind === 'unavailable'}
       >
         {state.kind === 'loading' ? 'Resumiendo…' : 'Resumir con IA'}
       </Button>
