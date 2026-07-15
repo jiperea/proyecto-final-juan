@@ -31,12 +31,32 @@ Gestión de **órdenes de trabajo** de FieldOps (backend API + frontend web), co
 Cada gate (G1/G2/G3) ejecuta el panel adversarial de forma **acumulativa** y solo avanza con
 **0 bloqueantes** (Constitution, Principio XIII). Roadmap en [`docs/06-roadmap.md`](docs/06-roadmap.md).
 
-## Cómo arrancar el stack completo (dev)
+## Despliegue local
 
 > Stack: **TypeScript/Node** — backend Express hexagonal (Prisma + **PostgreSQL en Docker**, Zod, OpenAPI
 > 3.1) · frontend React 18 + Vite · Vitest + Playwright. Auth JWT access+refresh (argon2id) + CSRF.
-> Requisitos: Node 18+ y Docker. Hoy se arranca por la **vía dev** (BD en Docker, back y front por npm);
-> el `docker-compose` que orquesta **db · back · front** en un solo comando es la fase **DevOps (DO-2)**.
+> Requisitos: **Node 18+** y **Docker**. Hay dos modos: **A)** todo en Docker (como se despliega en real,
+> nginx sirve el front y proxya `/v1` al backend) y **B)** dev con hot-reload (para desarrollar).
+
+### A) Todo en Docker — un solo comando (paridad con producción)
+
+`docker-compose.yml` orquesta **db · backend · frontend** (la fase DevOps **DO-2**, ya operativa).
+
+```bash
+docker compose up -d --build            # db(:5432) + backend(:3001→3000) + frontend nginx(:8080)
+docker compose ps                       # espera a que db y backend estén (healthy)
+
+# Datos semilla (una vez; el backend aplica migraciones al arrancar, pero NO seedea).
+# El seed corre desde el host contra la BD de Docker expuesta en :5432:
+cd backend && npm ci && \
+  DATABASE_URL=postgresql://fieldops:fieldops@localhost:5432/fieldops npm run seed
+```
+
+Abre **http://localhost:8080**. El front (build de producción por nginx, sin secretos en el bundle) proxya
+`/v1/*` al backend (:3001). El backend ejecuta `prisma migrate deploy` al arrancar (CMD); el **seed** es el
+paso manual de arriba. Para parar: `docker compose down` (añade `-v` para borrar también la BD y volver a sembrar).
+
+### B) Dev con hot-reload (BD en Docker, back y front por npm)
 
 **1) Base de datos (Docker) + migraciones + datos semilla**
 
@@ -85,7 +105,7 @@ Referencia también en `frontend/.env.example`.
 
 ```bash
 # backend/                          # frontend/
-npm test                            npm test        # Vitest + RTL + axe + MSW (56 tests)
+npm test                            npm test        # Vitest + RTL + axe + MSW
 npm run lint                        npm run lint     # eslint + stylelint (sin estilos sueltos)
 npm run typecheck                   npm run typecheck
                                     npm run test:e2e # Playwright (teclado, reflow, bfcache)
@@ -166,16 +186,42 @@ docker image inspect ghcr.io/<owner>/<repo>/fieldops-backend:develop --format '{
 
 La imagen desplegada (Render, CD) es exactamente esa (no se reconstruye).
 
+## Despliegue en otros entornos (dev / pre / prod)
+
+El despliegue a los entornos usa la **misma imagen** publicada en GHCR (no-rebuild): **cómputo en
+[Render](https://render.com)** (gratis, URL pública) + **Postgres gestionada en [Neon](https://neon.tech)**
+(una BD por entorno). Faseado: **Fase 1 = `dev`** primero; **Fase 2 = `pre`/`prod`** después.
+
+| Entorno | Rama que lo alimenta | Imagen (tag móvil) | CD |
+|---|---|---|---|
+| **dev** | `develop` | `…/fieldops-{backend,frontend}:develop` | job *Deploy dev (Render)* dentro de [`ci-develop-back.yml`](.github/workflows/ci-develop-back.yml) / [`ci-develop-front.yml`](.github/workflows/ci-develop-front.yml) (auto tras CI) |
+| **pre** | `main` (tras release) | `…:pre` (movido al semver validado) | [`cd-pre.yml`](.github/workflows/cd-pre.yml) (auto) |
+| **prod** | `main` | `…:prod` (movido al semver validado) | [`cd-prod.yml`](.github/workflows/cd-prod.yml) (**manual**, con confirmación) |
+
+Cada entorno = **2 servicios web** en Render (backend + frontend) *from an existing image*, más su **BD Neon**.
+El deploy no reconstruye: la CD **mueve el tag** del entorno (`:pre`/`:prod`) al semver ya validado y **dispara
+el deploy-hook** de Render; Render tira la imagen de GHCR y arranca. Config sensible (connection string de Neon,
+`JWT_SECRET`/`CSRF_HMAC_SECRET`/`LOCKOUT_HMAC_SECRET`, TTLs) va en **variables de entorno de Render** (validadas
+al arrancar, fail-fast), **nunca** en el repo ni en GitHub Secrets del código.
+
+> **Pasos manuales (una vez por entorno)** — GitHub → Neon → Render, con las variables y los deploy-hooks:
+> **[`docs/16-devops-setup-manual.md`](docs/16-devops-setup-manual.md)** (orden A→E, dev primero). Detalle de
+> gobernanza del pipeline en [`docs/pipeline-spec.md`](docs/pipeline-spec.md). Si falta el secret
+> `RENDER_DEPLOY_HOOK_*` de un entorno, su job de deploy **se omite en verde** (no rompe el pipeline).
+
 ## Estado
 
 - **Backend** (features **001–#010**): auth+RBAC, órdenes (entidad/listado/FSM/auditoría), reasignación,
   ejecución, revisión, resumen IA y **detalle read-side** — todas con G1/G2/G3 verdes, en `develop`.
-- **Frontend FE-1** (`009-front-shell-listado`): shell + acceso/sesión + listado por rol + detalle
-  read-only. **G1/G2/G3 verdes**, mergeada a `develop`. Verificado end-to-end contra el stack real.
+- **Frontend**: **FE-1** (`009`, shell + acceso + listado + detalle read-only) y **FE-2** (`014`, write-side
+  del técnico: iniciar/ejecutar/evidencia) **G1/G2/G3 verdes, en `develop`**; **FE-3** (`015`, write-side del
+  dispatcher: reasignación master-detail) **G1/G2/G3 verdes, en PR** — verificado end-to-end contra el stack real.
 - **DevOps / pipeline CI/CD** (features **010–013**): contenerización de las 3 capas, PR-gate M9,
   CI develop/main con imagen a GHCR, y el **PR Gate agregador** (013) — G1/G2/G3 verdes, **probado en
-  Actions**. Ver sección *Pipeline CI/CD* arriba. Pendiente: CD a Render/Neon (config de entorno).
-- **Siguiente**: FE-2 (técnico) · FE-3 (dispatcher) · FE-4 (supervisor+IA) sobre FE-1. Roadmap en
+  Actions**. **CD a Render + Neon** cableada (jobs de deploy por entorno; se activan al configurar los
+  deploy-hooks/secrets — ver *Despliegue en otros entornos* arriba y [`docs/16-devops-setup-manual.md`](docs/16-devops-setup-manual.md)).
+  Faseado: dev primero, pre/prod después.
+- **Siguiente**: FE-4 (supervisor + panel de resumen IA) sobre FE-1. Roadmap en
   [`docs/06-roadmap.md`](docs/06-roadmap.md).
 
 ## Entrega
