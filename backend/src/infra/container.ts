@@ -76,11 +76,7 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
     aiProvider:
       config.aiProvider === 'mock'
         ? new MockAiSummaryProvider()
-        : new ClaudeCliProvider({
-            timeoutMs: config.aiTimeoutMs,
-            temperature: config.aiTemperature,
-            operable: config.aiOperable, // 018/FR-006: guard dev-only inyectado desde la config validada
-          }),
+        : new ClaudeCliProvider({ timeoutMs: config.aiTimeoutMs, temperature: config.aiTemperature, operable: config.aiOperable }),
     aiAccessLog: new PinoAccessLog(createLogger()),
     aiRateLimit: new InMemoryRateLimit({
       max: config.aiRateMax,
