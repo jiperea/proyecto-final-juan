@@ -84,6 +84,14 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > DNI/NIF/NIE, matrícula, IBAN, tarjeta}: pasaporte, nº póliza/cliente, cuenta no-IBAN, etc. — residual
 > best-effort (prompt+eval), a endurecer (patrones adicionales o NER) antes de datos reales sensibles.
 
+> **Resolución de BL-072 → feature #018 (`018-ai-summary-dev-only`)**, decisión del usuario (2026-07-15):
+> el resumen IA es **dev-only** (proveedor `claude-cli` en host; `mock` en tests). En el entorno
+> **desplegado** (contenedor/Render, sin binario `claude`) el producto **declara la IA no disponible**
+> ("no disponible en este entorno") con un código distinguible (`AI_UNAVAILABLE`), en vez del 503
+> transitorio con "reintentar", y oculta/deshabilita el disparador. **No** se añade API de pago (respeta
+> "sin API de pago"). Diagnóstico: el endpoint IA es correcto pero el contenedor no puede invocar `claude`
+> → 503; verificado en vivo. Cierra BL-072 como dev-only (no como proveedor de producción por API).
+
 > **Regla de atomización (XV)**: todo cluster que se **saca** de una feature para no sobredimensionarla se
 > registra **aquí como feature propia** (#007–#009, no sólo en backlog) y se **lanza cuando toque** — nunca se
 > deja como scope difuso/olvidado (lección de #003/#004). Trazan al brief: #007 = "foto de evidencia" (Func #2);

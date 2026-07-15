@@ -38,13 +38,15 @@ describe('FR-009c (I-001) — metacaracteres de shell en las notas son DATO lite
 });
 
 describe('ClaudeCliProvider.generate — no fuga de detalle (FR-010)', () => {
-  it('binario inexistente (fallo de proceso) → err SERVICE_UNAVAILABLE con mensaje GENÉRICO (sin detalle)', async () => {
-    const provider = new ClaudeCliProvider({ timeoutMs: 2000, temperature: 0, binary: 'claude-nonexistent-xyz' });
+  it('binario inexistente (ENOENT) → err AI_UNAVAILABLE con mensaje GENÉRICO (sin detalle) — 018', async () => {
+    // 018: un binario ausente (ENOENT) es "no operable en este entorno" (AI_UNAVAILABLE, 501), no un fallo
+    // transitorio; el mensaje sigue siendo genérico (sin filtrar binario/ruta/ENOENT).
+    const provider = new ClaudeCliProvider({ timeoutMs: 2000, temperature: 0, operable: true, binary: 'claude-nonexistent-xyz' });
     const res = await provider.generate({ notesRedacted: 'texto', evidence: { count: 1, contentTypes: ['image/png'] } });
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.error.code).toBe('SERVICE_UNAVAILABLE');
-      expect(res.error.message).toBe('El asistente de IA no está disponible.');
+      expect(res.error.code).toBe('AI_UNAVAILABLE');
+      expect(res.error.message).toBe('El resumen por IA no está disponible en este entorno.');
       // No filtra el nombre del binario ni detalle del sistema (ENOENT, spawn, etc.).
       expect(res.error.message).not.toContain('claude-nonexistent-xyz');
       expect(res.error.message.toLowerCase()).not.toContain('enoent');

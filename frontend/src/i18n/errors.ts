@@ -13,6 +13,7 @@ const MESSAGES: Record<string, string> = {
   VALIDATION_ERROR: 'Revisa los campos marcados.',
   RATE_LIMITED: 'Demasiadas solicitudes. Espera unos segundos.',
   SERVICE_UNAVAILABLE: 'Servicio no disponible temporalmente. Reinténtalo.',
+  AI_UNAVAILABLE: 'El resumen por IA no está disponible en este entorno.', // 018 (dev-only): no reintentable
   INTERNAL: 'Ha ocurrido un error. Reinténtalo.',
 };
 
