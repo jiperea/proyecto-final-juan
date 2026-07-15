@@ -21,5 +21,6 @@
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }
   },
-  "include": ["src", "tests", "mocks", "vitest.setup.ts"]
+  "include": ["src", "tests", "mocks", "vitest.setup.ts"],
+  "exclude": ["tests/lint-fixtures"]
 }

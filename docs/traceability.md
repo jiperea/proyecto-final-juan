@@ -414,3 +414,30 @@ Endpoints `startOrderWork` — `POST /v1/orders/{orderId}/start` y `submitOrderE
 | SC-009 | anti-FOUC (data-theme antes de React) | T016 | `unit/theme-fouc-sync` |
 | SC-010 | regresión RBAC por rol×estado | T026 | `unit/rbac-reskin-regression` |
 | SC-011 | sin overflow-x 320px/zoom200 (e2e) | T029 | `e2e/reskin-responsive` |
+
+## FE-6 · 020-front-architecture (arquitectura y buenas prácticas de front)
+
+Feature de **gobernanza doc + lint** (sin endpoints/IA/backend). La columna "endpoint" se sustituye por el
+**artefacto/regla** que satisface el FR. Baseline 2026-07-15: 3 reglas `enforced` con **0 fixes de producción**.
+
+| FR | Artefacto / regla de lint | Tarea(s) | Test / verificación |
+|----|---------------------------|----------|---------------------|
+| FR-001 | `docs/front-architecture.md` §1 Capas | T002 | checklist de contenido (5 capas) |
+| FR-002/002a | `docs/front-architecture.md` §2 (10 reglas a–j, nivel+justificación) | T003 | checklist de contenido |
+| FR-002b | doc §2(h): la UI nunca autoriza; backend único (Const. IV) | T003 | checklist |
+| FR-002c | doc §2(c): 401/403/404 + anti-enumeración por recurso | T003 | checklist |
+| FR-003/003a/003b | `.eslintrc.cjs` + baseline registrado (§3), umbrales | T001/T006 | `npm run lint` = 0 errores |
+| FR-004 | regla (g) `no-restricted-syntax` (ExportDefaultDeclaration) | T005/T006 | `lint-fixtures` (bad-default-export) |
+| FR-005 | regla (b) `react-hooks/exhaustive-deps: error` | T005/T006 | `lint-fixtures` (bad-exhaustive-deps) |
+| FR-005a | cupo ≤3 disables + formato `-- <razón>` | T007 | `front-governance` (cupo/formato) |
+| FR-006 | regla (j) `no-restricted-imports` (apiFetch) | T001/T006 | `lint-fixtures` (bad-boundary) |
+| FR-007/007a | `frontend/tests/lint-fixtures/` + test ESLint programático | T005 | `lint-fixtures.test.ts` (3/3) |
+| FR-008/008a | alcance acotado + invariante RBAC (inventario §4) | T008/T009 | `git diff` sin backend/contracts/domain |
+| FR-009 | gates de front | T008 | tsc/eslint/stylelint/build/vitest verdes |
+| FR-010 | sincronía doc↔config | T007 | `front-governance` (doc↔config) |
+| SC-001 | doc: 5 capas + 10 reglas (nivel+justificación) | T002/T003 | checklist de contenido |
+| SC-002 | eslint 0 errores + ≤3 disables + baseline | T006/T007 | `lint`, `front-governance` |
+| SC-003 | 1 fixture por regla enforced; test pasa | T005 | `lint-fixtures.test.ts` |
+| SC-004 | tsc/eslint/stylelint/build/vitest 5/5 verdes | T008 | suite completa (246/246) |
+| SC-005 | 0 ficheros backend/contracts/domain | T009 | `git diff --name-only` |
+| SC-006 | cada regla enforced del doc existe como error en config | T007 | `front-governance` (doc↔config) |
