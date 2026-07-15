@@ -214,8 +214,8 @@ solo **tests** bajo `tests/`), `docs/design-system.md` y `docs/traceability.md` 
 - **SC-005**: `tsc`/`eslint`/`stylelint`/`build`/`vitest` **5/5 verdes** (0 regresiones; 0 estilos sueltos).
 - **SC-006**: `git diff --name-only` frente a develop: únicos ficheros de producción = **`.css`**
   (`frontend/src/ui/*.css` + `frontend/src/features/orders/orders.css`); **0** ficheros de producción
-  `.ts`/`.tsx`; `.ts` solo bajo `tests/`; **0** bajo `backend/`/`contracts/`/`src/domain/`; `docs/design-system.md`
-  permitido.
+  `.ts`/`.tsx`; `.ts` solo bajo `tests/`; **0** bajo `backend/`/`contracts/`/`src/domain/`; docs permitidos =
+  `docs/design-system.md` + `docs/traceability.md`.
 - **SC-007**: `docs/design-system.md` incluye la entrada de `--color-accent-vivid` con su regla de uso
   ("solo sin texto, ≥3:1").
 
