@@ -60,7 +60,7 @@ supervisor devuelve **200 closed** (no 409 `EVIDENCE_MISSING`).
 - **Conteo**: el supervisor ve **+1** `pending_review`; technician1 **+1** activa. En la práctica **ningún
   assert de conteo exacto** necesitó cambiarse (los tests de scope usan pertenencia/`>0`, no totales); si
   alguno lo necesitara, **solo** puede cambiar el valor numérico, **nunca** relajar una aserción de
-  pertenencia/RBAC/IDOR (S-001).
+  pertenencia/RBAC/IDOR.
 
 ## Requirements *(mandatory)*
 
@@ -72,19 +72,20 @@ supervisor devuelve **200 closed** (no 409 `EVIDENCE_MISSING`).
   `closed` (sin `EVIDENCE_MISSING`), demostrando la postcondición `pending_review ⇒ evidenceCount≥1`.
 - **FR-003**: El seed SHALL **no** intentar `DELETE` sobre tablas append-only; y WHEN la BD no está vacía
   (existe ≥1 `OrderAudit`) THE seed SHALL **abortar con un mensaje accionable** que indique
-  `prisma migrate reset --force --skip-seed` (no un P2003 críptico). (H-001/H-005)
+  `prisma migrate reset --force --skip-seed` (no un P2003 críptico).
 - **FR-004**: La suite de backend (unit/integration/contract) SHALL quedar en **verde** con el seed nuevo.
   En la práctica **ningún assert de conteo exacto** requirió cambio (los tests de scope usan
   pertenencia/`>0`); si alguno lo requiriese, **solo** puede cambiar el valor de conteo, **nunca** relajar
   una aserción de pertenencia/RBAC/IDOR. Rutas de producción intocables: `contracts/`, `backend/src/domain/`,
-  middlewares de auth (verificable por `git diff --name-only`). (H-004/S-001/T-004)
+  middlewares de auth (verificable por `git diff --name-only`).
 - **FR-005**: Sin cambios de contrato, dominio, RBAC ni proveedor IA (solo `backend/prisma/` + tests + docs).
 
 ## Success Criteria *(mandatory)*
 
-- **SC-001**: Un test de integración sobre la BD sembrada verifica que la ancla `approvableReview` está en
-  `pending_review`, de technician1, `version=1` y con **evidenceCount≥1** (precondición de aprobar; el
-  approve real está cubierto por `review-order-approve` + demo en vivo). (`seed-approvable-review.spec.ts`)
+- **SC-001**: Un test de integración (`seed-approvable-review.spec.ts`) sobre la BD sembrada verifica que la
+  ancla `approvableReview` está en `pending_review`, de technician1, `version=1`, con **exactamente 1**
+  evidencia + **1** notas enlazadas a **1** audit de transición `in_progress→pending_review`; que el guard de
+  re-seed aborta (FR-003); y que el **supervisor la aprueba → 200 `closed`** (FR-002, approve real).
 - **SC-002**: `npx vitest run` del backend termina en verde (0 regresiones).
 - **SC-003**: `tsc`/`eslint` del backend en verde.
 

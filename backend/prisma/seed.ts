@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
 import { v7 as uuidv7 } from 'uuid';
@@ -115,19 +116,33 @@ async function seedApprovableReviewArtifacts(actorId: string): Promise<void> {
   await prisma.order.update({ where: { id: orderId }, data: { version: 1 } });
 }
 
+export const RESEED_HINT =
+  'BD no vacía (datos append-only de un seed previo). Re-siembra con: ' +
+  'npx prisma migrate reset --force --skip-seed && npx tsx prisma/seed.ts';
+
+// 019/H-001 — re-seed sobre BD con datos append-only: order_evidence/audit/notes prohíben DELETE (trigger)
+// y su FK a Order es Restrict, así que `order.deleteMany()` fallaría con un P2003 críptico en la 2ª
+// ejecución. Se detecta ANTES (cualquiera de las 3 tablas append-only con filas, H-101) y se falla con un
+// mensaje ACCIONABLE (no un stack trace de Prisma).
+export async function ensureSeedableOrThrow(db: PrismaClient): Promise<void> {
+  const [audits, evidence, notes] = await Promise.all([
+    db.orderAudit.count(),
+    db.orderEvidence.count(),
+    db.orderExecutionNotes.count(),
+  ]);
+  if (audits + evidence + notes > 0) throw new Error(RESEED_HINT);
+}
+
 async function main(): Promise<void> {
-  // 019/H-001 — re-seed sobre BD con datos append-only: order_evidence/audit/notes prohíben DELETE (trigger)
-  // y su FK a Order es Restrict, así que `order.deleteMany()` fallaría con un P2003 críptico en la 2ª
-  // ejecución. Detectamos el caso ANTES y fallamos con un mensaje ACCIONABLE (no un stack trace de Prisma).
-  if ((await prisma.orderAudit.count()) > 0) {
-    throw new Error(
-      'BD no vacía (datos append-only de un seed previo). Re-siembra con: ' +
-        'npx prisma migrate reset --force --skip-seed && npx tsx prisma/seed.ts',
-    );
-  }
+  await ensureSeedableOrThrow(prisma);
   // Orden inverso de FK para el borrado. NOTA (019): order_evidence/audit/notes son APPEND-ONLY (DELETE
-  // prohibido); este seed asume BD fresca en esas tablas (así corre db-test, efímera).
-  await prisma.order.deleteMany();
+  // prohibido); este seed asume BD fresca en esas tablas (así corre db-test, efímera). Cinturón y tirantes
+  // (H-101): si aun así deleteMany fallara por FK Restrict, se traduce a un mensaje accionable.
+  try {
+    await prisma.order.deleteMany();
+  } catch {
+    throw new Error(RESEED_HINT);
+  }
   await prisma.refreshToken.deleteMany();
   await prisma.session.deleteMany();
   await prisma.identifier.deleteMany();
@@ -173,11 +188,15 @@ async function main(): Promise<void> {
   console.log('Seed OK: usuarios + probes + órdenes creados.');
 }
 
-main()
-  .catch((e: unknown) => {
-    console.error(e);
-    process.exitCode = 1;
-  })
-  .finally(() => {
-    void prisma.$disconnect();
-  });
+// Solo auto-ejecuta si este módulo ES el entrypoint (permite importar ensureSeedableOrThrow desde tests
+// sin disparar el seed real).
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main()
+    .catch((e: unknown) => {
+      console.error(e);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      void prisma.$disconnect();
+    });
+}
