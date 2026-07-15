@@ -16,20 +16,24 @@ cd frontend
 npm run lint        # eslint (FR-017c/inline) + stylelint (0 estilos sueltos)   → SC-001
 npm run typecheck   # tsc -b --noEmit + codegen:check (contratos intactos)      → SC-002
 npm run build       # tsc -b && vite build                                       → SC-002
-npm run test        # vitest: suite existente en verde + tests nuevos           → SC-003a/004/005/006/007/008/010
+npm run test        # vitest: suite existente + nuevos (contraste 18 pares ×2 temas, tema, stepper, RBAC)
+                    #   → SC-003a/004/005/006/007/008/010
+npm run test:e2e    # playwright: reskin-responsive (320px/zoom200, sin overflow-x) → SC-011
+bash scripts/check-rbac-test-diff.sh   # guardián determinista de SC-004 (exit ≠0 si cambia una aserción)
 ```
 
 Criterios de aceptación:
 - **SC-001**: `stylelint` 0 violaciones (0 literales fuera de `src/ui/tokens.css`).
-- **SC-003a**: el test de ratios recorre la **lista cerrada de 17 pares** (spec §Pares de contraste) en
+- **SC-003a**: el test de ratios recorre la **lista cerrada de 18 pares** (spec §Pares de contraste) en
   **claro y oscuro** → 0 pares por debajo de su umbral (4.5:1 / 3:1).
 - **SC-003b**: `vitest-axe` 0 violaciones serias/críticas por pantalla.
-- **SC-004**: `git diff` de los ficheros de test RBAC (`fe*-detail-rbac`, `fe*-review-actions`,
-  `fe*-reassign-*`, `*-rbac*`) no toca ninguna **línea de aserción**; suite en verde.
+- **SC-004**: `scripts/check-rbac-test-diff.sh` sale con código 0 (ninguna **línea de aserción** RBAC
+  cambió); suite en verde.
 - **SC-005**: el detalle en cada uno de los 5 estados del FSM pinta el Stepper con el paso actual correcto.
 - **SC-006**: `data-theme` fuerza tema, persiste tras recarga; «sistema» borra la clave; cambio de tema no
   remonta (foco preservado). **SC-007**: `localStorage` solo la clave de tema. **SC-008**: Stepper/
-  ThemeToggle sin fetch. **SC-010**: test de regresión RBAC por rol.
+  ThemeToggle sin fetch. **SC-010**: regresión RBAC por rol×estado.
+- **SC-011**: e2e Playwright — sin scroll horizontal del `body` a 320px/zoom 200%; master-detail ≥1024px.
 
 ## 2. Validación visual manual (fidelidad al artifact)
 

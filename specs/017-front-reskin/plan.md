@@ -13,7 +13,8 @@ explorado, **dentro del design system** y **sin ampliar el alcance funcional del
 conmutador (light/dark/system) persistido en `localStorage`, más dos componentes base nuevos
 (**Stepper** del FSM, **ThemeToggle**) y el reestilo de la **tarjeta de resumen IA**. Verificación
 **determinista**: `tsc`/`eslint`/`stylelint`, test de ratios de contraste sobre tokens (lista cerrada de
-17 pares × 2 temas), `vitest-axe` estructural, y la suite de front existente sin regresión.
+18 pares × 2 temas, spec §Pares de contraste), `vitest-axe` estructural, y la suite de front existente sin
+regresión.
 
 Sin `research.md`/`data-model.md`/`contracts/`: no hay entidades ni endpoints nuevos; los contratos ya
 están congelados y la UI los sigue consumiendo sin redefinirlos. El único artefacto de diseño adicional
@@ -120,8 +121,10 @@ frontend/
     └── (resto de vistas: sin cambios de lógica; solo consumen tokens actualizados)
 
 tests/  (frontend)
-├── a11y/contrast-tokens.test.ts        # AMPLIADO: lista cerrada de 17 pares × claro/oscuro
-├── unit/  (nuevos)                     # theme-store, stepper, theme-toggle, rbac-reskin-regression
+├── a11y/contrast-tokens.test.ts        # AMPLIADO: lista cerrada de 18 pares × claro/oscuro
+├── unit/fe3-contrast.test.ts           # ACTUALIZADO: reconciliado con la paleta nueva (claro+oscuro)
+├── unit/  (nuevos)                     # theme-store, stepper, theme-toggle, rbac-reskin-regression, reduced-motion
+├── e2e/reskin-responsive.spec.ts       # NUEVO: 320px/zoom200 sin overflow-x (SC-011)
 └── (suite existente: debe seguir en verde)
 
 docs/design-system.md                   # §2 tokens (acento + estados + hex/ratios), §2.4 tema oscuro
@@ -139,11 +142,18 @@ docs/design-system.md                   # §2 tokens (acento + estados + hex/rat
 2. **Paleta y fidelidad del acento** (FR-002, H-004): fijar acento naranja de la familia del artifact;
    si el par texto-blanco/acento no llega a 4.5:1, separar `--color-primary` (accesible para texto) del
    acento vivo para superficies ≥3:1. **Documentar hex + ratios medidos** en `docs/design-system.md §2`.
-3. **Test de ratios ampliado** (FR-005): recorrer la **lista cerrada de 17 pares** en claro y oscuro; es
-   el guard determinista que hace fallar cualquier valor que no cumpla AA (fase Red primero).
-4. **`theme.ts` (fuente de verdad única)** + **script inline anti-FOUC** en `index.html` (FR-013): misma
-   lógica/clave; el store de React lee el `data-theme` ya aplicado; `storage` event para sync entre
-   pestañas; degradación si `localStorage` falla (FR-004b).
+3. **Tests de ratios ampliados** (FR-005): recorrer la **lista cerrada de 18 pares** en claro y oscuro; es
+   el guard determinista que hace fallar cualquier valor que no cumpla AA (fase Red primero). Se amplían
+   **dos** ficheros: `contrast-tokens.test.ts` (parametrizado por tema) y `fe3-contrast.test.ts` (legacy,
+   hoy hardcodea la paleta azul y solo claro → reconciliar con la paleta nueva en ambos temas para que
+   siga en verde, SC-004).
+4. **`theme.ts` (fuente de verdad única, CSS-first)** + **script inline anti-FOUC** en `index.html`
+   (FR-013): `theme.ts` **solo** lee/escribe la elección del usuario (clave de tema) y aplica/quita
+   `data-theme`; **no** calcula el tema "resuelto" en modo «sistema» ni usa `matchMedia`/`getComputedStyle`
+   (ese caso lo gobierna la `@media`, FR-004). El `ThemeToggle` muestra la **elección** (claro/oscuro/
+   sistema), no el tema resuelto. Misma lógica/clave que el script inline; el store de React lee el
+   `data-theme` ya aplicado; `storage` event para sync entre pestañas; degradación si `localStorage` falla
+   (FR-004b).
 5. **Stepper** (FR-006) y **ThemeToggle** (FR-004b): componentes base propios, accesibles, puros
    (FR-014); montarlos en `OrderDetailView` y `AppShell`.
 6. **Reestilo de la tarjeta IA** (FR-008): acento de revisión, guardián sin truncar, **mismas props**.

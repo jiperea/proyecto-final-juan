@@ -261,6 +261,7 @@ superficie de texto/fondo real; el test **falla** si algún par cae por debajo d
 | 6 | `--color-text-on-accent` | `--color-danger` | 4.5:1 |
 | 7 | `--color-text-on-accent` | `--color-success` | 4.5:1 |
 | 8 | `--color-warning-fg` | `--color-surface` (y `--color-bg`) | 4.5:1 |
+| 8b | `--color-danger` (como **texto** de error, p. ej. `.field__error`) | `--color-bg` (y `--color-surface`) | 4.5:1 |
 | 9 | `--color-focus-ring` | `--color-bg` (y `--color-surface`) | 3:1 |
 | 10 | `--color-border` | `--color-surface` (y `--color-bg`) | 3:1 |
 | 11–15 | `--status-{estado}-fg` | `--status-{estado}-bg` (los 5 estados del FSM) | 4.5:1 |
@@ -283,9 +284,10 @@ los contratos congelados y los consume la UI sin redefinirlos.
   `frontend/src/ui/tokens.css`).
 - **SC-002**: `tsc --noEmit` y `eslint` terminan con **0 errores**; `npm run build` del front termina con
   éxito.
-- **SC-003**: (a) el test de ratios sobre `tokens.css` recorre la **lista cerrada** de «Pares de contraste
-  a verificar» en **ambos** temas y encuentra **0** pares por debajo de su umbral; (b) axe reporta **0
-  violaciones serias/críticas** en **cada** pantalla (login, listado, detalle, ejecución, revisión).
+- **SC-003a**: el test de ratios sobre `tokens.css` recorre la **lista cerrada** de «Pares de contraste a
+  verificar» en **ambos** temas (claro y oscuro) y encuentra **0** pares por debajo de su umbral.
+- **SC-003b**: `vitest-axe` reporta **0 violaciones serias/críticas** en **cada** pantalla (login, listado,
+  detalle, ejecución, revisión).
 - **SC-004**: **100%** de los tests de front existentes siguen en verde tras el reskin (0 regresiones). El
   «no se modifica ninguna aserción de RBAC/comportamiento» se verifica de forma determinista sobre el
   `git diff` de los ficheros de test de RBAC/comportamiento (`tests/unit/fe*-detail-rbac.*`,
@@ -311,9 +313,13 @@ los contratos congelados y los consume la UI sin redefinirlos.
 - **SC-009**: No hay flash de tema: el tema efectivo está aplicado en la raíz **antes** de montar React
   (script inline en `index.html`); verificable porque `data-theme`/`color-scheme` ya está fijado en el
   primer HTML servido (FR-013).
-- **SC-010**: Existe ≥1 test de regresión propio del reskin que, para al menos un control por rol
-  (dispatcher/técnico/supervisor), confirma que su ocultamiento/deshabilitación por rol se preserva tras el
-  reskin (FR-015).
+- **SC-010**: Existe un test de regresión propio del reskin que, para **cada combinación rol×estado** donde
+  hoy hay un control condicionado (reasignar=dispatcher en estados reasignables; aprobar/rechazar=supervisor
+  en `pending_review`; iniciar/registrar=técnico asignado), confirma que su ocultamiento/deshabilitación por
+  rol se preserva tras el reskin (FR-015).
+- **SC-011**: Un test determinista (Playwright e2e, viewport 320px y zoom 200%) confirma que **no** hay
+  scroll horizontal del `body` (`document.body.scrollWidth <= document.body.clientWidth`) en cada pantalla,
+  y que el layout master-detail sigue activo ≥1024px (FR-009).
 
 > Feature de presentación **sin componente IA**: los SC se verifican con **herramientas deterministas**
 > (stylelint/eslint/tsc/axe-core/vitest), no con promptfoo. No hay endpoints nuevos → sin eval de IA.
