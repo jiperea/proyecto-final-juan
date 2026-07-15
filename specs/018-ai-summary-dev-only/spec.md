@@ -141,7 +141,9 @@ errores transitorios (429/503) sin cambios.
 - **FR-006**: El sistema SHALL **no** introducir proveedor de **API de pago** (respeta "sin API de pago");
   `AI_PROVIDER` permanece `claude-cli` (dev) | `mock` (tests). Además, un **guard activo dev-only**
   (**deny-by-default**: se considera operable **solo** cuando `NODE_ENV==='development'` **o**
-  `AI_PROVIDER==='mock'`; cualquier otro entorno —pre/prod/staging— trata `claude-cli` como **no operable**)
+  `AI_PROVIDER==='mock'`; `NODE_ENV` es el enum `{development,test,production}` — pre/staging se despliegan
+  como `production`; cualquier `NODE_ENV≠development` con claude-cli → **no operable**, y un valor no
+  contemplado aborta por fail-fast, H-005)
   SHALL implementarse **dentro del propio adaptador** `claude-cli-provider` (misma ruta que FR-002 → devuelve
   el mismo `DomainError AI_UNAVAILABLE` por el puerto, respetando el orden de FR-002b; **no** un check en el
   handler que pudiera saltarse la precedencia). El guard lee la **config validada e inyectada** al arrancar
