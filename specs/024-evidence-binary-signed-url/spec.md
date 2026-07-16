@@ -13,6 +13,14 @@
 > **No** cambia el FSM de la orden, ni el reskin (FE-8/9), ni el resumen IA (018). Reutiliza la validación
 > de evidencia ya existente (`EvidenceRef`: allowlist `image/{jpeg,png,webp,heic}`, tamaño 1..25 MiB).
 
+## Clarifications
+
+### Session 2026-07-16 (decisiones por defecto informado — el panel G1 las valida)
+
+- Q: ¿Mecanismo de **subida** (FR-012)? → A: **Multipart directo a nuestra API**. El backend recibe el binario, **valida allowlist/tamaño en el borde** y lo almacena cifrado, atómico con la transición/auditoría (FR-011). Motivo: sin dependencia cloud de pago (dev-local/mock), validación y control server-side de la superficie, coherente con hexagonal. Se descarta pre-signed PUT (el cliente subiría directo a un store externo; complica validación de tipo/tamaño y no hay store cloud en dev).
+- Q: ¿Cómo se **sirve la lectura** (FR-013)? → A: Un **endpoint de lectura autoriza (por orden+rol) y responde 302 redirect a una URL firmada efímera** (token firmado + **TTL ≤300 s**) servida por el backend (adaptador local en dev). Motivo: cumple «URL firmada ≤300 s» de forma verificable (expiración testeable), no expone `object_ref`, y el front solo sigue el enlace (`<img>`/nueva pestaña). Equivale funcionalmente a devolver la URL en el cuerpo, pero el 302 simplifica el front.
+- Q: ¿**Plazo de retención** del binario PII (FR-009)? → A: El binario se retiene mientras la orden no esté `closed` y **hasta 90 días tras el cierre**; después se **purga** (el acceso devuelve «no disponible»/410). Los **metadatos y la auditoría permanecen** (inmutables, XI). Plazo revisable en plan si el negocio fija otro.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - El técnico sube fotos reales de evidencia (Priority: P1)
@@ -85,11 +93,11 @@ Como responsable de datos, la evidencia (PII) se protege: cifrada en reposo, aut
 - **FR-006**: THE evidencia SHALL **no** ser accesible por URL directa sin firma/autorización (test explícito).
 - **FR-007**: WHEN un rol no autorizado o una orden ajena solicita evidencia THE sistema SHALL responder **401** (sin sesión) / **403 o 404 uniforme** (no-enumeración), coherente con el resto de `orders`.
 - **FR-008**: THE sistema SHALL **no** emitir en logs/errores la URL firmada, el `object_ref` ni el binario (redacción de PII en logs).
-- **FR-009**: THE binario de evidencia SHALL estar sujeto a la **política de retención del payload PII** (plazo definido en esta spec/plan), independiente del registro de auditoría (XI); tras el plazo, el binario se purga y el acceso devuelve «no disponible» sin filtrar.
+- **FR-009**: THE binario de evidencia SHALL retenerse mientras la orden no esté `closed` y **hasta 90 días tras el cierre**; superado ese plazo THE sistema SHALL **purgar** el binario y responder «no disponible» (**410**) sin filtrar, conservando **metadatos y auditoría** (inmutables, XI).
 - **FR-010**: THE front (detalle de orden) SHALL permitir **abrir cada foto** de evidencia (sustituye el placeholder «Imagen N» de FE-9 por una miniatura/enlace real que abre la imagen), con estados de **carga/error**, y **sin** exponer la URL firmada en logs/consola del cliente.
 - **FR-011**: THE subida binaria SHALL ser **atómica** con la transición de estado y la auditoría (todo-o-nada), sin dejar evidencia huérfana ni estado inconsistente (coherente con la transacción de 005/XI).
-- **FR-012**: THE mecanismo de **subida** [NEEDS CLARIFICATION: (a) multipart directo a nuestra API (el backend recibe y almacena el binario, valida tipo/tamaño en el borde) vs (b) URL firmada de **subida** (pre-signed PUT) al almacenamiento y el cliente sube directo. Impacta arquitectura, superficie de ataque y dónde se validan tipo/tamaño].
-- **FR-013**: THE forma de **servir la lectura** [NEEDS CLARIFICATION: (a) endpoint que responde **302 redirect** a la URL firmada, (b) endpoint que **devuelve la URL firmada en el cuerpo** y el front la usa, o (c) el detalle ya incluye un enlace firmado por evidencia. Impacta el contrato y el front].
+- **FR-012**: WHEN el técnico dueño sube evidencia THE cliente SHALL enviarla como **multipart directo a la API**; el backend valida allowlist/tamaño en el borde y almacena el binario cifrado (sin pre-signed PUT ni store cloud en dev). *(Resuelto en clarify.)*
+- **FR-013**: WHEN un actor autorizado solicita ver la evidencia `N` THE endpoint de lectura SHALL autorizar (orden+rol) y responder **302 redirect a una URL firmada efímera** (token firmado + **TTL ≤300 s**) servida por el backend; el front sigue el enlace sin exponer la URL en logs/consola. *(Resuelto en clarify.)*
 
 ### Key Entities
 
