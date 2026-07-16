@@ -108,13 +108,13 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ### Tests (Red primero) ⚠️
 
-- [ ] T033 [P] [US3] Integration test `backend/tests/integration/evidence-encryption-at-rest.spec.ts` — lee bytes crudos del adaptador (bypass descifrado) y afirma ≠ binario original byte a byte; AES-256-GCM (SC-004).
-- [ ] T034 [P] [US3] Integration test `backend/tests/integration/evidence-internal-signature-ttl.spec.ts` — firma interna caduca >300 s; cliente sin sesión no accede (SC-003/FR-005).
-- [ ] T035 [P] [US3] Integration test `backend/tests/integration/evidence-nolog.spec.ts` — grep de logs: 0 object_ref/firma/binario (SC-005/FR-008).
-- [ ] T036 [P] [US3] Integration test `backend/tests/integration/evidence-no-direct-access.spec.ts` — acceso directo al store sin firma interna → denegado (FR-006).
-- [ ] T037 [P] [US3] Integration test `backend/tests/integration/evidence-read-audit.spec.ts` — lectura autorizada deja registro append-only sin binario; denegados emiten señal best-effort (FR-021/FR-007).
-- [ ] T038 [P] [US3] Integration test `backend/tests/integration/evidence-staging-gc.spec.ts` — staging >24 h sin fila purgado; en-vuelo conservado; blob superado purgado; vigente intacto (FR-024).
-- [ ] T039 [P] [US3] Integration test `backend/tests/integration/evidence-retention-purge.spec.ts` — closed >90 d: blob ausente físicamente; acceso a closed → 404 (nunca 410) (FR-018/SC-006).
+- [x] T033 [P] [US3] Integration test `backend/tests/integration/evidence-encryption-at-rest.spec.ts` — lee bytes crudos del adaptador (bypass descifrado) y afirma ≠ binario original byte a byte; AES-256-GCM (SC-004).
+- [x] T034 [P] [US3] Integration test `backend/tests/integration/evidence-internal-signature-ttl.spec.ts` — firma interna caduca >300 s; cliente sin sesión no accede (SC-003/FR-005).
+- [x] T035 [P] [US3] Integration test `backend/tests/integration/evidence-nolog.spec.ts` — grep de logs: 0 object_ref/firma/binario (SC-005/FR-008).
+- [x] T036 [P] [US3] Integration test `backend/tests/integration/evidence-no-direct-access.spec.ts` — acceso directo al store sin firma interna → denegado (FR-006).
+- [x] T037 [P] [US3] Integration test `backend/tests/integration/evidence-read-audit.spec.ts` — lectura autorizada deja registro append-only sin binario; denegados emiten señal best-effort (FR-021/FR-007).
+- [x] T038 [P] [US3] Integration test `backend/tests/integration/evidence-staging-gc.spec.ts` — staging >24 h sin fila purgado; en-vuelo conservado; blob superado purgado; vigente intacto (FR-024).
+- [x] T039 [P] [US3] Integration test `backend/tests/integration/evidence-retention-purge.spec.ts` — closed >90 d: blob ausente físicamente; acceso a closed → 404 (nunca 410) (FR-018/SC-006).
 
 ### Implementación
 

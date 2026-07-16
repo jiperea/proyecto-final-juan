@@ -73,6 +73,20 @@ export function makeTestAppWithOrderDetail(
   return { app, prisma };
 }
 
+// 024 (US3) — app con override de getEvidenceDeps (deniedLogger captor / storage sustituido), conservando
+// el resto de adaptadores reales (Postgres + storage por defecto). Mismo patrón que
+// makeTestAppWithOrderDetail. Permite capturar la señal best-effort de acceso denegado emitida por
+// getOrderEvidence sin tocar producción (T037, FR-021).
+type GetEvidenceOverride = Partial<AppDeps['getEvidenceDeps']>;
+export function makeTestAppWithEvidence(
+  over: GetEvidenceOverride,
+  overrides: Partial<Config> = {},
+): { app: Express; prisma: PrismaClient } {
+  const { deps, prisma } = buildContainer(testConfig(overrides));
+  const app = buildApp({ ...deps, getEvidenceDeps: { ...deps.getEvidenceDeps, ...over } });
+  return { app, prisma };
+}
+
 export function cookieValue(setCookie: string[] | string | undefined, name: string): string {
   const arr = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
   const found = arr.find((c) => c.startsWith(`${name}=`));
