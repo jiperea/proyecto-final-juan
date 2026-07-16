@@ -1,8 +1,16 @@
 openapi: 3.1.0
 info:
   title: FieldOps — Orders API
-  version: 1.5.0
+  version: 1.6.0
   description: >
+    Feature 024 (write+read binario): uploadOrderEvidence (POST .../evidence): sube un blob de evidencia
+    a staging (cifrado, sin fila OrderEvidence) para el technician dueño con la orden in_progress
+    (autz-primero, 404 uniforme antes de mirar contenido; tope ≤10 blobs staged vivos); devuelve
+    `object_ref` opaco consumido por submitOrderExecution (005), sin cambiar su shape. getOrderEvidence
+    (GET .../evidence/{evidenceId}): sirve el binario de una evidencia ya committeada con la MISMA autz
+    heredada de getOrderDetail (008/#010) y cabeceras defensivas (nosniff/no-referrer/no-store); 410 si el
+    blob es legacy/superado. `EvidenceMeta` se amplía de forma COMPATIBLE con `items[]` (evidence_id +
+    content_type por evidencia); `count`/`content_types` no cambian.
     Feature 002a (read-side): listado de órdenes filtrado por rol sobre el auth/RBAC de 001.
     Feature 004 (write-side): reasignación de una orden por el dispatcher (POST .../reassignments),
     primer endpoint que muta una orden (conserva estado, version+1, auditoría append-only atómica).
@@ -217,6 +225,151 @@ paths:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
         '500':
           description: Error interno genérico (todo error de BD). Cuerpo genérico; nunca filtra detalle de Postgres.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
+  # ---- Feature 024 — evidencia: subida de blob (staging) + lectura del binario committeado ----
+  /orders/{orderId}/evidence:
+    post:
+      operationId: uploadOrderEvidence
+      tags: [orders]
+      summary: Sube un blob de evidencia (staging) — técnico dueño, orden in_progress
+      description: >
+        Multipart. Autz-primero (FR-020): (1) sin sesión → 401; (2) si no es el technician dueño actual
+        o la orden no está in_progress → 404 uniforme (nunca 403) ANTES de mirar el contenido;
+        (3) solo si autorizado se valida allowlist/tamaño/contenido real. Almacena el blob CIFRADO
+        (staging, sin fila OrderEvidence) y devuelve `object_ref`. Tope ≤10 blobs staged vivos por ciclo
+        (11.º → 422). El `object_ref` solo circula en el flujo upload↔submit; nunca en logs/lectura.
+        Los `object_ref` devueltos son los consumidos por submitOrderExecution (005), sin cambiar su shape.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 1 imagen (allowlist image/jpeg,png,webp,heic), ≤25 MiB, > 0 bytes.
+      responses:
+        '201':
+          description: Blob staged; devuelve `object_ref` opaco.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [object_ref]
+                properties:
+                  object_ref:
+                    type: string
+                    minLength: 1
+                    maxLength: 512
+                    description: Igual formato que EvidenceRef.object_ref (005); consumible por submitOrderExecution.
+        '401':
+          description: No autenticado. Uniforme (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            No autorizado / orden ajena / inexistente / fuera de estado (`in_progress`) / `orderId`
+            malformado. Cuerpo genérico indistinguible (no-enumeración), evaluado ANTES de mirar el
+            contenido del blob.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '413':
+          description: PAYLOAD_TOO_LARGE — tamaño >25 MiB o 0 bytes. Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '415':
+          description: UNSUPPORTED_MEDIA_TYPE — tipo declarado fuera de la allowlist de imágenes. Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '422':
+          description: >
+            INVALID_EVIDENCE — contenido falseado/corrupto (magic-byte no coincide con el tipo declarado) o
+            STAGING_LIMIT_EXCEEDED — tope ≤10 blobs staged vivos superado. Sin efecto.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: >
+            BD u object storage no disponibles al escribir el blob (fail-closed; nunca cuelga ni
+            fail-open). Convención transversal (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+
+  /orders/{orderId}/evidence/{evidenceId}:
+    get:
+      operationId: getOrderEvidence
+      tags: [orders]
+      summary: Sirve el binario de una evidencia committeada — same-origin, por sesión
+      description: >
+        Autz heredada EXACTA de getOrderDetail (008/#010): technician dueño actual o supervisor;
+        dispatcher NO. Precedencia FR-007: 401 sin sesión; 404 uniforme (no 403) para no-autorizado /
+        ajena / inexistente / `closed`/`draft` / `evidenceId` que no pertenece a `orderId` /
+        `evidenceId` inexistente; SOLO si autorizado y en alcance se evalúa el binario → 410 si es
+        legacy/superado (blob ausente en el store). Sirve el binario en la MISMA respuesta autenticada
+        (sin token/URL de cliente); la firma ≤300 s que lee el objeto es interna backend↔store (nunca se
+        expone al cliente). Cabeceras defensivas: `X-Content-Type-Options: nosniff`, `Content-Type` del
+        magic-byte real detectado (no el declarado), `Referrer-Policy: no-referrer`,
+        `Cache-Control: no-store`. Verifica `evidenceId` ∈ `orderId` (FR-015) antes de servir.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: evidenceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Binario de la imagen (Content-Type real por magic-byte).
+          headers:
+            X-Content-Type-Options:
+              schema: { type: string, enum: [nosniff] }
+            Referrer-Policy:
+              schema: { type: string, enum: [no-referrer] }
+            Cache-Control:
+              schema: { type: string, enum: [no-store] }
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            image/heic: { schema: { type: string, format: binary } }
+        '401':
+          description: No autenticado. Uniforme (001).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '404':
+          description: >
+            No autorizado / ajena / inexistente / `closed`/`draft` / `orderId`/`evidenceId` malformados /
+            `evidenceId` que no pertenece a `orderId`. Cuerpo genérico indistinguible (no-enumeración),
+            evaluado antes de tocar el binario.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '410':
+          description: >
+            Autorizado y en alcance, pero el blob es legacy/superado (no disponible en el store).
+            EVIDENCE_GONE. Sin reintento posible.
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
+        '503':
+          description: >
+            BD u object storage no disponibles al leer/firmar el blob (fail-closed; nunca cuelga ni
+            fail-open). Convención transversal (001).
           content:
             application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } }
 
@@ -463,11 +616,14 @@ components:
       additionalProperties: false
       required: [count, content_types]
       description: >
-        Metadatos (NO binario) de la evidencia del ciclo vigente (feature 008/#010). `count` = nº de evidencias
-        del ciclo; `content_types` = lista de `content_type` por evidencia (duplicados posibles), ORDENADA por
-        `at` ascendente de cada OrderEvidence (desempate por `id`). Invariante: `count == content_types.length`.
-        Sin ciclo de ejecución aún (p. ej. `assigned` sin submit) → `{count:0, content_types:[]}`; un ciclo ya
-        enviado siempre tiene ≥1 evidencia (005 exige 1..10). NUNCA incluye `object_ref` ni el binario.
+        Metadatos (NO binario) de la evidencia del ciclo vigente (feature 008/#010; ampliado en 024 con
+        `items[]`, de forma COMPATIBLE). `count` = nº de evidencias del ciclo; `content_types` = lista de
+        `content_type` por evidencia (duplicados posibles), ORDENADA por `at` ascendente de cada
+        OrderEvidence (desempate por `id`). Invariante: `count == content_types.length` (y, si `items` está
+        presente, `count == items.length`, en el MISMO orden que `content_types`). Sin ciclo de ejecución
+        aún (p. ej. `assigned` sin submit) → `{count:0, content_types:[]}` (`items: []` si presente); un
+        ciclo ya enviado siempre tiene ≥1 evidencia (005 exige 1..10). NUNCA incluye `object_ref` ni el
+        binario.
       properties:
         count:
           type: integer
@@ -479,6 +635,25 @@ components:
             type: string
             enum: [image/jpeg, image/png, image/webp, image/heic]
           description: Un content_type por evidencia (duplicados posibles), ordenado por `at` asc. length == count.
+        items:
+          type: array
+          description: >
+            Feature 024. Identificadores opacos por evidencia del ciclo vigente, en el MISMO orden que
+            `content_types` (por `at` asc, desempate por `id`); `length == count`. Mismo alcance de rol que
+            el resto de `EvidenceMeta` (dispatcher no la recibe). `evidence_id` es el `evidenceId` consumido
+            por `GET /orders/{orderId}/evidence/{evidenceId}`. NUNCA expone `object_ref`.
+          items:
+            type: object
+            additionalProperties: false
+            required: [evidence_id, content_type]
+            properties:
+              evidence_id:
+                type: string
+                format: uuid
+                description: Identificador opaco de la evidencia (id de OrderEvidence).
+              content_type:
+                type: string
+                enum: [image/jpeg, image/png, image/webp, image/heic]
 
     OrderDetailResponse:
       type: object
@@ -636,9 +811,18 @@ components:
         guard de evidencia en approve). 007 (summarizeOrderIncident) 401/403/404/429/500/503 — FORBIDDEN_ROLE (403),
         404 genérico (no-enumeración, orden no visible/estado ≠ pending_review), RATE_LIMITED (429, con header
         Retry-After), INTERNAL (500, error inesperado), SERVICE_UNAVAILABLE (503, timeout/fallo del proveedor **o**
-        BD no disponible al leer la fuente, convención 001/006). `agent_action` se emite en las
-        respuestas de **negocio** de los handlers de 004/005/006 (404/409/422/500); los 401/403 provienen del
-        middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es opcional, no `required`).
+        BD no disponible al leer la fuente, convención 001/006). 024 (uploadOrderEvidence)
+        401/404/413/415/422/503 — 404 genérico (no autorizado/ajena/inexistente/fuera de `in_progress`,
+        no-enumeración, evaluado antes de mirar el contenido), PAYLOAD_TOO_LARGE (413, tamaño >25 MiB o 0
+        bytes), UNSUPPORTED_MEDIA_TYPE (415, tipo declarado fuera de allowlist), INVALID_EVIDENCE (422,
+        contenido falseado/corrupto) o STAGING_LIMIT_EXCEEDED (422, tope ≤10 blobs staged vivos),
+        SERVICE_UNAVAILABLE (503, BD/store no disponibles). 024 (getOrderEvidence) 401/404/410/503 — 404
+        genérico (misma autz heredada de getOrderDetail: no autorizado/ajena/inexistente/`closed`/`draft`/
+        `evidenceId`∉`orderId`, no-enumeración), EVIDENCE_GONE (410, blob legacy/superado, sin reintento),
+        SERVICE_UNAVAILABLE (503, BD/store no disponibles al leer/firmar). `agent_action` se emite en las
+        respuestas de **negocio** de los handlers de 004/005/006/024 (404/409/410/413/415/422/500); los
+        401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action`
+        es opcional, no `required`).
       properties:
         code: { type: string }
         message: { type: string, description: Español; no interpola valores recibidos ni PII. }

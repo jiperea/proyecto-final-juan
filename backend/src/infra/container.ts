@@ -30,9 +30,28 @@ import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repos
 import { PrismaSessionRepository } from './repositories/session-repository';
 import { PrismaUserRepository } from './repositories/user-repository';
 import { InMemorySessionState } from './session-state/in-memory';
+import { FsStorageAdapter } from './storage/fs-storage-adapter';
 
 const MIN_MS = 60_000;
 const DAY_MS = 86_400_000;
+
+// 007 — adaptadores del resumen de incidencia por IA (extraído para acotar buildAdapters, max-lines-per-function).
+function buildAiAdapters(prisma: PrismaClient, config: Config) {
+  return {
+    incidentSource: new PrismaIncidentSourceRepository(prisma),
+    aiProvider:
+      config.aiProvider === 'mock'
+        ? new MockAiSummaryProvider()
+        : new ClaudeCliProvider({ timeoutMs: config.aiTimeoutMs, temperature: config.aiTemperature, operable: config.aiOperable }),
+    aiAccessLog: new PinoAccessLog(createLogger()),
+    aiRateLimit: new InMemoryRateLimit({
+      max: config.aiRateMax,
+      windowMs: config.aiRateWindowMs,
+      lockoutMs: config.aiRateWindowMs,
+      lockoutSecret: config.lockoutSecret,
+    }),
+  };
+}
 
 // Instancia todos los adaptadores (puertos→infra) para un PrismaClient dado.
 function buildAdapters(prisma: PrismaClient, config: Config) {
@@ -71,19 +90,10 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
       lockoutMs: config.lockoutWindowMin * MIN_MS,
       lockoutSecret: config.lockoutSecret,
     }),
-    // 007 — resumen de incidencia por IA.
-    incidentSource: new PrismaIncidentSourceRepository(prisma),
-    aiProvider:
-      config.aiProvider === 'mock'
-        ? new MockAiSummaryProvider()
-        : new ClaudeCliProvider({ timeoutMs: config.aiTimeoutMs, temperature: config.aiTemperature, operable: config.aiOperable }),
-    aiAccessLog: new PinoAccessLog(createLogger()),
-    aiRateLimit: new InMemoryRateLimit({
-      max: config.aiRateMax,
-      windowMs: config.aiRateWindowMs,
-      lockoutMs: config.aiRateWindowMs,
-      lockoutSecret: config.lockoutSecret,
-    }),
+    ...buildAiAdapters(prisma, config), // 007
+    // 024 — StoragePort: blobs de evidencia cifrados en filesystem (dev/prod-local); en test se
+    // puede sustituir por el fake en memoria (tests/helpers/fake-storage.ts) al construir AppDeps.
+    storage: new FsStorageAdapter({ baseDir: config.evidenceStorageDir, encKey: config.evidenceEncKey, clock }),
   };
 }
 
@@ -124,7 +134,7 @@ function authDeps(a: Adapters, config: Config): Pick<AppDeps, 'loginDeps' | 'log
   };
 }
 
-export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaClient } {
+export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaClient; storage: Adapters['storage'] } {
   const prisma = createPrisma(config.databaseUrl);
   const a = buildAdapters(prisma, config);
   const deps: AppDeps = {
@@ -159,5 +169,5 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
       secure: config.nodeEnv === 'production',
     },
   };
-  return { deps, prisma };
+  return { deps, prisma, storage: a.storage };
 }

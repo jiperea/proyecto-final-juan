@@ -21,11 +21,11 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Añadir dependencia de parser multipart en streaming (`busboy`) a `backend/package.json` (y tipos) sin tocar otras versiones.
-- [ ] T002 [P] Añadir config nueva en `backend/src/infra/config.ts` (Zod fail-fast, patrón de `JWT_SECRET`): `EVIDENCE_ENC_KEY` (`z.string().min(32)`), `EVIDENCE_SIGN_TTL_SECONDS` (`z.coerce.number().int().min(1).max(300).default(300)`), `EVIDENCE_STAGING_TTL_HOURS` (default 24); incluir `EVIDENCE_ENC_KEY` en `assertSecretsDistinct`; prohibir clave `mock`/simbólica en producción.
-- [ ] T003 [P] Actualizar `.env.example` con las tres variables nuevas y un valor de ejemplo dev (no secreto real).
-- [ ] T004 Aplicar el delta de contrato `specs/024-evidence-binary-signed-url/contracts/evidence-endpoints.delta.yaml` sobre `contracts/orders.openapi.yaml` (nuevos `uploadOrderEvidence`, `getOrderEvidence`; `EvidenceMeta.items[]`), manteniendo evolución compatible. *(steward-contract)*
-- [ ] T005 Regenerar tipos/Zod derivados del contrato: `frontend/src/api/generated/orders` + `frontend/src/api/{types.ts,schemas.ts}` (añadir `items[]` y esquemas de subida/lectura); verificar `snake_case` externo.
+- [x] T001 Añadir dependencia de parser multipart en streaming (`busboy`) a `backend/package.json` (y tipos) sin tocar otras versiones.
+- [x] T002 [P] Añadir config nueva en `backend/src/infra/config.ts` (Zod fail-fast, patrón de `JWT_SECRET`): `EVIDENCE_ENC_KEY` (`z.string().min(32)`), `EVIDENCE_SIGN_TTL_SECONDS` (`z.coerce.number().int().min(1).max(300).default(300)`), `EVIDENCE_STAGING_TTL_HOURS` (default 24); incluir `EVIDENCE_ENC_KEY` en `assertSecretsDistinct`; prohibir clave `mock`/simbólica en producción.
+- [x] T003 [P] Actualizar `.env.example` con las tres variables nuevas y un valor de ejemplo dev (no secreto real).
+- [x] T004 Aplicar el delta de contrato `specs/024-evidence-binary-signed-url/contracts/evidence-endpoints.delta.yaml` sobre `contracts/orders.openapi.yaml` (nuevos `uploadOrderEvidence`, `getOrderEvidence`; `EvidenceMeta.items[]`), manteniendo evolución compatible. *(steward-contract)*
+- [x] T005 Regenerar tipos/Zod derivados del contrato: `frontend/src/api/generated/orders` + `frontend/src/api/{types.ts,schemas.ts}` (añadir `items[]` y esquemas de subida/lectura); verificar `snake_case` externo.
 
 ---
 
@@ -33,12 +33,12 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 **⚠️ CRITICAL**: el `StoragePort` bloquea todas las historias. Sin él no hay subida, lectura ni cifrado.
 
-- [ ] T006 [P] Test en rojo del puerto (contrato del fake): `backend/tests/unit/storage-port.spec.ts` — define el contrato esperado de `StoragePort` (put staged devuelve object_ref ligado a owner+order+createdAt; signRead con TTL; read de handle caducado falla; list/delete). Debe FALLAR (no existe el puerto).
-- [ ] T007 Crear el puerto `backend/src/domain/ports/storage.ts` (interface pura `StoragePort`: `putStaged`, `signRead`, `read`, `list`, `delete`; tipos `ObjectRef`, `SignedReadHandle`); el dominio NO importa crypto/fs.
-- [ ] T008 [P] Test en rojo del adaptador: `backend/tests/integration/fs-storage-adapter.spec.ts` — AES-256-GCM (bytes crudos ≠ plano), firma HMAC con expiración ≤300 s, list/delete por edad. Debe FALLAR.
-- [ ] T009 Implementar `backend/src/infra/storage/fs-storage-adapter.ts` (filesystem + `node:crypto` AES-256-GCM con IV por objeto + tag verificado; object_ref = token HMAC-firmado con `(ownerId,orderId,createdAt,nonce)`; firma de lectura con TTL).
-- [ ] T010 Crear fake del puerto para tests de dominio/handlers: `backend/tests/helpers/fake-storage.ts` (en memoria, honra TTL y firma).
-- [ ] T011 Cablear `StoragePort → fs-storage-adapter` en `backend/src/infra/container.ts` (inyección; en test se inyecta el fake).
+- [x] T006 [P] Test en rojo del puerto (contrato del fake): `backend/tests/unit/storage-port.spec.ts` — define el contrato esperado de `StoragePort` (put staged devuelve object_ref ligado a owner+order+createdAt; signRead con TTL; read de handle caducado falla; list/delete). Debe FALLAR (no existe el puerto).
+- [x] T007 Crear el puerto `backend/src/domain/ports/storage.ts` (interface pura `StoragePort`: `putStaged`, `signRead`, `read`, `list`, `delete`; tipos `ObjectRef`, `SignedReadHandle`); el dominio NO importa crypto/fs.
+- [x] T008 [P] Test en rojo del adaptador: `backend/tests/integration/fs-storage-adapter.spec.ts` — AES-256-GCM (bytes crudos ≠ plano), firma HMAC con expiración ≤300 s, list/delete por edad. Debe FALLAR.
+- [x] T009 Implementar `backend/src/infra/storage/fs-storage-adapter.ts` (filesystem + `node:crypto` AES-256-GCM con IV por objeto + tag verificado; object_ref = token HMAC-firmado con `(ownerId,orderId,createdAt,nonce)`; firma de lectura con TTL).
+- [x] T010 Crear fake del puerto para tests de dominio/handlers: `backend/tests/helpers/fake-storage.ts` (en memoria, honra TTL y firma).
+- [x] T011 Cablear `StoragePort → fs-storage-adapter` en `backend/src/infra/container.ts` (inyección; en test se inyecta el fake).
 
 **Checkpoint**: puerto + adaptador + fake listos; las historias pueden empezar.
 

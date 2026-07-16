@@ -34,7 +34,7 @@ Decisiones de diseño (Phase 0). No quedan `NEEDS CLARIFICATION` (el G1 cerró l
 
 ## D6 · Cifrado en reposo y config
 
-- **Decisión**: **AES-256-GCM** con clave de 32 bytes desde `config.ts` (Zod `min(32)`, fail-fast, `assertSecretsDistinct` como `JWT_SECRET`); IV aleatorio por objeto, tag GCM verificado al leer. Nuevas config: `EVIDENCE_ENC_KEY`, `EVIDENCE_SIGN_TTL_SECONDS` (≤300, default 300), `EVIDENCE_STAGING_TTL_HOURS` (default 24). Prohibido `mock`/clave simbólica en producción.
+- **Decisión**: **AES-256-GCM** con clave de 32 bytes desde `config.ts` (Zod `min(32)`, fail-fast, `assertSecretsDistinct` como `JWT_SECRET`); IV aleatorio por objeto, tag GCM verificado al leer. Nuevas config: `EVIDENCE_ENC_KEY`, `EVIDENCE_SIGN_TTL_SECONDS` (≤300, default 300), `EVIDENCE_STAGING_TTL_HOURS` (default 24), `EVIDENCE_STORAGE_DIR` (directorio base del adaptador fs, default `./data/evidence`). Prohibido `mock`/clave simbólica en producción. **Claves derivadas por contexto** (HKDF-like: `evidence-aes-gcm-v1` / `evidence-ref-hmac-v1` / `evidence-handle-hmac-v1`) del secreto maestro `EVIDENCE_ENC_KEY` — no se reutiliza la clave de cifrado como clave de firma. `ObjectRef` = `base64url(payload{ownerId,orderId,createdAt,nonce}).base64url(HMAC)`, verificado con `timingSafeEqual`.
 - **Rationale**: patrón idéntico al de secretos existentes (`infra/config.ts:57-111`). SC-004 verifica leyendo bytes crudos del adaptador (bypaseando descifrado) que difieren del plano.
 - **Alternativas rechazadas**: AES-CBC sin tag (sin integridad autenticada); clave hardcodeada (prohibido).
 
