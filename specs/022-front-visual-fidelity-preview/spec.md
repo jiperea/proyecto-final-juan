@@ -127,7 +127,7 @@ coinciden con las pantallas 01 y 04 del preview.
 ### Functional Requirements
 
 - **FR-001**: WHEN se renderiza cualquier vista THE front SHALL usar los tokens neutros del preview: **fondo de página** `#F4F6F8` (claro) / `#0E141A` (oscuro) — no blanco puro; **superficie** `#FFFFFF`/`#18212B`; **superficie-2** `#EDF0F3`/`#212C38`. Valores computables (`getComputedStyle`).
-- **FR-002**: THE front SHALL definir el acento vivo como token (`#DC5A24` claro / `#FF7A45` oscuro) y aplicarlo en las superficies de acento del preview: **marca «F», anillo de foco, barra/selección de fila y kicker**. Incluye los **botones primarios** (su color de fondo lo fija FR-010). El **paso actual del stepper NO usa el acento vivo**: es morado (ver FR-006), fiel al artifact. Enumeración cerrada: ninguna otra superficie usa el acento vivo.
+- **FR-002**: THE front SHALL definir el acento vivo como token (`#DC5A24` claro / `#FF7A45` oscuro) y aplicarlo en las superficies de acento del preview: **marca «F», anillo de foco, barra/selección de fila** y **botones primarios** (su color de fondo lo fija FR-010). El **paso actual del stepper NO usa el acento vivo**: es morado (ver FR-006), fiel al artifact. (El «kicker» del artifact es recurso de la página de exploración, no de la app → N/A, ver plan.) Enumeración cerrada: ninguna otra superficie usa el acento vivo.
 - **FR-003**: THE front SHALL renderizar los chips de estado con la paleta del preview (primer plano / fondo), en claro y oscuro, cada uno con un **punto de color** (indicador `::before`):
   - `draft`: `#64748B`/`#EAEDF1` (osc. `#94A3B4`/`#26313D`)
   - `assigned`: `#2563EB`/`#E4ECFD` (osc. `#6FA0FF`/`#1E2A44`)

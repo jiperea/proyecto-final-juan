@@ -1,0 +1,91 @@
+{
+  "phase": "G2",
+  "feature": "022-front-visual-fidelity-preview",
+  "bloqueantes": 0,
+  "altas": 2,
+  "total": 6,
+  "veredicto": "APROBADA_CON_COMENTARIOS",
+  "huecos": [
+    {
+      "id": "K-001",
+      "categoria": "CONFLICTO",
+      "elemento_afectado": "FR-002 (spec) ↔ plan.md T-002",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "plan.md"
+      ],
+      "descripcion": "FR-002 enumera el «kicker» como una de las cuatro superficies de acento vivo del preview que el front DEBE aplicar («marca «F», anillo de foco, barra/selección de fila y kicker»), con enumeración declarada cerrada. Pero la resolución T-002 del plan decide que el kicker es un recurso de la página de exploración, NO de la app, y que no se replica como componente. Así, la spec exige aplicar acento a una superficie que el plan afirma que no existirá en la app.",
+      "pregunta_critica": "¿El kicker es o no una superficie renderizada de la app? Reconciliar: o se retira «kicker» de la enumeración cerrada de FR-002, o el plan/tasks debe describir dónde se renderiza y aplicar el acento; hoy FR-002 queda con un miembro sin destino.",
+      "riesgo_si_no_se_corrige": "La enumeración cerrada de FR-002 queda incumplible/ambigua; el verificador de SC-002 no sabe si la ausencia de kicker es PASS o FALL, y se implementa contra dos criterios contradictorios.",
+      "severidad": "ALTA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-002",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-016 (tarjeta IA, gate por rol supervisor) / tasks.md T022",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "plan.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-016 (con la disposición S-006: el gate por rol vive en el render del panel) se implementa en T022, pero tasks.md no incluye ninguna tarea [Red]/test que verifique la tarjeta IA (uso del token pending_review, chrome, y sobre todo que solo se renderice para supervisor en pending_review y no filtre a otros roles). El plan (Constitution Check) afirma trazabilidad FR→test y TDD fase Red; aquí la cadena FR-016→test está rota.",
+      "pregunta_critica": "Añadir una tarea de test (fase Red) que asegure el aspecto de la tarjeta y su condición de rol/estado, o justificar explícitamente por qué FR-016 no requiere test; hoy es el único FR con render condicionado por rol sin cobertura de test.",
+      "riesgo_si_no_se_corrige": "El gate por rol de la tarjeta IA (defensa en profundidad frente a fuga entre roles) queda sin verificación; una regresión que la muestre a roles indebidos pasaría los gates deterministas.",
+      "severidad": "ALTA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-003",
+      "categoria": "COBERTURA",
+      "elemento_afectado": "FR-015 (no reproducir andamiaje del mockup)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-015 exige replicar solo las vistas de app y NO reproducir el andamiaje del mockup (marco de móvil, barra «9:41», chrome de navegador, URL falsa). Ninguna tarea de tasks.md traza a FR-015 ni verifica esa exclusión (ni en checklist estructural ni en test).",
+      "pregunta_critica": "Anclar FR-015 a una verificación concreta (p. ej. incluirlo como aserto negativo de la checklist estructural SC-001 o del smoke visual T026), o declararlo cubierto implícitamente por el diseño de las vistas.",
+      "riesgo_si_no_se_corrige": "Al replicar «literalmente» el artifact podría colarse andamiaje del mockup (phone frame, «9:41») sin que ningún control lo detecte, contradiciendo el alcance.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-004",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-006 (miniaturas de evidencia 4/3 con --radius-sm)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-006 fija dos criterios computables: halo del stepper y miniaturas de evidencia en relación 4/3 con --radius-sm. El test Red T006 solo cubre los estados/halo del stepper; la implementación de las miniaturas 4/3 vive en T013, que no tiene tarea de test asociada. La parte de miniaturas de FR-006 no llega a un test nombrable.",
+      "pregunta_critica": "Extender T006 (o añadir un test) para asertar la relación 4/3 y --radius-sm de las miniaturas, cerrando la cadena FR-006→test también para la evidencia.",
+      "riesgo_si_no_se_corrige": "La maquetación de evidencia del detalle podría desviarse de la ratio/radio del artifact sin fallo determinista; solo lo pillaría (o no) el juicio humano.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-005",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-013a (visibilidad de acciones por rol+estado) / tasks.md T013",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "T013 implementa «acciones por rol sin cambiar su visibilidad» (FR-013a), pero ninguna tarea de test verifica que replicar el preview no renderiza acciones fuera de rol/estado (la defensa en profundidad en UI). El plan lista FR-013a bajo el gate RBAC como invariante, sin anclar un test.",
+      "pregunta_critica": "Decidir si el invariante de visibilidad de acciones queda cubierto por tests existentes (y citarlos) o requiere una aserción en la fase Red; hoy no hay tarea que lo demuestre para las vistas replicadas.",
+      "riesgo_si_no_se_corrige": "Un cambio de maquetación podría exponer una acción fuera de rol/estado en UI sin ser detectado por los gates deterministas.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "S-001",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-011 (layout por viewport) ↔ FR-007/FR-016/FR-013a (master-detail de oficina)",
+      "descripcion": "FR-011 generaliza el master-detail de 'chrome de oficina' a CUALQUIER rol en ≥1024px (un technician en escritorio entra en un layout que el artifact diseñó para dispatcher/supervisor). El aislamiento por rol del panel de detalle está enumerado solo para dos superficies concretas: acciones (FR-013a) y tarjeta IA (FR-016/S-006). El panel de oficina que se CONSTRUYE nuevo puede contener más elementos (metadatos de asignación, notas internas, columna 'técnico', historial) cuya gating por rol no está declarada de forma cerrada; la garantía real de no-fuga descansa por completo en el invariante S-004 (payload ya role-scoped por backend), no en el render.",
+      "pregunta_critica": "Al construir el master-detail compartido por viewport (FR-007/T016), ¿se afirma explícitamente que TODO elemento del panel de detalle (no solo acciones y tarjeta IA) se deriva únicamente del payload role-scoped por backend y no de campos hardcodeados que asuman el shape de oficina? ¿Qué renderiza el panel de oficina cuando lo abre un technician cuyo payload no incluye esos campos —queda vacío/oculto o intenta pintar una estructura que espera datos de otro rol?",
+      "riesgo_si_no_se_corrige": "Si el panel de oficina asume el payload del supervisor/dispatcher y se implementa leyendo campos por presencia sin gate de rol, un technician en escritorio podría ver rótulos/estructura pensados para oficina; el aislamiento quedaría dependiendo solo del scoping de backend y no de una regla de render enumerada, lo que fragiliza la defensa en profundidad frente a futuros cambios de payload.",
+      "severidad": "MEDIA",
+      "agente": "revisor-rbac-seguridad"
+    }
+  ]
+}

@@ -53,7 +53,8 @@
 - [ ] T019 [P] [US4] **[Red]** `frontend/tests/unit/evidence-capture.test.tsx`: rejilla 3-col con tile «+» (borde discontinuo, **sin** acento), píldora de requisito («✓ N, mínimo 1» / no cumplido). Falla hasta T021 (FR-008, H-004).
 - [ ] T020 [US4] En `frontend/src/features/auth/LoginPage.tsx` + estilos: hero centrado del preview (FR-009). Verde T018.
 - [ ] T021 [US4] En `frontend/src/features/orders/EvidencePicker.tsx` / `ExecutionForm.tsx` + `orders.css`: rejilla 3-col + tile «+» (muted, sin acento) + píldora de requisito (FR-008). Verde T019.
-- [ ] T022 [US4] En `frontend/src/features/orders/IncidentSummaryPanel.tsx`: tarjeta IA con morado `pending_review` (borde/cabecera/fondo `--status-pending_review-bg`) + nota de guardián; visible **solo** para supervisor en `pending_review`; acepta estado runtime (texto/vacío/insuficiente) (FR-016, S-003/H-007).
+- [ ] T019b [P] [US4] **[Red]** `frontend/tests/unit/incident-summary-card.test.tsx`: la tarjeta IA usa el token morado `pending_review` (borde/cabecera/fondo `--status-pending_review-bg`) + nota de guardián; **se renderiza solo para supervisor en `pending_review`** y **no** en vistas de otros roles ni otros estados; acepta estado runtime (texto/vacío/insuficiente). Falla hasta T022 (FR-016, S-003/H-007).
+- [ ] T022 [US4] En `frontend/src/features/orders/IncidentSummaryPanel.tsx`: tarjeta IA con morado `pending_review` (borde/cabecera/fondo `--status-pending_review-bg`) + nota de guardián; visible **solo** para supervisor en `pending_review`; acepta estado runtime (texto/vacío/insuficiente) (FR-016, S-003/H-007). Verde T019b.
 
 ## Phase 6: Polish, verificación y evidencia
 
