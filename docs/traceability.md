@@ -480,7 +480,7 @@ Vistas mínimas del front». Sin endpoints/IA/backend/contratos ni cambios RBAC 
 | FR-011/011a/011b | layout por viewport (no por rol); único estado de filtro (segmento+término) con precedencia búsqueda→«Todas»; sin scroll horizontal 360–1440 | `AppShell.tsx`/`OrdersView.tsx` (breakpoint `--bp-lg`), `useOrderFilter.ts` | `unit/layout-by-viewport`, `unit/orders-filter` |
 | FR-012 | disciplina de design system (0 hex/px/font sueltos en vistas) | todas las vistas tocadas | `stylelint` (`npm run lint`) |
 | FR-013/013a | sin cambios backend/contratos/RBAC; visibilidad de acciones sin relajar/ampliar | (invariante, sin componente propio) | `git diff --name-only develop` (T028) |
-| FR-014 | capturas Playwright MCP (5 pantallas × 2 temas) + aprobación humana de fidelidad | — | evidencia en PR (T026), rúbrica SC-001 |
+| FR-014 | capturas Playwright MCP (5 pantallas × 2 temas) + aprobación humana de fidelidad | T026 | evidencia en PR (T026) · rúbrica SC-001 |
 | FR-015 | no reproduce el andamiaje del mockup (phone frame, barra "9:41", chrome de navegador) | vistas de app únicamente | revisión visual (capturas T026) |
 | FR-016 | tarjeta IA con morado `pending_review` (borde/cabecera/fondo) + nota de guardián; gate de rol en el render del panel de detalle (no en el layout compartido) | `features/orders/IncidentSummaryPanel.tsx`, `components.css` (`.ai-summary`) | `unit/incident-summary-card` |
 | SC-001 | checklist estructural + aprobación humana de fidelidad (rúbrica) | — | capturas T026 (evidencia PR) |
