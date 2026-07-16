@@ -35,8 +35,10 @@ export function ExecutionForm({ orderId }: { orderId: string }) {
 
   function submit() {
     if (!canSubmit) return;
+    // 024 (T032): la mutación sube cada foto real (uploadOrderEvidence) y luego envía la ejecución con
+    // los object_ref devueltos por el backend (FR-012).
     mutation.mutate(
-      { notes: draft.notes, evidence: items.map((it) => it.ref) },
+      { notes: draft.notes, items },
       {
         onSuccess: () => draft.clear(), // limpia el borrador tras enviar (FR-009)
         onError: () => errorRef.current?.focus(), // foco al error (F-008)

@@ -36,7 +36,10 @@ interface Options {
 }
 
 async function raw(path: string, opts: Options): Promise<Response> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // 024 (T032) · multipart (uploadOrderEvidence): con FormData el navegador fija Content-Type con el
+  // boundary correcto; fijarlo a mano lo rompería. El resto (auth/csrf/no-store) es idéntico a JSON.
+  const isForm = opts.body instanceof FormData;
+  const headers: Record<string, string> = isForm ? {} : { 'Content-Type': 'application/json' };
   if (opts.auth !== false) {
     headers['Cache-Control'] = 'no-store';
     const token = getAccessToken();
@@ -46,7 +49,9 @@ async function raw(path: string, opts: Options): Promise<Response> {
   return fetch(path, {
     method: opts.method ?? 'GET',
     headers,
-    ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+    ...(opts.body !== undefined
+      ? { body: isForm ? (opts.body as FormData) : JSON.stringify(opts.body) }
+      : {}),
   });
 }
 
@@ -110,4 +115,41 @@ export async function apiFetch<T>(path: string, opts: Options = {}): Promise<T> 
   if (!res.ok) throw await parseError(res);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+// 024 · FR-013: variante binaria de apiFetch para `getOrderEvidence` — misma sesión/credenciales
+// (Authorization en memoria, no-store), el MISMO ciclo de refresh-en-401 que apiFetch, pero el cuerpo se
+// consume como Blob (no JSON) y se renderiza SIEMPRE desde un `blob:` en memoria; nunca se expone la URL
+// del endpoint (con o sin credenciales) en el DOM/`<img src>` directo/Referer/historial.
+export async function apiFetchBlob(path: string): Promise<Blob> {
+  const startEpoch = currentEpoch();
+  let res: Response;
+  try {
+    res = await raw(path, {});
+  } catch {
+    throw new ApiError(0, undefined, OFFLINE_MESSAGE);
+  }
+  if (currentEpoch() !== startEpoch) throw new SessionChangedError();
+
+  if (res.status === 401) {
+    const refreshed = await refreshOnce();
+    if (currentEpoch() !== startEpoch) throw new SessionChangedError();
+    if (!refreshed) {
+      invalidateSession();
+      throw new ApiError(401, 'UNAUTHENTICATED', messageForCode('UNAUTHENTICATED'));
+    }
+    try {
+      res = await raw(path, {});
+    } catch {
+      throw new ApiError(0, undefined, OFFLINE_MESSAGE);
+    }
+    if (currentEpoch() !== startEpoch) throw new SessionChangedError();
+    if (res.status === 401) {
+      invalidateSession();
+      throw new ApiError(401, 'UNAUTHENTICATED', messageForCode('UNAUTHENTICATED'));
+    }
+  }
+
+  if (!res.ok) throw await parseError(res);
+  return res.blob();
 }

@@ -1,13 +1,17 @@
 import { CONTENT_TYPE_ALLOWLIST, EVIDENCE_MAX_BYTES, EVIDENCE_MAX_ITEMS } from '../../api/schemas';
 import type { EvidenceRef } from '../../api/types';
 
-// FE-2 · evidencia a nivel de METADATO (el binario NO viaja; deuda #007). object_ref = UUID aleatorio
-// (opaco, sin PII del nombre, sin colisión — G1 H-003/S-002). Preview local vía object URL.
+// FE-2/024 (T032) · evidencia en memoria hasta el envío. `ref.object_ref` es un PLACEHOLDER de cliente
+// (UUID aleatorio, opaco) usado solo para React key/dedup/eliminar-por-ítem ANTES de subir; el envío real
+// (`uploadOrderEvidence`, multipart) sube `file` y el backend devuelve el `object_ref` DEFINITIVO que
+// consume `submitOrderExecution` (FR-012) — el placeholder nunca viaja al backend. Preview local vía
+// object URL (no confundir con el `blob:` de LECTURA de evidencia ya almacenada, FR-013).
 
 export type AllowedContentType = (typeof CONTENT_TYPE_ALLOWLIST)[number];
 
 export interface EvidenceItem {
-  ref: EvidenceRef; // lo que viaja al backend (metadato)
+  ref: EvidenceRef; // metadato + object_ref PLACEHOLDER de cliente (solo para key/dedup, no viaja)
+  file: File; // binario real; lo sube uploadOrderEvidence al enviar (T032)
   previewUrl: string; // object URL del fichero (solo en memoria; para el thumbnail)
   fileName: string; // nombre accesible (no viaja: potencial PII)
   // huella best-effort para evitar re-añadir el mismo fichero (no bloqueante; H-102)
@@ -53,6 +57,7 @@ export function makeEvidenceItem(file: File, existing: EvidenceItem[]): AddEvide
   if (existing.some((e) => e.fingerprint === fp)) return { ok: false, error: 'DUPLICATE' };
   const item: EvidenceItem = {
     ref: { object_ref: crypto.randomUUID(), content_type: contentType, size_bytes: file.size },
+    file,
     previewUrl: URL.createObjectURL(file),
     fileName: file.name,
     fingerprint: fp,

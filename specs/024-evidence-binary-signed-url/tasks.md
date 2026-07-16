@@ -85,7 +85,7 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 - [x] T024 [P] [US2] Integration test `backend/tests/integration/evidence-authz.spec.ts` — dueño/supervisor 200, dispatcher 404 (FR-003); 100% pares rol×autz (SC-002).
 - [x] T025 [P] [US2] Integration test `backend/tests/integration/evidence-404-uniforme.spec.ts` — 401 sin sesión; 404 no-autz/ajena/inexistente/closed; evidence_id∉order → 404 (FR-007/FR-015).
 - [x] T026 [P] [US2] Integration test `backend/tests/integration/evidence-410-legacy-superado.spec.ts` — autorizado en alcance con blob legacy/superado → 410; closed → 404 (nunca 410) (FR-009).
-- [ ] T027 [P] [US2] Front test `frontend/src/features/orders/OrderDetailView.evidence.test.tsx` — abre imagen desde `blob:`, estados carga/error, sin URL en DOM (FR-010/FR-013) + axe.
+- [x] T027 [P] [US2] Front test `frontend/src/features/orders/OrderDetailView.evidence.test.tsx` — abre imagen desde `blob:`, estados carga/error, sin URL en DOM (FR-010/FR-013) + axe.
 - [x] T052 [P] [US2] Integration test `backend/tests/integration/evidence-reassign-access.spec.ts` — tras reasignar la orden (cambia `assigned_to`), el técnico **saliente** pierde acceso a `getOrderEvidence` (→404) y el **nuevo** dueño lo obtiene (→200); el supervisor mantiene el suyo; autz re-evaluada por petición (FR-016).
 
 ### Implementación
@@ -93,8 +93,8 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 - [x] T028 [US2] Handler `backend/src/handlers/orders/get-evidence.ts` (autz heredada; precedencia 401→404→410; sirve binario con `signRead` interno ≤300 s; cabeceras nosniff/Content-Type-real/no-referrer/no-store; verifica evidence_id∈order).
 - [x] T029 [US2] Montar ruta `GET /v1/orders/:orderId/evidence/:evidenceId` en `backend/src/handlers/app.ts` (solo `auth`).
 - [x] T030 [US2] Ampliar `backend/src/handlers/orders/get-order-detail.ts` para incluir `evidence.items[]` (evidence_id = `OrderEvidence.id`, content_type; solo roles autorizados, omitido a dispatcher).
-- [ ] T031 [US2] Front: sustituir tiles no-clicables por miniatura/enlace real en `frontend/src/features/orders/OrderDetailView.tsx` (167-176) + hook de lectura por fetch→blob en `frontend/src/features/orders/useOrders.ts`; estados carga/error.
-- [ ] T032 [US2] Front: apuntar la subida de `EvidencePicker.tsx`/`ExecutionForm.tsx` al endpoint multipart `uploadOrderEvidence` (en `frontend/src/features/orders/write-api.ts`).
+- [x] T031 [US2] Front: sustituir tiles no-clicables por miniatura/enlace real en `frontend/src/features/orders/OrderDetailView.tsx` (167-176) + hook de lectura por fetch→blob en `frontend/src/features/orders/useOrders.ts`; estados carga/error.
+- [x] T032 [US2] Front: apuntar la subida de `EvidencePicker.tsx`/`ExecutionForm.tsx` al endpoint multipart `uploadOrderEvidence` (en `frontend/src/features/orders/write-api.ts`).
 
 **Checkpoint**: US1 + US2 funcionan de forma independiente (MVP de producto completo).
 

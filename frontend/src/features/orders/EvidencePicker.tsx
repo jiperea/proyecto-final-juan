@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { EVIDENCE_MAX_ITEMS } from '../../api/schemas';
-import { Button, Notice } from '../../ui';
+import { Button } from '../../ui';
 import { ADD_EVIDENCE_MESSAGE, makeEvidenceItem } from './evidence';
 import type { EvidenceItem } from './evidence';
 
@@ -52,10 +52,6 @@ export function EvidencePicker({
   return (
     <fieldset className="evidence">
       <legend>Evidencia (≥1 foto)</legend>
-      <Notice>
-        Las fotos se registran como <strong>metadato</strong> (formato y tamaño); la imagen{' '}
-        <strong>no se almacena</strong> todavía (pendiente, deuda #007).
-      </Notice>
 
       <p className="evidence-requirement" data-met={requirementMet}>
         {requirementMet ? `✓ ${items.length}, mínimo 1` : `${items.length}, mínimo 1`}

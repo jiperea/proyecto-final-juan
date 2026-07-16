@@ -18,6 +18,7 @@ const ORDERS_CSS = readFileSync(resolve(process.cwd(), 'src/features/orders/orde
 function fakeItem(n: number): EvidenceItem {
   return {
     ref: { object_ref: `ref-${n}`, content_type: 'image/jpeg', size_bytes: 1024 },
+    file: new File([new Uint8Array(1)], `foto-${n}.jpg`, { type: 'image/jpeg' }),
     previewUrl: `blob:fake-${n}`,
     fileName: `foto-${n}.jpg`,
     fingerprint: `fp-${n}`,

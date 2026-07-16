@@ -4,6 +4,7 @@ import { NOT_AVAILABLE_MESSAGE } from '../../i18n/errors';
 import { Button, StatusBadge, Stepper, useWideViewport } from '../../ui';
 import { InlineError, Spinner } from '../../ui';
 import { useSession } from '../auth/session';
+import { EvidenceTile } from './EvidenceTile';
 import { ExecutionForm } from './ExecutionForm';
 import { IncidentSummaryPanel } from './IncidentSummaryPanel';
 import { ReassignForm } from './ReassignForm';
@@ -164,18 +165,31 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           <p>{notes}</p>
         </section>
       ) : null}
-      {/* FE-9 (023) · FR-006: N tiles «Imagen N» (1-based) por `evidence.count`; invariante del contrato
-          `count == content_types.length` (enum de imágenes). `count === 0` → estado explícito, 0 tiles. */}
+      {/* FE-9 (023)/024 (T031) · FR-006/FR-010: N tiles «Imagen N» (1-based) por `evidence.count`;
+          invariante del contrato `count == content_types.length` (enum de imágenes). `count === 0` →
+          estado explícito, 0 tiles. Con `items[]` (024, FR-014) cada tile es un control accesible que abre
+          la foto (fetch autenticado → blob); sin `items` (legacy/rollout) se mantiene el placeholder no
+          interactivo de FE-9 (no hay `evidence_id` con el que pedir el binario). */}
       {evidence !== undefined ? (
         <section aria-label="Evidencia">
           <h3>Evidencia</h3>
           {evidence.count > 0 ? (
             <ul className="order-detail__evidence-grid">
-              {Array.from({ length: evidence.count }, (_, i) => (
-                <li key={i} className="order-detail__evidence-tile">
-                  Imagen {i + 1}
-                </li>
-              ))}
+              {evidence.items !== undefined
+                ? evidence.items.map((item, i) => (
+                    <EvidenceTile
+                      key={item.evidence_id}
+                      orderId={order.id}
+                      evidenceId={item.evidence_id}
+                      index={i + 1}
+                      total={evidence.count}
+                    />
+                  ))
+                : Array.from({ length: evidence.count }, (_, i) => (
+                    <li key={i} className="order-detail__evidence-tile">
+                      Imagen {i + 1}
+                    </li>
+                  ))}
             </ul>
           ) : (
             <p className="order-detail__desc">Sin evidencia adjunta.</p>
