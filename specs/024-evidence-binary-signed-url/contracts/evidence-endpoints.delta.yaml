@@ -1,0 +1,100 @@
+# Delta OpenAPI 3.1 para la feature 024 — a integrar en contracts/orders.openapi.yaml
+# (contract-first: este delta se aplica ANTES del código; el steward-contract lo materializa)
+# Evolución COMPATIBLE: no rompe EvidenceMeta (count/content_types se conservan).
+
+paths:
+  /orders/{orderId}/evidence:
+    post:
+      operationId: uploadOrderEvidence
+      tags: [orders]
+      summary: Sube un blob de evidencia (staging) — técnico dueño, orden in_progress
+      description: >
+        Multipart. Autz-primero (FR-020): (1) sin sesión → 401; (2) si no es el técnico dueño actual
+        o la orden no está in_progress → 404 uniforme (nunca 403) ANTES de mirar el contenido;
+        (3) solo si autorizado se valida allowlist/tamaño/contenido real. Almacena el blob CIFRADO
+        (staging, sin fila OrderEvidence) y devuelve object_ref. Tope ≤10 blobs staged vivos por ciclo
+        (11.º → 422). El object_ref solo circula en el flujo upload↔submit; nunca en logs/lectura.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary, description: "1 imagen (allowlist), ≤25 MiB" }
+      responses:
+        '201':
+          description: Blob staged; devuelve object_ref opaco.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [object_ref]
+                properties:
+                  object_ref: { type: string, minLength: 1, maxLength: 512 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "No autorizado / orden ajena/inexistente / fuera de estado (uniforme)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '413': { description: "Tamaño >25 MiB o 0 bytes", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '415': { description: "Tipo fuera de allowlist", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '422': { description: "Contenido falseado/corrupto o tope ≤10 superado", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /orders/{orderId}/evidence/{evidenceId}:
+    get:
+      operationId: getOrderEvidence
+      tags: [orders]
+      summary: Sirve el binario de una evidencia committeada — same-origin, por sesión
+      description: >
+        Autz heredada EXACTA de getOrderDetail (technician dueño actual o supervisor; dispatcher NO).
+        Precedencia FR-007: 401 sin sesión; 404 uniforme (no 403) para no autorizado/ajena/inexistente/
+        closed/draft/evidenceId inexistente; SOLO si autorizado y en alcance se evalúa binario →
+        410 si legacy/superado (blob ausente). Sirve el binario en la MISMA respuesta autenticada
+        (sin token/URL de cliente); la firma ≤300 s que lee el objeto es interna backend↔store.
+        Cabeceras: X-Content-Type-Options: nosniff, Content-Type del magic-byte real,
+        Referrer-Policy: no-referrer, Cache-Control: no-store. Verifica evidenceId ∈ orderId (FR-015).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: evidenceId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Binario de la imagen.
+          headers:
+            X-Content-Type-Options: { schema: { type: string, enum: [nosniff] } }
+            Referrer-Policy: { schema: { type: string, enum: [no-referrer] } }
+            Cache-Control: { schema: { type: string, enum: [no-store] } }
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+            image/heic: { schema: { type: string, format: binary } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "No autorizado / ajena / inexistente / closed / evidenceId∉orderId (uniforme)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '410': { description: "Autorizado en alcance, pero blob legacy/superado (no disponible)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+components:
+  schemas:
+    # Ampliación COMPATIBLE de EvidenceMeta: se AÑADE items[] (count/content_types intactos).
+    EvidenceMeta:
+      allOf:
+        - $ref: '#/components/schemas/EvidenceMeta__existing'  # count + content_types (invariante count==len)
+        - type: object
+          properties:
+            items:
+              type: array
+              description: "Identificadores opacos por imagen (mismo conjunto de roles autorizados que la lectura). object_ref NO se expone."
+              items:
+                type: object
+                required: [evidence_id, content_type]
+                properties:
+                  evidence_id: { type: string, format: uuid }
+                  content_type: { type: string, enum: [image/jpeg, image/png, image/webp, image/heic] }
+
+# NOTA para el steward: submitOrderExecution (ExecutionRequest.evidence[] con object_ref) NO cambia
+# su shape; los object_ref son ahora los devueltos por uploadOrderEvidence (antes placeholders).
+# El id (uuid) de OrderEvidence es el evidence_id público. Sin campo nuevo en el schema Prisma.
