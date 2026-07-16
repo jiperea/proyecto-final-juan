@@ -1,0 +1,38 @@
+# Specification Quality Checklist: Evidencia binaria + URL firmada (024)
+
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-07-16
+**Feature**: [spec.md](../spec.md)
+
+## Content Quality
+
+- [x] No implementation details (languages, frameworks, APIs)
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Success criteria are technology-agnostic (no implementation details)
+- [x] All acceptance scenarios are defined
+- [x] Edge cases are identified
+- [x] Scope is clearly bounded
+- [x] Dependencies and assumptions identified
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
+- [x] Feature meets measurable outcomes defined in Success Criteria
+- [x] No implementation details leak into specification
+
+## Notes
+
+- **2 marcadores [NEEDS CLARIFICATION] intencionales** (FR-012 mecanismo de subida multipart vs pre-signed;
+  FR-013 forma de servir la lectura 302 vs URL en cuerpo). Son decisiones de arquitectura/seguridad con
+  ≥2 opciones válidas → se resuelven en `/speckit-clarify` + G1.
+- Feature **full-stack sensible en seguridad**: contract-first (endpoints), backend hexagonal, front. STRIDE
+  en el plan. Verificación determinista (sin IA → sin promptfoo).
