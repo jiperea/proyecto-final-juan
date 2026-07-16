@@ -6,21 +6,33 @@
    - @media (prefers-color-scheme: dark) { :root:not([data-theme]) { … } }  → sigue al SO en modo «sistema»
    - :root[data-theme="dark"] { … }   → elección explícita del usuario (gana sobre el SO)
    - :root[data-theme="light"] { … }  → fuerza claro sobre un SO oscuro
-   Los nombres de token son semánticos: las vistas no cambian entre temas. */
+   Los nombres de token son semánticos: las vistas no cambian entre temas.
+
+   FE-8 (022): fidelidad al preview de exploración. Neutros/acento/chips/radios/sombra actualizados a
+   los valores del artifact (FR-001..004). EXCEPCIÓN documentada (no transcripción): los `fg` de los
+   chips `draft`/`assigned`/`in_progress`/`closed` en CLARO se oscurecen ligeramente (misma familia de
+   matiz) respecto al valor literal del artifact porque el literal no alcanza AA de texto (4.5:1) contra
+   su propio `bg` — verificado con `tests/a11y/contrast-tokens.test.ts` (SC-003a, umbral NO relajado). El
+   resto (bg de los 5 chips, fg de `pending_review`, y TODO el tema oscuro) es literal al artifact. Ver
+   `tests/unit/tokens-preview.test.ts` (T003) y `docs/design-system.md`. */
 :root {
-  /* Base (neutros) — claro */
-  --color-bg: #ffffff;
-  --color-surface: #f8fafc;
-  --color-surface-2: #eef2f7;
-  --color-border: #cbd5e1;
+  /* Base (neutros) — claro. FE-8: fondo de página gris suave (no blanco puro); superficie = blanco. */
+  --color-bg: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-surface-2: #edf0f3;
+  --color-border: #e1e6eb;
   --color-text: #1e293b;
   --color-text-muted: #475569;
   --color-text-on-accent: #ffffff;
+  /* FR-010: texto SIEMPRE blanco sobre el acento vivo (botón primario), en ambos temas — token fijo,
+     independiente del tema (a diferencia de --color-text-on-accent, que sí varía por tema). */
+  --color-text-on-accent-vivid: #ffffff;
 
-  /* Semánticos — claro. Acento NARANJA accesible (blanco sobre él ≥4.5:1). */
+  /* Semánticos — claro. Acento NARANJA accesible (usos que aún requieren AA de texto, p. ej. skip-link). */
   --color-primary: #c2410c;
   --color-primary-hover: #9a3412;
-  /* FE-7 (021): acento VIVO del artifact — SOLO superficies sin texto (≥3:1); nunca bajo texto. */
+  /* FE-7 (021) / FE-8 (022): acento VIVO del artifact. FR-002: marca «F», anillo de foco, barra/selección
+     de fila y fondo del botón primario (su texto lo fija FR-010, --color-text-on-accent-vivid). */
   --color-accent-vivid: #dc5a24;
   --color-accent-soft: #fff1e9;
   --color-danger: #b91c1c;
@@ -28,17 +40,17 @@
   --color-warning-fg: #92400e;
   --color-focus-ring: var(--color-accent-vivid);
 
-  /* Estado de la orden (badge) — claro */
-  --status-assigned-bg: #dbeafe;
-  --status-assigned-fg: #1e40af;
-  --status-in_progress-bg: #fef9c3;
-  --status-in_progress-fg: #854d0e;
-  --status-pending_review-bg: #ede9fe;
-  --status-pending_review-fg: #5b21b6;
-  --status-closed-bg: #dcfce7;
-  --status-closed-fg: #166534;
-  --status-draft-bg: #f1f5f9;
-  --status-draft-fg: #334155;
+  /* Estado de la orden (badge) — claro (FE-8: paleta del preview, FR-003). */
+  --status-draft-bg: #eaedf1;
+  --status-draft-fg: #475569; /* excepción AA: literal #64748b da 4.05:1 (<4.5) — ver cabecera */
+  --status-assigned-bg: #e4ecfd;
+  --status-assigned-fg: #1d4ed8; /* excepción AA: literal #2563eb da 4.36:1 (<4.5) */
+  --status-in_progress-bg: #def0f5;
+  --status-in_progress-fg: #0a5f77; /* excepción AA: literal #0e7c9b da 4.09:1 (<4.5) */
+  --status-pending_review-bg: #ede6fc;
+  --status-pending_review-fg: #7c3aed; /* literal: 4.70:1, cumple AA sin ajuste */
+  --status-closed-bg: #ddf1e5;
+  --status-closed-fg: #116c34; /* excepción AA: literal #178a4e da 3.72:1 (<4.5, incluso vs blanco 4.39) */
 
   /* Tipografía */
   --font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -48,6 +60,9 @@
   --font-label: 600 14px/1.4 var(--font-family);
   --font-caption: 400 13px/1.4 var(--font-family);
   --font-kicker: 700 12px/1.4 var(--font-family);
+  /* FE-8 (022): código de orden monoespaciado (tarjetas/filas del preview). */
+  --font-mono-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-mono: 600 13px/1.4 var(--font-mono-family);
 
   /* Espaciado (escala 4px) */
   --space-1: 4px;
@@ -57,11 +72,11 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  /* Radios / elevación / táctil — radios más suaves (FE-5) */
+  /* Radios / elevación / táctil — FE-8: radios y sombra del preview (FR-004). */
   --radius-sm: 9px;
   --radius-md: 14px;
   --radius-full: 9999px;
-  --shadow-1: 0 1px 2px rgba(16, 24, 32, 0.06), 0 4px 16px rgba(16, 24, 32, 0.06);
+  --shadow-1: 0 1px 2px rgba(16, 24, 32, 0.05), 0 8px 24px rgba(16, 24, 32, 0.06);
   --shadow-2: 0 2px 6px rgba(16, 24, 32, 0.08), 0 12px 32px rgba(16, 24, 32, 0.1);
   --shadow-modal: 0 10px 40px rgba(15, 23, 42, 0.28);
   --color-scrim: rgba(15, 23, 42, 0.5);
@@ -81,10 +96,11 @@
     --color-bg: #0e141a;
     --color-surface: #18212b;
     --color-surface-2: #212c38;
-    --color-border: #38485a;
+    --color-border: #2a3744;
     --color-text: #e7edf3;
     --color-text-muted: #aab8c7;
     --color-text-on-accent: #1a1005;
+    --color-text-on-accent-vivid: #ffffff;
     --color-primary: #fb923c;
     --color-primary-hover: #fdba74;
     --color-accent-vivid: #ff7a45;
@@ -93,16 +109,16 @@
     --color-success: #6ee7a0;
     --color-warning-fg: #fcd34d;
     --color-focus-ring: var(--color-accent-vivid);
-    --status-assigned-bg: #1e2a44;
-    --status-assigned-fg: #a8c5ff;
-    --status-in_progress-bg: #3a2f10;
-    --status-in_progress-fg: #fcd34d;
-    --status-pending_review-bg: #2a2140;
-    --status-pending_review-fg: #cbb6ff;
-    --status-closed-bg: #12321f;
-    --status-closed-fg: #6ee7a0;
     --status-draft-bg: #26313d;
-    --status-draft-fg: #c2cfdc;
+    --status-draft-fg: #94a3b4;
+    --status-assigned-bg: #1e2a44;
+    --status-assigned-fg: #6fa0ff;
+    --status-in_progress-bg: #123039;
+    --status-in_progress-fg: #4fc2de;
+    --status-pending_review-bg: #2a2140;
+    --status-pending_review-fg: #b896ff;
+    --status-closed-bg: #12321f;
+    --status-closed-fg: #4fc98a;
   }
 }
 
@@ -110,10 +126,11 @@
   --color-bg: #0e141a;
   --color-surface: #18212b;
   --color-surface-2: #212c38;
-  --color-border: #38485a;
+  --color-border: #2a3744;
   --color-text: #e7edf3;
   --color-text-muted: #aab8c7;
   --color-text-on-accent: #1a1005;
+  --color-text-on-accent-vivid: #ffffff;
   --color-primary: #fb923c;
   --color-primary-hover: #fdba74;
   --color-accent-vivid: #ff7a45;
@@ -122,27 +139,28 @@
   --color-success: #6ee7a0;
   --color-warning-fg: #fcd34d;
   --color-focus-ring: var(--color-accent-vivid);
-  --status-assigned-bg: #1e2a44;
-  --status-assigned-fg: #a8c5ff;
-  --status-in_progress-bg: #3a2f10;
-  --status-in_progress-fg: #fcd34d;
-  --status-pending_review-bg: #2a2140;
-  --status-pending_review-fg: #cbb6ff;
-  --status-closed-bg: #12321f;
-  --status-closed-fg: #6ee7a0;
   --status-draft-bg: #26313d;
-  --status-draft-fg: #c2cfdc;
+  --status-draft-fg: #94a3b4;
+  --status-assigned-bg: #1e2a44;
+  --status-assigned-fg: #6fa0ff;
+  --status-in_progress-bg: #123039;
+  --status-in_progress-fg: #4fc2de;
+  --status-pending_review-bg: #2a2140;
+  --status-pending_review-fg: #b896ff;
+  --status-closed-bg: #12321f;
+  --status-closed-fg: #4fc98a;
 }
 
 /* Fuerza claro sobre un SO oscuro (elección explícita). Re-declara los valores claros. */
 :root[data-theme="light"] {
-  --color-bg: #ffffff;
-  --color-surface: #f8fafc;
-  --color-surface-2: #eef2f7;
-  --color-border: #cbd5e1;
+  --color-bg: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-surface-2: #edf0f3;
+  --color-border: #e1e6eb;
   --color-text: #1e293b;
   --color-text-muted: #475569;
   --color-text-on-accent: #ffffff;
+  --color-text-on-accent-vivid: #ffffff;
   --color-primary: #c2410c;
   --color-primary-hover: #9a3412;
   --color-accent-vivid: #dc5a24;
@@ -151,16 +169,16 @@
   --color-success: #15803d;
   --color-warning-fg: #92400e;
   --color-focus-ring: var(--color-accent-vivid);
-  --status-assigned-bg: #dbeafe;
-  --status-assigned-fg: #1e40af;
-  --status-in_progress-bg: #fef9c3;
-  --status-in_progress-fg: #854d0e;
-  --status-pending_review-bg: #ede9fe;
-  --status-pending_review-fg: #5b21b6;
-  --status-closed-bg: #dcfce7;
-  --status-closed-fg: #166534;
-  --status-draft-bg: #f1f5f9;
-  --status-draft-fg: #334155;
+  --status-draft-bg: #eaedf1;
+  --status-draft-fg: #475569;
+  --status-assigned-bg: #e4ecfd;
+  --status-assigned-fg: #1d4ed8;
+  --status-in_progress-bg: #def0f5;
+  --status-in_progress-fg: #0a5f77;
+  --status-pending_review-bg: #ede6fc;
+  --status-pending_review-fg: #7c3aed;
+  --status-closed-bg: #ddf1e5;
+  --status-closed-fg: #116c34;
 }
 
 *,

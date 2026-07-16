@@ -1,0 +1,32 @@
+/* FE-8 (022) · T020 · Hero centrado del login (FR-009). Solo tokens. */
+.login-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 24rem;
+  margin: var(--space-8) auto;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.login-hero__wordmark {
+  font: var(--font-display);
+  margin: 0;
+}
+
+.login-hero__tagline {
+  font: var(--font-body);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-4);
+}
+
+.login-hero__card {
+  width: 100%;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+  text-align: left;
+}

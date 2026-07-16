@@ -1,5 +1,16 @@
 /* Componentes base del design system. Solo tokens (sin literales sueltos). */
 
+/* Oculta visualmente sin quitar del árbol de accesibilidad (etiquetas/inputs nativos que se activan
+   desde un control estilizado, p. ej. el `<input type=file>` real de EvidencePicker). */
+.visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  width: 0;
+  height: 0;
+}
+
 .btn {
   font: var(--font-label);
   min-height: var(--touch-target);
@@ -13,7 +24,9 @@
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
-.btn--primary { background: var(--color-primary); color: var(--color-text-on-accent); }
+/* FE-8 (022) · FR-010: acento vivo LITERAL con texto blanco (excepción AA documentada y acotada al
+   botón primario; ver `tests/a11y/axe-fieldops.ts`). */
+.btn--primary { background: var(--color-accent-vivid); color: var(--color-text-on-accent-vivid); }
 .btn--primary:hover { background: var(--color-primary-hover); }
 .btn--secondary { background: var(--color-surface); color: var(--color-text); border-color: var(--color-border); }
 .btn--danger { background: var(--color-danger); color: var(--color-text-on-accent); }
@@ -43,6 +56,18 @@
 .badge--pending_review { background: var(--status-pending_review-bg); color: var(--status-pending_review-fg); }
 .badge--closed { background: var(--status-closed-bg); color: var(--status-closed-fg); }
 .badge--draft { background: var(--status-draft-bg); color: var(--status-draft-fg); }
+
+/* FE-8 (022) · FR-003: punto de color a la izquierda del chip (`::before`, `currentColor` = el fg del
+   propio chip; sin token de color propio). */
+.badge::before {
+  content: "";
+  display: inline-block;
+  width: var(--space-1);
+  height: var(--space-1);
+  margin-right: var(--space-1);
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
 
 .skip-link {
   position: absolute;
@@ -113,14 +138,14 @@
 .dialog__actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
 
 /* FE-4 · Panel de resumen IA — reestilado FE-5 (acento de revisión, guardián completo sin truncar) */
+/* FE-8 (022) · FR-016: borde COMPLETO (no solo border-left) con el token pending_review, fiel al artifact. */
 .ai-summary {
   margin-top: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-left: var(--space-1) solid var(--status-pending_review-fg);
+  border: 1px solid var(--status-pending_review-fg);
   border-radius: var(--radius-md);
   background: var(--status-pending_review-bg);
   color: var(--color-text);
@@ -163,6 +188,48 @@
 }
 .theme-toggle__option:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 
+/* FE-8 (022) · T008 · Control segmentado (Segmented, FR-005). El activo es una píldora de SUPERFICIE
+   (no de acento), fiel al artifact. */
+.seg {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-2);
+}
+.seg__option {
+  font: var(--font-caption);
+  min-height: var(--touch-target);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+.seg__option[aria-checked="true"] {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-1);
+}
+.seg__option:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+
+/* FE-8 (022) · FR-002: marca «F» — única superficie de marca que usa el acento vivo (enumeración cerrada). */
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-vivid);
+  color: var(--color-text-on-accent-vivid);
+  font: var(--font-h2);
+  flex-shrink: 0;
+}
+
 /* FE-5 · Stepper del ciclo de vida (FR-006; estado por color + texto) */
 .stepper {
   display: flex;
@@ -187,7 +254,15 @@
   border: 2px solid var(--color-border);
 }
 .stepper__step--done { color: var(--color-text); }
-.stepper__step--done .stepper__dot { background: var(--color-success); border-color: var(--color-success); }
-.stepper__step--current { color: var(--color-primary); font: var(--font-label); }
-.stepper__step--current .stepper__dot { background: var(--color-accent-vivid); border-color: var(--color-accent-vivid); }
+/* FE-8 (022) · FR-006: done = verde fijo (token closed), independiente del estado de la orden. */
+.stepper__step--done .stepper__dot { background: var(--status-closed-fg); border-color: var(--status-closed-fg); }
+.stepper__step--current { color: var(--status-pending_review-fg); font: var(--font-label); }
+/* FE-8 (022) · FR-006: SUSTITUYE el acento vivo (naranja) de FE-7/021 por el morado FIJO
+   `pending_review` + halo (box-shadow 0 0 0 4px con el propio pending_review-bg), fiel al artifact. */
+.stepper__step--current .stepper__dot {
+  background: var(--status-pending_review-fg);
+  border-color: var(--status-pending_review-fg);
+  box-shadow: 0 0 0 4px var(--status-pending_review-bg);
+}
+.stepper__step--upcoming .stepper__dot { background: var(--color-surface-2); border-color: var(--color-border); }
 /* el estado se comunica también por texto (.stepper__state); no depende solo del color */

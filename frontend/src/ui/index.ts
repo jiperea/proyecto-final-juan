@@ -8,3 +8,5 @@ export { MasterDetail, BackToList, useWideViewport } from './MasterDetail';
 export { ConfirmDialog } from './ConfirmDialog';
 export { Stepper } from './Stepper';
 export { ThemeToggle } from './ThemeToggle';
+export { Segmented } from './Segmented';
+export type { SegmentedOption } from './Segmented';

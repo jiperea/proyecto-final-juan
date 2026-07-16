@@ -1,0 +1,90 @@
+{
+  "phase": "G2",
+  "feature": "022-front-visual-fidelity-preview",
+  "bloqueantes": 0,
+  "altas": 2,
+  "total": 6,
+  "veredicto": "APROBADA_CON_COMENTARIOS",
+  "huecos": [
+    {
+      "id": "K-001",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-004 (radios --radius-sm 9px / --radius-md 14px + --shadow-1) ↔ SC-002",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-004 exige que radios y sombras sean computables (getComputedStyle) para PASS/FAIL y SC-002 los incluye explícitamente en el aserto de tokens; pero el único test [Red] de tokens (T003) enumera solo neutros/superficie/borde/acento/5 chips/pending_review-bg y NO asserta radios (9/14px) ni --shadow-1. T004 los implementa pero declara 'Poner T003 en verde', luego quedan implementados sin test que los verifique.",
+      "pregunta_critica": "Ampliar T003 para assertar por getComputedStyle --radius-sm (9px), --radius-md (14px) y --shadow-1 en claro/oscuro, o crear un test dedicado; de lo contrario SC-002 (radios/sombras) no tiene verificación determinista.",
+      "riesgo_si_no_se_corrige": "Radios/sombras del preview divergen del artifact sin que ningún test lo detecte; SC-002 se declara PASS sin evidencia sobre esos tokens.",
+      "severidad": "ALTA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-002",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "SC-002a (WCAG 1.4.11, acento no-textual ≥3:1 foco/selección)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "SC-002a es un criterio medible (≥3:1 no-textual para anillo de foco y barra de selección, claro/oscuro). El plan menciona genéricamente 'tests/a11y ≥3:1 no-textual' y T024 dice dejarlo 'verde', pero NO existe una tarea/test [Red] que asserte el ratio ≥3:1 no-textual. La regla color-contrast de axe (T004/T025 vía vitest-axe) cubre contraste de texto AA, no la 1.4.11 no-textual, por lo que SC-002a quedaría sin verificación real.",
+      "pregunta_critica": "Añadir una tarea de test que mida el contraste no-textual del acento contra --color-surface (≈3.4:1 claro; ≥3:1 oscuro) según SC-002a, ya que axe no lo valida por defecto.",
+      "riesgo_si_no_se_corrige": "SC-002a se firma sin test; una regresión que baje el acento no-textual por debajo de 3:1 no se detecta y la excepción de FR-010 podría 'contagiar' silenciosamente a foco/selección.",
+      "severidad": "ALTA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-003",
+      "categoria": "COBERTURA",
+      "elemento_afectado": "FR-015 (replicar solo vistas de app; NO reproducir andamiaje del mockup: marco móvil, barra '9:41', chrome navegador, URL falsa)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-015 es un requisito funcional con enumeración concreta de qué NO reproducir, pero ninguna tarea de tasks.md lo implementa ni ningún test lo verifica (T026 captura las 5 pantallas para juicio humano, pero no hay aserto estructural de ausencia de andamiaje). No aparece en la matriz FR→tarea.",
+      "pregunta_critica": "Anclar FR-015 a una tarea (aunque sea parte de la checklist estructural de SC-001 / T026) o documentar por qué queda satisfecho trivialmente; hoy es un FR sin traza.",
+      "riesgo_si_no_se_corrige": "Un FR queda huérfano en la trazabilidad; si alguna vista replicara por error un elemento de andamiaje del artifact, nada lo marca.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-004",
+      "categoria": "DERIVA_TERMINOLOGICA",
+      "elemento_afectado": "tasks.md §MVP: «la aprobación humana de fidelidad (T026/FR-006)»",
+      "artefactos_en_conflicto": [
+        "tasks.md",
+        "spec.md"
+      ],
+      "descripcion": "La sección 'MVP y obligatoriedad' referencia la aprobación humana de fidelidad como 'FR-006', pero en spec.md la aprobación humana de fidelidad es FR-014 (y SC-001); FR-006 es el stepper morado del detalle. La misma tarea T026 en Phase 6 la traza correctamente a FR-014/SC-001, generando dos referencias contradictorias para el mismo checkpoint.",
+      "pregunta_critica": "Corregir la referencia del bloque MVP de 'FR-006' a 'FR-014' para alinearla con spec.md y con la propia T026.",
+      "riesgo_si_no_se_corrige": "Traza cruzada incorrecta: el checkpoint de aprobación humana queda enganchado al FR equivocado, confundiendo la verificación del gate G3.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-005",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-016 (tarjeta IA) ↔ User Stories / Phase 5 (US4)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-016 (tarjeta de resumen IA, solo supervisor en pending_review) no está anclado a ninguna User Story ni Acceptance Scenario de la spec (US3-oficina describe el panel de detalle pero no la tarjeta IA). En tasks.md sus tareas T019b/T022 se colocan bajo Phase 5 'US4 — Login y registrar ejecución', contexto de técnico ajeno al supervisor/pending_review, en lugar de bajo US3 (oficina/detalle).",
+      "pregunta_critica": "Reubicar/anclar T019b/T022 al contexto correcto (US3 o una US propia del detalle de supervisor) para que FR-016 trace a una historia coherente con su rol/estado.",
+      "riesgo_si_no_se_corrige": "FR-016 queda sin historia que lo justifique y agrupado con la superficie de técnico; el test independiente de US4 (login/ejecución) no ejercita la tarjeta IA de supervisor, debilitando su cobertura.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "S-001",
+      "categoria": "ESCALADA_PRIVILEGIOS",
+      "elemento_afectado": "FR-011 ↔ FR-013a / FR-016 (chrome de oficina recién construido)",
+      "descripcion": "FR-011 hace el master-detail de oficina dependiente del VIEWPORT, no del rol (explícito: «un técnico en escritorio ve master-detail»), y H-003-r7 confirma que ese chrome se CONSTRUYE ahora. Es la primera vez que un technician (o cualquier rol no-nativo) entra en el layout de oficina, que pasa a ser compartido por todos los roles. La spec afirma que la visibilidad de acciones (FR-013a) y la tarjeta IA (FR-016) siguen gateadas por rol DENTRO del panel de detalle, pero ninguna tarea/test cruza rol×viewport dentro del layout de oficina: T015 verifica el layout por viewport (independiente de rol), T019b verifica el gate de la tarjeta IA en general, pero nada asegura la conjunción (technician/dispatcher situados en el master-detail de oficina).",
+      "pregunta_critica": "¿Hay un test que verifique que un technician (y un dispatcher) situados en el master-detail de oficina (≥1024px) NO ven controles reservados a supervisor —aprobar/rechazar y tarjeta de resumen IA— ni acciones de otro rol, es decir que el gate por rol se resuelve en el render del panel (FR-016/S-006) y NO queda implícito en un layout que hasta ahora solo montaban dispatcher/supervisor?",
+      "riesgo_si_no_se_corrige": "Si en 017 el gate de acción/IA se hubiera acoplado a la rama de layout de oficina (montada solo para dispatcher/supervisor), construir ese layout ahora para todos los viewports/roles podría renderizar acciones o la tarjeta IA fuera de rol. El backend rechaza (401/403, defensa en profundidad, no hay escalada real), pero la UI filtraría a un technician la existencia de acciones/datos de supervisor —fuga de superficie funcional entre roles— y el reskin habría relajado de facto la visibilidad que FR-013a promete preservar.",
+      "severidad": "MEDIA",
+      "agente": "revisor-rbac-seguridad"
+    }
+  ]
+}

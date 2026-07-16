@@ -30,3 +30,6 @@ Thumbs.db
 # Analítica de tokens (data cruda generada; los reports .md sí se versionan)
 costs.jsonl
 backend/informes/
+
+# Playwright MCP (capturas efímeras de dev)
+.playwright-mcp/

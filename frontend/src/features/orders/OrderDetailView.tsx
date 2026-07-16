@@ -127,10 +127,10 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
               statusRef.current?.focus(); // foco al estado (coincide con el anuncio)
             }}
           />
-          <IncidentSummaryPanel orderId={order.id} />
         </section>
       ) : null}
-      {/* FR-015: bajo el breakpoint de escritorio, aviso accesible (no ausencia silenciosa). */}
+      {/* FR-015: bajo el breakpoint de escritorio, aviso accesible (no ausencia silenciosa) — SOLO afecta
+          a las ACCIONES de revisión (Aprobar/Rechazar); no al panel IA (FE-8 lo desacopla, ver abajo). */}
       {isSupervisorPending && !wide ? (
         <section aria-label="Revisión de la orden">
           <p className="order-detail__desc" role="note">
@@ -138,6 +138,9 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           </p>
         </section>
       ) : null}
+      {/* FE-8 (022) · FR-016/S-006: el gate del panel IA es ROL+ESTADO (supervisor en pending_review),
+          NO el layout master-detail compartido — un supervisor en móvil en pending_review también la ve. */}
+      {isSupervisorPending ? <IncidentSummaryPanel orderId={order.id} /> : null}
 
       {/* Motivo del último rechazo: solo si viene en el payload (technician dueño con rechazo sin atender). */}
       {last_rejection_reason !== undefined ? (
