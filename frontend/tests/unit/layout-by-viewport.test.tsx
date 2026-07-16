@@ -9,7 +9,7 @@
 // aquí se deja constancia de ese traspaso y se cubre lo que SÍ es determinista en jsdom: el layout
 // (apilado/master-detail) depende del ancho y no del rol.
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
 import { server } from '../../mocks/server';
 import { renderApp } from '../test-utils';

@@ -81,12 +81,18 @@ describe('FE-8 · acento vivo del preview (FR-002)', () => {
 // 5 chips de estado (fg/bg), en ambos temas — FR-003. Incluye in_progress en TEAL (no el
 // amarillo/ámbar heredado de FE-5/017) y el pending_review-bg del que dependen el halo del stepper
 // (FR-006) y la tarjeta IA (FR-016).
+//
+// CORRECCIÓN DE ACCESIBILIDAD (no transcripción): el `fg` literal del artifact de `draft`/`assigned`/
+// `in_progress`/`closed` en CLARO NO alcanza AA de texto (4.5:1) contra su propio `bg` — comprobado con
+// `tests/a11y/contrast-tokens.test.ts` (SC-003a), que NO se relaja. Se oscurece el `fg` (misma familia de
+// matiz) lo mínimo necesario para cumplir AA; el `bg` y TODO el tema oscuro quedan literales al artifact
+// (ver comentario en `src/ui/tokens.css`). `pending_review` no necesita ajuste (4.70:1, cumple ya).
 const STATUS_LIGHT: Array<[string, string, string]> = [
-  ['draft', '#64748b', '#eaedf1'],
-  ['assigned', '#2563eb', '#e4ecfd'],
-  ['in_progress', '#0e7c9b', '#def0f5'],
+  ['draft', '#475569', '#eaedf1'],
+  ['assigned', '#1d4ed8', '#e4ecfd'],
+  ['in_progress', '#0a5f77', '#def0f5'],
   ['pending_review', '#7c3aed', '#ede6fc'],
-  ['closed', '#178a4e', '#ddf1e5'],
+  ['closed', '#116c34', '#ddf1e5'],
 ];
 const STATUS_DARK: Array<[string, string, string]> = [
   ['draft', '#94a3b4', '#26313d'],

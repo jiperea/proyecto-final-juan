@@ -93,7 +93,9 @@ describe('US2 · listado por rol', () => {
 });
 
 describe('US2/US3 · RBAC espejo y layout (F-002)', () => {
-  it('FR-019: technician a ≥1024px usa UNA columna (no master-detail) en el detalle', async () => {
+  // FE-8 (022) · FR-011: el layout es por VIEWPORT, no por rol — un technician en escritorio TAMBIÉN
+  // ve master-detail (antes de FE-8, FE-1/017 forzaba una columna solo para technician; se sustituye).
+  it('FR-011 (FE-8): technician a ≥1024px usa master-detail (lista + detalle simultáneos)', async () => {
     setViewportWide(true);
     bootAs('technician');
     server.use(
@@ -103,8 +105,8 @@ describe('US2/US3 · RBAC espejo y layout (F-002)', () => {
     renderApp(<AppRoutes />, '/orders/o1');
     // detalle visible…
     expect(await screen.findByRole('heading', { name: 'Orden A' })).toBeInTheDocument();
-    // …y la lista NO simultánea (single column): sin toolbar «Actualizar» del listado.
-    expect(screen.queryByRole('button', { name: 'Actualizar' })).not.toBeInTheDocument();
+    // …y la lista SIMULTÁNEA (master-detail): toolbar «Actualizar» del listado visible a la vez.
+    expect(screen.getByRole('button', { name: 'Actualizar' })).toBeInTheDocument();
   });
 
   it('F-006: deep-link a /orders/:id enfoca el panel de detalle, no el h1 de sección', async () => {

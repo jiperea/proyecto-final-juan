@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
+import type { UseQueryResult } from '@tanstack/react-query';
 import { ApiError } from '../../api/client';
-import type { Order, Role } from '../../api/types';
-import { Button, EmptyState, InlineError, Spinner, StatusBadge } from '../../ui';
-import { useOrderList } from './useOrders';
+import type { Order, OrderListResponse, Role } from '../../api/types';
+import { Button, EmptyState, InlineError, Segmented, Spinner, StatusBadge } from '../../ui';
+import type { OrderFilterState } from './useOrderFilter';
 import './orders.css';
 
 const EMPTY_BY_ROLE: Record<Role, string> = {
@@ -11,16 +12,25 @@ const EMPTY_BY_ROLE: Record<Role, string> = {
   dispatcher: 'No hay órdenes para despachar.',
 };
 
-function OrderItem({ order, selectedId }: { order: Order; selectedId: string | undefined }) {
+const SEGMENT_OPTIONS = [
+  { value: 'active' as const, label: 'Activas' },
+  { value: 'all' as const, label: 'Todas' },
+];
+
+// FE-8 (022): tarjeta/fila del preview — código mono, chip, nombre, cliente (sin dato en el contrato →
+// «—», no se inventa) y técnico cuando el payload del rol lo incluye (assigned_to no-null).
+function OrderItem({ order, selectedId, wide }: { order: Order; selectedId: string | undefined; wide: boolean }) {
   const current = order.id === selectedId;
   return (
     <li>
       <Link
         to={`/orders/${order.id}`}
-        className="order-item"
+        className={wide ? 'order-item order-item--row' : 'order-item'}
         aria-current={current ? 'true' : undefined}
       >
+        <span className="order-item__code">#{order.id.slice(0, 8)}</span>
         <span className="order-item__title">{order.title}</span>
+        {wide ? <span className="order-item__client">—</span> : null}
         <StatusBadge status={order.status} />
       </Link>
     </li>
@@ -28,9 +38,23 @@ function OrderItem({ order, selectedId }: { order: Order; selectedId: string | u
 }
 
 // FR-006/007/008/009/009b/014: listado por rol con 4 estados. 403 → «sin-permiso» (distinto de error).
-export function OrderList({ role, selectedId }: { role: Role; selectedId: string | undefined }) {
-  const query = useOrderList(role);
-
+// FE-8 (022): segmentado «Activas/Todas» + 3 estados vacíos con precedencia (FR-005/005a/005b/011b);
+// layout por VIEWPORT (`wide`, FR-011): tarjeta apilada o fila de tabla, para CUALQUIER rol. La query y
+// el filtro los posee `OrdersView` (comparte caché de TanStack Query por `queryKey`); este componente es
+// presentacional sobre ambos.
+export function OrderList({
+  role,
+  selectedId,
+  wide,
+  query,
+  filter,
+}: {
+  role: Role;
+  selectedId: string | undefined;
+  wide: boolean;
+  query: UseQueryResult<OrderListResponse, unknown>;
+  filter: OrderFilterState;
+}) {
   if (query.isPending) return <Spinner label="Cargando órdenes…" />;
 
   if (query.isError) {
@@ -50,18 +74,38 @@ export function OrderList({ role, selectedId }: { role: Role; selectedId: string
   return (
     <div aria-busy={query.isFetching}>
       <div className="orders-toolbar">
+        <Segmented
+          label="Filtro de órdenes"
+          options={SEGMENT_OPTIONS}
+          value={filter.segment}
+          onChange={filter.setSegment}
+        />
         <Button variant="secondary" onClick={() => void query.refetch()}>
           Actualizar
         </Button>
       </div>
       {orders.length === 0 ? (
         <EmptyState>{EMPTY_BY_ROLE[role]}</EmptyState>
+      ) : filter.emptyKind === 'no-active' ? (
+        <EmptyState>Sin órdenes activas en este momento. Cambia el filtro para verlas.</EmptyState>
+      ) : filter.emptyKind === 'no-matches' ? (
+        <EmptyState>Sin coincidencias para la búsqueda actual. Prueba a limpiar el término.</EmptyState>
       ) : (
-        <ul className="order-list">
-          {orders.map((o) => (
-            <OrderItem key={o.id} order={o} selectedId={selectedId} />
-          ))}
-        </ul>
+        <>
+          {wide ? (
+            <div className="order-table-head" aria-hidden="true">
+              <span>Código</span>
+              <span>Orden</span>
+              <span>Cliente</span>
+              <span>Estado</span>
+            </div>
+          ) : null}
+          <ul className="order-list">
+            {filter.filtered.map((o) => (
+              <OrderItem key={o.id} order={o} selectedId={selectedId} wide={wide} />
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

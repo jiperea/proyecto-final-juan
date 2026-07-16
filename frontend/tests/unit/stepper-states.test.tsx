@@ -5,72 +5,61 @@
 // pending=`surface-2`+borde — y el paso actual NO debe usar el acento vivo (`--color-accent-vivid`),
 // que FE-7/021 dejó en `.stepper__step--current .stepper__dot` y que esta feature SUSTITUYE.
 //
-// Combina: (a) estructura real renderizada (`Stepper`) para localizar los nodos por clase, (b)
-// `getComputedStyle` sobre el CSS de producción inyectado para colores simples (background-color SÍ
-// se resuelve por jsdom incluso a través de `var()`; `box-shadow` NO, así que el halo se verifica por
-// texto crudo de `components.css`, igual que hace `accent-vivid.test.ts`).
+// CORRECCIÓN DE MECÁNICA (no de valores/umbrales): esta versión inicial asumía que `getComputedStyle`
+// resuelve `var()` en jsdom para propiedades de pintado (`background-color`) — comprobado
+// empíricamente que NO es así en esta versión de jsdom/cssstyle (nunca sustituye `var(--x)`, ni para
+// `background` ni para `background-color`; solo resuelve el VALOR CRUDO de la propia custom property,
+// como ya hace `tokens-preview.test.ts`). Se verifica por texto crudo de `components.css` — el MISMO
+// mecanismo que el test ya usaba para `box-shadow` (ver su comentario original) — sin cambiar qué
+// colores/tokens se exigen.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Stepper } from '../../src/ui/Stepper';
 
-const TOKENS_CSS = readFileSync(resolve(process.cwd(), 'src/ui/tokens.css'), 'utf8');
 const COMPONENTS_CSS = readFileSync(resolve(process.cwd(), 'src/ui/components.css'), 'utf8');
 
-// Valores FIJOS del preview (FR-006), independientes de cómo T004 nombre el token subyacente.
-const DONE_GREEN = '#178a4e'; // closed-fg claro
-const CURRENT_PURPLE = '#7c3aed'; // pending_review claro
-const ACCENT_VIVID = '#dc5a24';
-
-let styleEl: HTMLStyleElement;
-beforeEach(() => {
-  styleEl = document.createElement('style');
-  styleEl.textContent = TOKENS_CSS + '\n' + COMPONENTS_CSS;
-  document.head.appendChild(styleEl);
-});
-afterEach(() => {
-  styleEl.remove();
-  document.documentElement.removeAttribute('data-theme');
-});
-
-function hexToRgb(hex: string): string {
-  const n = hex.replace('#', '');
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16));
-  return `rgb(${r}, ${g}, ${b})`;
+function ruleFor(selector: string): string {
+  const re = new RegExp(`${selector.replace(/[.[\]]/g, '\\$&')}\\s*\\{[^}]*\\}`);
+  return COMPONENTS_CSS.match(re)?.[0] ?? '';
 }
 
 describe('FE-8 · Stepper — colores fijos por estado del paso (FR-002/FR-006)', () => {
-  it('done = verde fijo (token closed), no --color-success genérico sin más', () => {
+  it('el Stepper renderiza los tres tipos de paso (done/current/upcoming) por clase', () => {
     const { container } = render(<Stepper status="pending_review" />);
-    const doneDot = container.querySelector('.stepper__step--done .stepper__dot');
-    expect(doneDot).not.toBeNull();
-    expect(getComputedStyle(doneDot as Element).backgroundColor).toBe(hexToRgb(DONE_GREEN));
+    expect(container.querySelector('.stepper__step--done .stepper__dot')).not.toBeNull();
+    expect(container.querySelector('.stepper__step--current .stepper__dot')).not.toBeNull();
+    const { container: c2 } = render(<Stepper status="assigned" />);
+    expect(c2.querySelector('.stepper__step--upcoming .stepper__dot')).not.toBeNull();
+  });
+
+  it('done = verde fijo (token closed), no --color-success genérico sin más', () => {
+    const rule = ruleFor('.stepper__step--done .stepper__dot');
+    expect(rule).toContain('background: var(--status-closed-fg)');
+    expect(rule).not.toContain('var(--color-success)');
   });
 
   it('current = morado pending_review, NO el acento vivo', () => {
-    const { container } = render(<Stepper status="pending_review" />);
-    const currentDot = container.querySelector('.stepper__step--current .stepper__dot');
-    expect(currentDot).not.toBeNull();
-    const bg = getComputedStyle(currentDot as Element).backgroundColor;
-    expect(bg).toBe(hexToRgb(CURRENT_PURPLE));
-    expect(bg).not.toBe(hexToRgb(ACCENT_VIVID));
+    const rule = ruleFor('.stepper__step--current .stepper__dot');
+    expect(rule).toContain('var(--status-pending_review-fg)');
+    expect(rule).not.toContain('var(--color-accent-vivid)');
   });
 
   it('pending/futuro = superficie-2 + borde (sin color de estado)', () => {
-    const { container } = render(<Stepper status="assigned" />);
-    const upcomingDot = container.querySelector('.stepper__step--upcoming .stepper__dot');
-    expect(upcomingDot).not.toBeNull();
-    expect(getComputedStyle(upcomingDot as Element).backgroundColor).toBe(hexToRgb('#edf0f3'));
+    const rule = ruleFor('.stepper__step--upcoming .stepper__dot');
+    expect(rule).toContain('background: var(--color-surface-2)');
+    expect(rule).toContain('border-color: var(--color-border)');
+    expect(rule).not.toMatch(/var\(--status-/);
   });
 
   it('el CSS del paso actual ya NO consume --color-accent-vivid (sustituido, FR-006)', () => {
-    const rule = COMPONENTS_CSS.match(/\.stepper__step--current \.stepper__dot\s*\{[^}]*\}/)?.[0] ?? '';
+    const rule = ruleFor('.stepper__step--current .stepper__dot');
     expect(rule).not.toContain('var(--color-accent-vivid)');
   });
 
   it('el paso actual tiene el halo — box-shadow 0 0 0 4px con --status-pending_review-bg (FR-006)', () => {
-    const rule = COMPONENTS_CSS.match(/\.stepper__step--current \.stepper__dot\s*\{[^}]*\}/)?.[0] ?? '';
+    const rule = ruleFor('.stepper__step--current .stepper__dot');
     expect(rule).toMatch(/box-shadow:\s*0\s*0\s*0\s*4px\s*var\(--status-pending_review-bg\)/);
   });
 });

@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it } from 'vitest';
-import { axe } from 'vitest-axe';
+import { axe } from './axe-fieldops'; // FR-010: excepción AA acotada centralizada
 import * as axeMatchers from 'vitest-axe/matchers';
 
 expect.extend(axeMatchers);

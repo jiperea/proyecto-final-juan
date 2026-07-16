@@ -6,6 +6,12 @@ import type { EvidenceItem } from './evidence';
 
 // FR-004: captura/validación de evidencia a nivel de metadato. Rechazo EN EL MOMENTO DE AÑADIR; preview
 // del contenido real (object URL); eliminar por ítem (teclado, nombre accesible); límite 10; aviso honesto.
+//
+// FE-8 (022) · T021 · rejilla 3-col del preview (FR-008/H-004): el `<input type=file>` real queda oculto
+// visualmente (`.visually-hidden`, sigue siendo el destino de `getByLabelText('Añadir foto')` heredado de
+// FE-2); el tile visible es un `<button>` (rol nativo `button`, SIN `--color-accent-vivid` ni
+// `--color-primary` — H-004: el «+» no es superficie de acento) que abre el picker. Píldora de requisito
+// («✓ N, mínimo 1» / «0, mínimo 1») fiel al artifact.
 export function EvidencePicker({
   items,
   onChange,
@@ -41,6 +47,8 @@ export function EvidencePicker({
     setError(null);
   }
 
+  const requirementMet = items.length >= 1;
+
   return (
     <fieldset className="evidence">
       <legend>Evidencia (≥1 foto)</legend>
@@ -49,12 +57,17 @@ export function EvidencePicker({
         <strong>no se almacena</strong> todavía (pendiente, deuda #007).
       </Notice>
 
-      <label className="field__label" htmlFor="evidence-input">
+      <p className="evidence-requirement" data-met={requirementMet}>
+        {requirementMet ? `✓ ${items.length}, mínimo 1` : `${items.length}, mínimo 1`}
+      </p>
+
+      <label className="visually-hidden" htmlFor="evidence-input">
         Añadir foto
       </label>
       <input
         ref={inputRef}
         id="evidence-input"
+        className="visually-hidden"
         type="file"
         accept="image/jpeg,image/png,image/webp,image/heic"
         multiple
@@ -74,7 +87,7 @@ export function EvidencePicker({
         </span>
       ) : null}
 
-      <ul className="evidence-list" aria-label={`Evidencias añadidas: ${items.length}`}>
+      <ul className="evidence-grid" aria-label={`Evidencias añadidas: ${items.length}`}>
         {items.map((it, i) => (
           <li key={it.ref.object_ref} className="evidence-item">
             <img
@@ -91,6 +104,17 @@ export function EvidencePicker({
             </Button>
           </li>
         ))}
+        <li>
+          <button
+            type="button"
+            className="evidence-add"
+            disabled={atMax}
+            onClick={() => inputRef.current?.click()}
+          >
+            <span aria-hidden="true">+</span>
+            <span>Añadir foto</span>
+          </button>
+        </li>
       </ul>
     </fieldset>
   );
