@@ -52,14 +52,14 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ### Tests (Red primero) ⚠️
 
-- [ ] T012 [P] [US1] Contract test `backend/tests/contract/upload-evidence.contract.spec.ts` — `uploadOrderEvidence` × {201, 401, 404, 413, 415, 422}.
-- [ ] T013 [P] [US1] Integration test `backend/tests/integration/evidence-upload-store.spec.ts` — 201 con object_ref; blob cifrado; `count` tras submit (FR-001).
-- [ ] T014 [P] [US1] Integration test `backend/tests/integration/evidence-upload-authz.spec.ts` — autz-primero: no-dueño/estado≠in_progress → 404 antes de validar contenido (FR-020).
-- [ ] T015 [P] [US1] Integration test `backend/tests/integration/evidence-content-validation.spec.ts` — magic-bytes; tipo fuera allowlist → 415; falseado/corrupto → 422; HEIC por marca `ftyp` (FR-019).
-- [ ] T016 [P] [US1] Integration test `backend/tests/integration/evidence-cycle-lifecycle.spec.ts` — acumula ≤10 (array crudo); 11.º → 422; submit>10 → 422; **`object_ref` repetido en `evidence[]` → 422** (no dedup silencioso) (FR-022/FR-023).
-- [ ] T017 [P] [US1] Integration test `backend/tests/integration/evidence-ref-ownership.spec.ts` — submit re-verifica ref (ajeno/otra orden/otro actor → 404; malformado → 422; fila-existente → 422; expirado → 422; repetido → 422); doble-submit → 409 (FR-023).
-- [ ] T050 [P] [US1] Integration test `backend/tests/integration/evidence-atomic-gc.spec.ts` — fallo intermedio (blob staged escrito, transacción de submit hace rollback) → blob queda huérfano → GC lo purga; commit BD = verdad (FR-011).
-- [ ] T051 [P] [US1] Integration test `backend/tests/integration/evidence-cycle-replace.spec.ts` — reject → reenvío con fotos nuevas → attempt anterior marcado superado **inmediato al commit**; `getOrderDetail.items`/`getOrderEvidence` exponen solo el ciclo vigente; evidenceId superados → 410 a autorizados en alcance (FR-017).
+- [x] T012 [P] [US1] Contract test `backend/tests/contract/upload-evidence.contract.spec.ts` — `uploadOrderEvidence` × {201, 401, 404, 413, 415, 422}.
+- [x] T013 [P] [US1] Integration test `backend/tests/integration/evidence-upload-store.spec.ts` — 201 con object_ref; blob cifrado; `count` tras submit (FR-001).
+- [x] T014 [P] [US1] Integration test `backend/tests/integration/evidence-upload-authz.spec.ts` — autz-primero: no-dueño/estado≠in_progress → 404 antes de validar contenido (FR-020).
+- [x] T015 [P] [US1] Integration test `backend/tests/integration/evidence-content-validation.spec.ts` — magic-bytes; tipo fuera allowlist → 415; falseado/corrupto → 422; HEIC por marca `ftyp` (FR-019).
+- [x] T016 [P] [US1] Integration test `backend/tests/integration/evidence-cycle-lifecycle.spec.ts` — acumula ≤10 (array crudo); 11.º → 422; submit>10 → 422; **`object_ref` repetido en `evidence[]` → 422** (no dedup silencioso) (FR-022/FR-023).
+- [x] T017 [P] [US1] Integration test `backend/tests/integration/evidence-ref-ownership.spec.ts` — submit re-verifica ref (ajeno/otra orden/otro actor → 404; malformado → 422; fila-existente → 422; expirado → 422; repetido → 422); doble-submit → 409 (FR-023).
+- [x] T050 [P] [US1] Integration test `backend/tests/integration/evidence-atomic-gc.spec.ts` — fallo intermedio (blob staged escrito, transacción de submit hace rollback) → blob queda huérfano → GC lo purga; commit BD = verdad (FR-011).
+- [x] T051 [P] [US1] Integration test `backend/tests/integration/evidence-cycle-replace.spec.ts` — reject → reenvío con fotos nuevas → attempt anterior marcado superado **inmediato al commit**; `getOrderDetail.items`/`getOrderEvidence` exponen solo el ciclo vigente; evidenceId superados → 410 a autorizados en alcance (FR-017).
 
 ### Implementación
 
