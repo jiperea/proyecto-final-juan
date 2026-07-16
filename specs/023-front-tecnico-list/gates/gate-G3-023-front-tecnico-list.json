@@ -1,0 +1,70 @@
+{
+  "phase": "G3",
+  "feature": "023-front-tecnico-list",
+  "bloqueantes": 0,
+  "altas": 0,
+  "total": 5,
+  "veredicto": "APROBADA_CON_COMENTARIOS",
+  "huecos": [
+    {
+      "id": "I-001",
+      "categoria": "FR_NO_IMPLEMENTADO",
+      "elemento_afectado": "FR-009 / T013 — capturas Playwright MCP + aprobación humana de fidelidad",
+      "evidencia": "Las tareas T011–T015 (Phase 5) siguen sin marcar en tasks.md; en el código no hay artefacto ni evidencia adjunta de las capturas de la lista (móvil) y el detalle (técnico/supervisor) en claro y oscuro. SC-001/SC-002 definen la aprobación humana como visto bueno terminal de la fidelidad.",
+      "descripcion": "El entregable de verificación visual exigido por FR-009 (y checkpoint de merge según la sección «MVP y obligatoriedad») no está evidenciado en el cierre de G3. Requiere login del seed (credencial a pedir al usuario).",
+      "pregunta_critica": "¿Se han producido y adjuntado las capturas autenticadas para la aprobación humana de fidelidad, o queda como pendiente explícito para el PR?",
+      "riesgo_si_no_se_corrige": "Se cierra la feature sin el visto bueno cualitativo de fidelidad (rúbrica SC-001/002); un desvío visual respecto al artifact quedaría sin detectar hasta producción.",
+      "severidad": "MEDIA",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "I-002",
+      "categoria": "TEST_INSUFICIENTE",
+      "elemento_afectado": "FR-002 fila de oficina (`order-item--row`) + cabecera de tabla (`.order-table-head`, orders.css:102) vs OrderList.tsx:107-113",
+      "evidencia": "En viewport ancho la cabecera de tabla rotula 4 columnas «Código / Orden / Cliente / Estado», pero la celda de la 3ª columna (grid-area `meta`) renderiza `order-item__client` («—») Y `order-item__assignee` (UUID8) juntos. El test `order-card-meta.test.tsx` (caso wide) verifica el contenido de la meta pero no la coherencia con los encabezados de columna; no existe columna/encabezado «Técnico».",
+      "descripcion": "El técnico (UUID truncado) aparece bajo el encabezado «Cliente» en la fila de oficina: contenido correcto por FR-002, pero desalineado con la cabecera heredada de FE-8, que no se amplió con «Técnico».",
+      "pregunta_critica": "¿Debe la cabecera de tabla reflejar la columna «Técnico» (o fusionar el rótulo) para que el encabezado no mienta sobre el contenido de la celda de meta en la fila de oficina?",
+      "riesgo_si_no_se_corrige": "Desviación menor de fidelidad/consistencia en la vista de oficina: el usuario ve un identificador de técnico bajo el rótulo «Cliente»; no rompe funcionalidad ni seguridad.",
+      "severidad": "MEDIA",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "S-001",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-002 (regla en supervisor/oficina) + tasks T004 (K-004, OrderItem compartido `order-item--row`)",
+      "descripcion": "La disposición de los residuales (S-001/T-001) resolvió la exposición del asignatario para la TARJETA DEL TÉCNICO, donde el UUID es solo una guarda defensiva. Pero FR-002 y T004 extienden `resolveAssignee` al render de OFICINA/SUPERVISOR (`order-item--row`), donde mostrar el UUID8 del asignatario deja de ser guarda defensiva y pasa a ser una superficie de identificador DELIBERADA y de flujo normal en un componente compartido. Ese caso no estaba cubierto por la disposición original (centrada en el técnico) ni se afirma que FE-8 ya lo mostrara.",
+      "pregunta_critica": "¿FE-8 ya renderizaba el asignatario en la fila de oficina/supervisor, de modo que FE-9 solo cambia el formato (neutralidad de regresión), o FE-9 INTRODUCE por primera vez la exposición del UUID de un usuario ajeno en la vista de oficina? Si es nuevo, ¿está confirmado por contrato que ese rol ya recibe `assigned_to` para esas órdenes (misma exposición server-authoritative que hoy) y que el UUID es de usuario opaco sin PII?",
+      "riesgo_si_no_se_corrige": "Si es una superficie nueva y el rol de oficina no recibía antes ese identificador, se amplía la información de usuarios mostrada en cliente sin que FR-010 lo haya validado explícitamente para la vista de oficina (solo lo hace para el listado del técnico); podría facilitar correlación/enumeración de asignatarios. Si es regresión-neutra, no hay riesgo pero conviene anclarlo por escrito.",
+      "severidad": "MEDIA",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "K-001",
+      "categoria": "ALINEACION_CONSTITUTION",
+      "elemento_afectado": "tasks.md T002/T005/T007/T009 (Red) vs T003/T004/T006/T008/T010 (impl)",
+      "artefactos_en_conflicto": [
+        "tasks.md",
+        ".specify/memory/constitution.md"
+      ],
+      "descripcion": "Las tareas de implementación (T003, T004, T006, T008, T010) figuran como [X] completadas, mientras que sus tareas [Red] prerequisito (T002, T005, T007, T009) siguen sin marcar [ ]. Esto contradice la propia sección 'Dependencias' de tasks.md ('[Red] antes de implementar') y el principio TDD fase-Red de la constitution. El historial git (commit 956f1ec 'test(023): fase Red ... en rojo' anterior al feat) indica que los tests Red sí se escribieron: el estado de los checkboxes no refleja el estado real.",
+      "pregunta_critica": "Reconciliar los checkboxes de tasks.md con el historial real (marcar como hechas las tareas [Red] que ya se commitearon en rojo) o justificar por qué la implementación figura hecha sin la Red marcada; el tracking actual sugiere una violación del orden Red-first que en realidad no ocurrió.",
+      "riesgo_si_no_se_corrige": "Lectura errónea de que se implementó sin fase Red (falso incumplimiento TDD) o pérdida de trazabilidad del estado de las tareas en el gate/PR.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-002",
+      "categoria": "COBERTURA",
+      "elemento_afectado": "FR-002 (rama UUID en fila de oficina) / tasks.md T002",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-002 exige que la regla de resolución del técnico aplique en 'cualquier vista que reutilice la tarjeta' (en oficina/supervisor = UUID del asignatario), y T004 advierte que OrderItem es compartido con la fila de oficina (order-item--row). Sin embargo, el caso 'fila de oficina con assigned_to ≠ usuario → UUID' solo aparece como instrucción incrustada en el paréntesis de T004 ('K-004: incluir en T002…'), no en la descripción de aceptación propia de T002. La cobertura de esa rama en la superficie de oficina depende de una referencia cruzada en lugar de estar enunciada explícitamente en la tarea de test.",
+      "pregunta_critica": "¿El test order-card-meta (T002) debe enumerar explícitamente el caso de fila de oficina (assigned_to ≠ usuario → UUID) como escenario propio, dado que OrderItem compartido cambia el render de una tercera superficie fuera de las '2 pantallas' del alcance nominal?",
+      "riesgo_si_no_se_corrige": "La rama UUID en la vista de oficina (una tercera superficie afectada por el componente compartido) puede quedar sin test explícito y regresionar sin detección.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    }
+  ]
+}

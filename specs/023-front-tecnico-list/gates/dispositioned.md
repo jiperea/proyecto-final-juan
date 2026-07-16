@@ -1,0 +1,30 @@
+# Residuales dispuestos — G1 023 (ronda 1 → 2). NO re-levantar salvo problema NUEVO o regresión.
+
+## Altas
+- **H-001/H-002/S-001** («siempre Tú» contradictorio + enmascara IDOR): RESUELTO. FR-002/US1-AS2/clarify → técnico **condicional**: «Tú» si `assigned_to`==usuario; identificador si no; neutro si nulo. La UI refleja el dato, no lo asume.
+- **H-003** («foto N» asume imagen, ignora `content_types`): RESUELTO. FR-006 → etiqueta neutra derivada de `content_types` («Imagen/PDF/Adjunto N»), sin asumir foto.
+- **H-004** (literal vs honesto): RESUELTO. Clarify → precedencia: estructura literal, contenido honesto; gana lo honesto.
+
+## Medias
+- **H-005/T-001** (sub-línea rama muerta): RESUELTO. FR-004/US2 → **se elimina** la sub-línea (contrato sin cliente/ubicación); cabecera = código + nombre.
+- **H-006** (`notes` presente pero vacío): RESUELTO. FR-005/Edge → vacío/solo-espacios = ausente, sin tarjeta.
+- **H-007/T-004** (count=0 contradicción FR↔edge): RESUELTO. Único comportamiento: «sin evidencia» + 0 tiles (FR-006 y Edge alineados).
+- **H-008** (base de índice): RESUELTO. FR-006 → **1-based**.
+- **H-009** (estados sin chip): RESUELTO. Edge → los 5 estados FSM tienen token de chip (FE-8); render siempre definido.
+- **T-002** (fidelidad sin umbral): RESUELTO. SC-001/002 + rúbrica: checklist estructural objetiva + aprobación humana terminal.
+- **T-003** («tarjeta» sin tokens): RESUELTO. FR-005 → tokens concretos (surface + border + `--radius-md` + `--shadow-1`).
+- **S-002** (quién abre qué detalle): RESUELTO. FR-010 → detalle server-authoritative (query por id, 401/403/404 del backend), sin relajar.
+- **S-003** (PII en notas/cliente): RESUELTO. FR-010 → misma exposición que hoy por rol, escapado, sin nueva superficie de PII ni logs.
+
+## Ronda 2 (ancladas al contrato verificado, orders.openapi.yaml)
+- **H-001** (¿listado expone assigned_to?): RESUELTO. `Order.assigned_to` es requerido (`uuid | null`) y el listado devuelve `Order[]` → el condicional es ejecutable.
+- **H-002** (Assumption «detalle solo count/content_types» contradice `notes`): RESUELTO. Corregida la Assumption: `OrderDetailResponse` expone `order` + `notes` (opcional, technician-dueño/supervisor) + `evidence`.
+- **H-003/T-002** (cardinalidad content_types vs count): RESUELTO por invariante del contrato `count == content_types.length` (1:1, ordenado); enum = solo imágenes → etiqueta «Imagen N» honesta; sin caso de mismatch.
+- **T-001** (qué identificador del técnico): RESUELTO. `assigned_to` es un **UUID opaco (sin nombre/PII)** por contrato → se muestra ese UUID cuando no es «Tú»; no hay nombre que mostrar.
+
+## Ronda 3 (cierre)
+- **H-001-r3** (origen del userId + scope SC-006): RESUELTO. FR-002 → `userId` del contexto de sesión existente (`useSession`, solo lectura); SC-006 permite importarlo sin tocar auth.
+- **H-002-r3** (UUID 36 chars desborda ≤390px): RESUELTO. FR-002 → UUID truncado a forma corta (8 chars, mono) cuando aplica; sin scroll horizontal.
+
+## Ronda 4 (cierre del tema scope, anclado a listOrders)
+- **H-001-r4 / S-001-r4** (scope del listado): RESUELTO por contrato. `listOrders` acota server-side por rol (técnico = propias activas; draft/closed ausentes) → «Tú» es el flujo real; UUID/neutro = guarda defensiva unit-testable, no flujo de aceptación; no llega dato ajeno al cliente. FR-010 extendido al listado; US1-AS2 reformulado (guarda defensiva).

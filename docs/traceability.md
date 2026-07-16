@@ -497,3 +497,23 @@ Vistas mínimas del front». Sin endpoints/IA/backend/contratos ni cambios RBAC 
 > Deuda/fuera de alcance (documentado, no silencioso): **paginación de listados** (probablemente backend,
 > cursor) queda para una fase de mejora futura; el filtrado en cliente (FR-005a/FR-007a) asume el conjunto
 > completo sin paginación de servidor (H-003).
+
+## FE-9 · 023-front-tecnico-list (fidelidad lista del técnico + detalle) — G1/G2 PASS / implementado
+
+| FR | Descripción | Componente/archivo | Test |
+|----|-------------|--------------------|------|
+| FR-001 | tarjeta del artifact: fila superior (código mono + chip), nombre, fila de meta | `features/orders/OrderList.tsx` (`OrderItem`), `orders.css` | `unit/order-card-meta` |
+| FR-002 | técnico condicional (Tú / UUID8 / «Sin asignar» incl. sesión sin resolver); cliente «—» | `features/orders/resolveAssignee.ts`, `OrderList.tsx` | `unit/order-card-meta` |
+| FR-003 | no inventar datos ausentes (placeholders «—», nunca ficticios) | `features/orders/OrderList.tsx` | `unit/order-card-meta` |
+| FR-004 | cabecera del detalle: código mono + nombre (sin sub-línea) | `features/orders/OrderDetailView.tsx` (`.order-detail__code`), `orders.css` | `unit/order-detail-header` |
+| FR-005 | notas en tarjeta «Notas del técnico» (surface+border+radius-md+shadow-1), solo si contenido, escapado | `features/orders/OrderDetailView.tsx` (`.order-detail__notes`), `orders.css` | `unit/order-detail-notes` |
+| FR-006 | evidencia: N tiles «Imagen N» 4/3 (1-based) o «sin evidencia»; invariante count==content_types.length | `features/orders/OrderDetailView.tsx` (`.order-detail__evidence-*`), `orders.css` | `unit/order-detail-evidence` |
+| FR-007 | sin cambios backend/contratos/RBAC; visibilidad de acciones sin relajar | (invariante, sin componente propio) | `unit/rbac-reskin-regression` (T012) · `git diff` (T015) |
+| FR-008 | disciplina «token o nada» + preserva tema/responsive sin regresión | vistas tocadas (tokens FE-8) | `stylelint` + `unit/theme-toggle`/`master-detail-resize` (T011/T012) |
+| FR-009 | capturas Playwright MCP (lista móvil + detalle técnico/supervisor × 2 temas) + aprobación humana | T013 | evidencia en PR (T013) · rúbrica SC-001/002 |
+| FR-010 | listado y detalle server-authoritative (scope por rol, 401/403/404); notas escapadas, sin nueva PII | (invariante; `useSession` solo lectura) | `unit/rbac-reskin-regression`, `unit/*detail-rbac` (T012) |
+| SC-001/002 | checklist estructural (tarjeta/cabecera/notas/tiles) + aprobación humana de fidelidad | — | capturas T013 (evidencia PR) |
+| SC-003 | 0 datos inventados (campos ausentes → «—»/omitidos) | `OrderList.tsx`/`OrderDetailView.tsx` | `unit/order-card-meta`, `unit/order-detail-*` |
+| SC-004 | 0 regresiones (tsc/eslint/stylelint/build/vitest incl. axe); rbac-reskin-regression verde | suite completa | `npm run lint`/`typecheck`/`build`, `vitest` (T012) |
+| SC-005 | 0 hex/px/font sueltos introducidos | vistas tocadas | `stylelint` (T011) |
+| SC-006 | alcance del diff = solo `frontend/src/features/orders/**` + este doc | — | `git diff --name-only develop` (T015) |

@@ -67,7 +67,12 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   };
   return (
     <article className="order-detail" aria-busy={query.isFetching}>
-      <h2 tabIndex={-1}>{order.title}</h2>
+      {/* FE-9 (023) · FR-004: cabecera del artifact — código monoespaciado + nombre. Sin sub-línea de
+          contexto (el contrato del detalle no expone cliente/ubicación; no se inventa). */}
+      <div className="order-detail__header">
+        <span className="order-detail__code">#{order.id.slice(0, 8)}</span>
+        <h2 tabIndex={-1}>{order.title}</h2>
+      </div>
       {/* F-001/FR-014: región viva → un lector de pantalla anuncia el cambio de estado; foco tras decidir. */}
       <div ref={statusRef} tabIndex={-1} role="status" aria-live="polite">
         <StatusBadge status={order.status} />
@@ -151,17 +156,30 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
         </section>
       ) : null}
 
-      {/* notes/evidence solo si el backend los envía (por presencia, FR-011). */}
-      {notes !== undefined ? (
-        <section aria-label="Notas de ejecución">
-          <h3>Notas</h3>
+      {/* FE-9 (023) · FR-005: notas en tarjeta etiquetada, SOLO con contenido no vacío tras recortar
+          espacios (presencia ≠ contenido útil). Texto escapado (JSX escapa por defecto). */}
+      {notes !== undefined && notes.trim() !== '' ? (
+        <section className="order-detail__notes" aria-label="Notas de ejecución">
+          <h3>Notas del técnico</h3>
           <p>{notes}</p>
         </section>
       ) : null}
+      {/* FE-9 (023) · FR-006: N tiles «Imagen N» (1-based) por `evidence.count`; invariante del contrato
+          `count == content_types.length` (enum de imágenes). `count === 0` → estado explícito, 0 tiles. */}
       {evidence !== undefined ? (
         <section aria-label="Evidencia">
           <h3>Evidencia</h3>
-          <p>{evidence.count} archivo(s)</p>
+          {evidence.count > 0 ? (
+            <ul className="order-detail__evidence-grid">
+              {Array.from({ length: evidence.count }, (_, i) => (
+                <li key={i} className="order-detail__evidence-tile">
+                  Imagen {i + 1}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="order-detail__desc">Sin evidencia adjunta.</p>
+          )}
         </section>
       ) : null}
     </article>

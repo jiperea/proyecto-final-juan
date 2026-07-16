@@ -1,0 +1,76 @@
+{
+  "phase": "G2",
+  "feature": "023-front-tecnico-list",
+  "bloqueantes": 0,
+  "altas": 0,
+  "total": 5,
+  "veredicto": "APROBADA_CON_COMENTARIOS",
+  "huecos": [
+    {
+      "id": "K-001",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "tasks.md T014 (etiqueta FR-008)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "T014 (actualizar docs/traceability.md) está etiquetada «(FR-008)», pero FR-008 es la disciplina «token o nada» + preservar tema/responsive sin regresión. Actualizar la matriz de trazabilidad es una tarea de proceso/constitución, no la implementación de FR-008. La etiqueta cruza mal la traza.",
+      "pregunta_critica": "¿A qué FR (o a ninguno) traza realmente T014? Reetiquetarla como tarea de trazabilidad (constitución) y no como cobertura de FR-008.",
+      "riesgo_si_no_se_corrige": "La matriz FR→tarea da por «cubierto» FR-008 con una tarea de docs, ocultando que la verificación real de FR-008 recae en T011/T012; ruido en la trazabilidad al cerrar el gate.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-002",
+      "categoria": "COBERTURA",
+      "elemento_afectado": "FR-008 (preservar tema claro/oscuro y responsive por viewport sin regresión)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-008 exige explícitamente «preservar tema claro/oscuro y responsive por viewport sin regresión». Las tareas cubren token-discipline (T011) y gates deterministas (T012, sin test de tema), y la verificación de tema/oscuro queda solo en las capturas visuales T013 — que están etiquetadas FR-009/SC-001-002, no FR-008. No hay tarea/test determinista que ancle la no-regresión de tema/responsive a FR-008.",
+      "pregunta_critica": "¿Qué tarea verifica la mitad «tema/responsive sin regresión» de FR-008? O se ancla explícitamente a T013 (capturas claro/oscuro), o se añade su verificación; hoy la traza de esa mitad de FR-008 está rota.",
+      "riesgo_si_no_se_corrige": "Una regresión de tema oscuro o de responsive por viewport podría pasar todos los gates deterministas (T011/T012) y solo detectarse por juicio humano en el PR, contradiciendo el «SC por verificación determinista + visual».",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-003",
+      "categoria": "CONFLICTO",
+      "elemento_afectado": "tasks.md T010 (menciona «EvidencePicker/subcomponente») vs SC-006 / alcance «2 pantallas»",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "T010 propone editar «OrderDetailView.tsx (o `EvidencePicker`/subcomponente de detalle)». `EvidencePicker` es el componente de la pantalla de registrar ejecución (FE-8), no del detalle; tocarlo excede el alcance declarado de «2 pantallas» (lista técnico + detalle) y podría rozar el límite de SC-006 según dónde resida el fichero.",
+      "pregunta_critica": "¿La rejilla de tiles del detalle se implementa en un componente propio del detalle o reutiliza/modifica `EvidencePicker` de registrar-ejecución? Fijar el componente destino dentro de `features/orders/**` de detalle para no invadir la pantalla de registro.",
+      "riesgo_si_no_se_corrige": "Si se modifica `EvidencePicker`, la feature altera una tercera pantalla fuera del alcance y arriesga la verificación de diff de T015/SC-006 (o regresiones en registrar-ejecución) sin cobertura de test para esa pantalla.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-004",
+      "categoria": "COBERTURA",
+      "elemento_afectado": "FR-002 (rama «en supervisor/oficina, el UUID del asignatario»)",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-002 afirma que la regla de `resolveAssignee` es «válida en cualquier vista que reutilice la tarjeta: … en supervisor/oficina, el UUID del asignatario». Ninguna tarea integra ni verifica esa vista de oficina/supervisor: T004 solo maqueta `OrderList` del técnico, y la rama UUID solo se prueba como guarda defensiva unit (T002/T003). No hay tarea que aplique el helper a la vista de oficina.",
+      "pregunta_critica": "¿El requisito de mostrar UUID en la vista de supervisor/oficina es alcance de esta feature o descripción de reutilización futura? Si es alcance, falta tarea de integración+test en esa vista; si no, acotar la frase de FR-002 para no prometer cobertura inexistente.",
+      "riesgo_si_no_se_corrige": "FR-002 promete un comportamiento en la vista de oficina que ninguna tarea implementa ni testea end-to-end; queda como requisito parcialmente sin cubrir (solo helper unit), fuente de deuda o de expectativa incumplida en la revisión de fidelidad.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "S-001",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-010 / OrderDetailView / TanStack Query cache",
+      "descripcion": "La feature confía en que el detalle es server-authoritative (query por id con 401/403/404), pero al reutilizar el estado de servidor (TanStack Query) para renderizar `notes` y `assigned_to`, no se dice qué pasa con la caché de cliente al cambiar de sesión/rol. Si el mismo navegador cambia de usuario (logout → login de otro rol) sin invalidar la caché, el detalle o la tarjeta podrían pintar `notes`/UUID de la sesión anterior antes del refetch.",
+      "pregunta_critica": "¿La caché de TanStack Query se invalida/purga en logout y cambio de rol, de modo que el nuevo render nunca muestre notas o assigned_to cacheados de la sesión previa? ¿Es un invariante heredado de FE-8 ya verificado o queda sin cubrir en esta feature que ahora expone más de esos campos en pantalla?",
+      "riesgo_si_no_se_corrige": "Notas del técnico o el identificador de asignatario de un usuario podrían mostrarse fugazmente a otro usuario en el mismo navegador tras cambio de sesión, sin que el backend server-authoritative lo evite (el dato ya está en memoria del cliente).",
+      "severidad": "MEDIA",
+      "agente": "revisor-rbac-seguridad"
+    }
+  ]
+}
