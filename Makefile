@@ -1,6 +1,6 @@
 # FieldOps 001 — un comando para todo (Constitution §Convenciones)
 # Entorno SIN Node en el host: todo corre en contenedor node:20 (scripts/dcnode.sh) + Postgres (compose).
-.PHONY: install up down test test-unit lint typecheck migrate seed gate
+.PHONY: install up down dev build test test-unit lint typecheck migrate seed gate
 
 install:
 	bash scripts/dcnode.sh npm install
@@ -11,6 +11,16 @@ up:
 
 down:
 	docker compose down
+
+# MODO DEV: stack completo con código en vivo + HMR (usa docker-compose.override.yml).
+# Requiere la db ya migrada/seedeada una vez (`make up`). Front en :5173, back en :3001.
+dev:
+	docker compose up -d
+	@echo "→ Front (HMR): http://localhost:5173  ·  API /v1 proxya al backend"
+
+# PARIDAD PROD: construye las imágenes back/front (Vite build + nginx), sin el override de dev.
+build:
+	docker compose -f docker-compose.yml build
 
 migrate:
 	bash scripts/dcnode.sh npx prisma migrate deploy
