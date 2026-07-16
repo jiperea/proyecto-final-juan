@@ -61,3 +61,11 @@
 - **H-001-r6** (submit «no cambia cuerpo» vs «referencia refs»): RESUELTO — `submitOrderExecution` YA lleva `evidence: EvidenceRef[]` con `object_ref` (verificado en el contrato); esos object_ref ahora vienen de `uploadOrderEvidence`. Shape sin cambios → compatible; no hay contradicción.
 - **H-002-r6** (TOCTOU reasignación vs submit): RESUELTO — la re-verificación de pertenencia + transición van bajo la **concurrencia optimista de `Order.version`** (ya existente); reasignación concurrente → 409 al submit rancio.
 - **T-001-r6** (dos GC sobre el mismo «blob sin fila»): RESUELTO — **un único GC** (FR-024) con TTL 24h cubre staged-abandonado y huérfano-por-rollback (mismo estado observable); FR-011 remite a él.
+
+## Ronda 7 (nits de consistencia interna — cerrados con reglas globales)
+- **H-001-r7** (invariante «nunca fila sin blob» contradice purga/410): CORREGIDO — invariante correcto: no hay blob sin fila; una fila SÍ puede sobrevivir sin blob (purgada/legacy → 410).
+- **H-002-r7** (blobs de ciclo superado con fila, sin GC): CORREGIDO — FR-024 purga blob «sin fila vigente» = ausente O superada; cubre el ciclo superado.
+- **H-003-r7** (reasignación: 409 vs 404): CORREGIDO — submit del saliente → **404 uniforme** (no 409; no revela cambio de estado), coherente con FR-007/020.
+- **H-004-r7** (ref propia válida pero purgada por TTL): CORREGIDO — FR-023 → **422 «evidencia expirada, vuelve a subir»**.
+- **S-001-r7** (precedencia autz vs validación en subida): CORREGIDO — FR-020 autz-primero (401/404) antes de 415/413/422; no-dueño no recibe códigos de validación.
+- **S-002-r7** (404/422 no determinista en ref): CORREGIDO — determinista: ajeno/otra-orden/otro-actor → 404; malformado → 422; propio-expirado → 422.
