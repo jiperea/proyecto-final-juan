@@ -42,3 +42,12 @@
 - **H-005-r3** (representación de items legacy): FR-014 → usan el `id` de fila ya existente; abrir → 410.
 - **T-001-r3** (415 vs 422 en contenido falseado): FR-019 → determinista: fuera de allowlist=415; en allowlist pero contenido no-imagen=422.
 - **S-001-r3** (sin auditoría de LECTURA): FR-021 → auditar lectura (actor/orderId/evidenceId/ts) sin binario.
+
+## Ronda 4 (simplificación anclada al schema verificado)
+- **H-001/T-001/S-003-r4** (restos de «token single-use ligado al principal» en Contrato/trazabilidad): RESUELTO — purgado ese vocabulario; lectura = 200 same-origin por sesión, firma ≤300s interna; tests renombrados (session-serve / internal-signature-ttl).
+- **H-002-r4** (FR-011 «una transacción atómica» falsa): RESUELTO — atomicidad **por operación**: upload escribe blob (sin fila); submit crea filas ligadas a auditId/attempt en su transacción; blobs no referenciados → GC.
+- **H-003-r4** (discriminador de ciclo inexistente): RESUELTO — el modelo ya tiene **`attempt`+`auditId`** (verificado en schema.prisma); ciclo vigente = attempt/audit más reciente.
+- **H-004-r4** (asunción de fila-por-ítem legacy sin verificar): RESUELTO — **verificado**: `OrderEvidence` tiene `id` por fila; items legacy usan ese id → 410.
+- **H-005-r4** (instante del reemplazo): RESUELTO — el reemplazo/purga del ciclo anterior ocurre **en la transacción del nuevo submit** (no antes); si se abandona el reintento, la evidencia rechazada sigue disponible.
+- **S-001-r4** (supervisor leyendo evidencia no enviada en in_progress): RESUELTO — los blobs staged no tienen fila → no direccionables por getOrderEvidence ni en getOrderDetail.items; nadie los lee por la API de lectura.
+- **S-002-r4** (ventana de lectura de staging del saliente tras reasignar): RESUELTO — igual: sin fila, no hay evidenceId que abrir; GC limpia el blob huérfano.
