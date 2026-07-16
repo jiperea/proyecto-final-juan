@@ -51,3 +51,8 @@
 - **H-005-r4** (instante del reemplazo): RESUELTO — el reemplazo/purga del ciclo anterior ocurre **en la transacción del nuevo submit** (no antes); si se abandona el reintento, la evidencia rechazada sigue disponible.
 - **S-001-r4** (supervisor leyendo evidencia no enviada en in_progress): RESUELTO — los blobs staged no tienen fila → no direccionables por getOrderEvidence ni en getOrderDetail.items; nadie los lee por la API de lectura.
 - **S-002-r4** (ventana de lectura de staging del saliente tras reasignar): RESUELTO — igual: sin fila, no hay evidenceId que abrir; GC limpia el blob huérfano.
+
+## Ronda 5 (resueltos)
+- **S-001/H-003-r5** (submit no re-verifica pertenencia de la ref staged): FR-023 → ref ligada a (dueño, orden); submit re-verifica o rechaza (404/422).
+- **H-001-r5** (purga «en la tx PG» contradice no-transaccionalidad del blob): FR-017 → la tx PG marca superado (reemplazo lógico inmediato, 410); la purga física del blob es GC post-commit.
+- **H-002-r5** (disparo/criterio del GC de staging): FR-024 → GC programado, TTL de staging 24h, distingue abandonado (>24h sin fila) de en-vuelo.
