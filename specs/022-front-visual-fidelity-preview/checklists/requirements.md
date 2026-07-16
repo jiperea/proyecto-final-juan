@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,9 +31,10 @@
 
 ## Notes
 
-- **1 marcador [NEEDS CLARIFICATION] intencional**: FR-010 (acento vivo en botones vs. objetivo WCAG AA).
-  Es la única decisión crítica de la feature (scope/UX + gobernanza de constitución) y el usuario pidió
-  explícitamente resolverla en `/speckit-clarify` + gate G1, no antes. Se deja como marcador y se documenta
-  la preferencia declarada (literal) en Assumptions. No bloquea el avance a clarify.
+- **FR-010 resuelto en clarify (2026-07-16)**: acento vivo literal (`#DC5A24` + texto blanco) con excepción AA
+  documentada; el panel de G1 valida la justificación. Ya no quedan marcadores [NEEDS CLARIFICATION].
+- **Clarify 2026-07-16 (5 preguntas)**: FR-010 acento literal · replicar vistas de app (no el andamiaje del
+  mockup) + responsive móvil+escritorio · segmentado «Activas/Todas» filtra en cliente · buscador de oficina
+  filtra en cliente · tarjeta IA replica estilo con estado de runtime actual. Paginación diferida a fase futura.
 - Feature de presentación: secciones "Contrato (OpenAPI)" y "Eval promptfoo" no aplican (sin endpoints ni
   IA); se sustituye la verificación por herramientas del front + capturas Playwright MCP con aprobación humana.
