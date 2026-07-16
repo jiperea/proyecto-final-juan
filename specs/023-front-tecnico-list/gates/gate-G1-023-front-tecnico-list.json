@@ -1,0 +1,174 @@
+{
+  "phase": "G1",
+  "feature": "023-front-tecnico-list",
+  "bloqueantes": 0,
+  "altas": 5,
+  "total": 16,
+  "veredicto": "APROBADA_CON_COMENTARIOS",
+  "huecos": [
+    {
+      "id": "H-001",
+      "categoria": "INCONSISTENCIA",
+      "elemento_afectado": "FR-002 vs Acceptance Scenario 2 (US1) vs Clarification Q1",
+      "descripcion": "La clarificación decide que el técnico es SIEMPRE «Tú» porque la lista es la del propio técnico y «el caso otro técnico no aplica en esta vista». Pero el Acceptance Scenario 2 de la US1 introduce explícitamente la rama «si es otro, aparece su identificador», que la clarificación declara imposible. FR-002 dice «siempre → Tú». Los tres textos no concuerdan.",
+      "pregunta_critica": "Si por decisión de producto el caso «otro técnico» NO aplica en esta vista, ¿por qué existe el Acceptance Scenario 2 con la rama del identificador? ¿Se debe eliminar esa rama (y con ella la posibilidad de que el test la exija) o realmente puede aparecer una orden de otro técnico en la lista del técnico?",
+      "riesgo_si_no_se_corrige": "El implementador cablea «Tú» fijo (per FR-002) y un test escrito contra el Scenario 2 fallará esperando un identificador; o al revés, se implementa lógica de resolución de identidad muerta que nunca se ejecuta. Ambigüedad que genera código o test contradictorio.",
+      "severidad": "ALTA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "H-002",
+      "categoria": "INCONSISTENCIA",
+      "elemento_afectado": "FR-002 vs Edge Case «assigned_to nulo → representación neutra»",
+      "descripcion": "FR-002 afirma que en esta vista el técnico es SIEMPRE el usuario en sesión → «Tú». El Edge Case contempla `assigned_to` nulo → «representación neutra (no Tú)». Si la lista solo contiene órdenes del propio técnico, una orden con `assigned_to` nulo no debería aparecer en ella; y si aparece, la premisa «todas sus órdenes son suyas» de la clarificación es falsa.",
+      "pregunta_critica": "¿Puede el endpoint del listado del técnico devolver una orden con `assigned_to` nulo (p. ej. draft o recién desasignada)? Si sí, la asunción «todas son suyas → siempre Tú» está rota; si no, ¿qué justifica el edge case del nulo?",
+      "riesgo_si_no_se_corrige": "Si el backend devuelve una orden con assigned_to nulo y el front muestra «Tú» (per FR-002 literal), se le atribuye al usuario una orden que no es suya: fidelidad falsa y potencial confusión operativa. Si se implementa la rama neutra, contradice FR-002.",
+      "severidad": "ALTA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "H-003",
+      "categoria": "ASUNCION_OCULTA",
+      "elemento_afectado": "FR-006 («foto N») + Assumption «detalle expone evidence.count/content_types»",
+      "descripcion": "El contrato expone `content_types` para la evidencia, pero FR-006 etiqueta cada tile como «foto N» ignorando ese campo. Se asume implícitamente que toda evidencia es una imagen. Si `content_types` incluye PDF, vídeo, audio u otro, la etiqueta «foto N» inventa la naturaleza del adjunto —justo lo que FR-003 prohíbe.",
+      "pregunta_critica": "¿Está garantizado por contrato que todos los `content_types` de evidencia son imágenes? Si no, ¿por qué la etiqueta fija «foto N» no consulta `content_types`, y no es esto «inventar dato» sobre el tipo de adjunto en contradicción con FR-003/SC-003?",
+      "riesgo_si_no_se_corrige": "Se etiqueta como «foto 1» un adjunto que es un PDF o vídeo: dato inventado sobre el tipo, viola FR-003 y hace fallar la premisa de SC-003 (0 datos inventados) pese a que el test de SC-003 solo mira cliente/ubicación y no lo detectaría.",
+      "severidad": "ALTA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "H-004",
+      "categoria": "INCONSISTENCIA",
+      "elemento_afectado": "Fuente de verdad «réplica literal del artifact» vs FR-003 «no inventar» + Clarifications (cliente «—», técnico «Tú»)",
+      "descripcion": "La feature se declara «réplica literal» de las pantallas 02/03 del artifact, pero el artifact fue construido con datos de ejemplo (probable nombre de cliente y de técnico reales). Las decisiones de esta spec (cliente siempre «—», técnico siempre «Tú») producen una tarjeta que estructuralmente imita el artifact pero cuyo contenido diverge de lo que el artifact muestra. «Literal» y «honesto con placeholders» tiran en direcciones opuestas y la spec no resuelve cuál gana cuando chocan.",
+      "pregunta_critica": "Cuando el artifact muestra un valor concreto (nombre de cliente/técnico) y el contrato no lo expone, ¿la fidelidad se mide contra la ESTRUCTURA del artifact o contra su CONTENIDO? ¿Qué gana explícitamente ante conflicto, y cómo lo verifica la «aprobación humana de fidelidad» sin criterio escrito?",
+      "riesgo_si_no_se_corrige": "El revisor humano de SC-001/SC-002 rechaza la fidelidad porque «no se parece al artifact» (muestra «— · Tú» en vez de datos), o el implementador reintroduce datos de muestra para «parecerse» violando FR-003. La aprobación humana queda sin criterio y el gate G3 se vuelve subjetivo.",
+      "severidad": "ALTA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "H-005",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-004 (sub-línea del detalle) + Assumption sobre el contrato del detalle",
+      "descripcion": "FR-004 define comportamiento para una sub-línea que muestra «solo los campos de contexto con dato (cliente/ubicación si existieran)». Pero la propia Assumption afirma que el detalle solo expone `evidence.count`/`content_types` y ninguna URL/cliente/ubicación. Por tanto la sub-línea estaría SIEMPRE vacía y la cabecera queda siempre en «código + nombre». El requisito describe una rama que nunca se ejecuta: no es testeable con un caso positivo real.",
+      "pregunta_critica": "Dado que el contrato del detalle NO expone cliente ni ubicación, ¿existe hoy algún campo real que pueda poblar la sub-línea? Si no, ¿qué está aportando FR-004 más allá de repetir la cabecera, y cómo se escribe un test que verifique la rama «con dato» sin un dato que exista?",
+      "riesgo_si_no_se_corrige": "Se implementa y testea código muerto (la rama «con dato» nunca se cubre), dando falsa sensación de cobertura; o se añade un campo al payload para «tener algo que mostrar», rompiendo el invariante FR-007 (no tocar contratos).",
+      "severidad": "MEDIA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "H-006",
+      "categoria": "EDGE_CASE",
+      "elemento_afectado": "FR-005 / Edge Case «detalle sin notas» (notas vacías vs ausentes)",
+      "descripcion": "El edge case distingue «si el payload no trae `notes` → no se renderiza la sección». No define el caso de `notes` PRESENTE pero vacío (cadena vacía, solo espacios en blanco, o array vacío). Presencia ≠ contenido útil.",
+      "pregunta_critica": "¿Se renderiza la tarjeta «Notas del técnico» cuando `notes` está presente pero es cadena vacía o solo espacios? ¿La condición de render es «campo presente» o «campo con contenido no vacío»?",
+      "riesgo_si_no_se_corrige": "Se pinta una tarjeta «Notas del técnico» vacía (peor interpretación: presencia), que es exactamente lo que el edge case «sin tarjetas vacías» quería evitar, pero para el subcaso de string vacío.",
+      "severidad": "MEDIA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "H-007",
+      "categoria": "INCONSISTENCIA",
+      "elemento_afectado": "FR-006 vs Edge Case «Evidencia con count 0»",
+      "descripcion": "FR-006 es tajante: con count=0 «SHALL mostrar un estado explícito ‘sin evidencia’ y 0 tiles». El Edge Case dice «no se muestran tiles (O estado explícito ‘sin evidencia’)», con un «o» disyuntivo que ofrece dos comportamientos distintos. El requisito normativo y el edge case no dicen lo mismo.",
+      "pregunta_critica": "Con count=0, ¿es obligatorio el texto «sin evidencia» (FR-006) o basta con no pintar tiles (edge case)? ¿Cuál es el comportamiento vinculante para el test?",
+      "riesgo_si_no_se_corrige": "El implementador omite el mensaje «sin evidencia» amparándose en el «o» del edge case, y un test escrito contra FR-006 falla; sección de evidencia con count 0 queda como bloque vacío sin explicación.",
+      "severidad": "MEDIA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "H-008",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-006 «etiqueta placeholder ‘foto N’ (índice)»",
+      "descripcion": "No se define la indexación de N: ¿1-based («foto 1»…«foto N») o 0-based? ¿Coincide con lo que muestra el artifact? Un criterio de aceptación que menciona «índice» sin fijar la base no es convertible en un test determinista único.",
+      "pregunta_critica": "¿La etiqueta empieza en «foto 1» o «foto 0», y ese formato coincide literalmente con el del artifact (pantalla 03)? ¿Cuál es el texto exacto esperado por el test de DOM?",
+      "riesgo_si_no_se_corrige": "El test comprueba «foto 1» y el código pinta «foto 0» (o viceversa); divergencia trivial pero real con el artifact que la «réplica literal» debía garantizar.",
+      "severidad": "MEDIA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "H-009",
+      "categoria": "REQUISITO_FALTANTE",
+      "elemento_afectado": "US1 / FR-001 (orden de la tarjeta) + estados del dominio en la lista",
+      "descripcion": "La spec asume que cada orden de la lista tiene un `status` mapeable a un chip, pero no acota qué estados pueden aparecer en la lista del técnico ni qué chip corresponde a cada uno. Si aparece un estado sin chip definido en los tokens de FE-8 (p. ej. `draft`, que normalmente no está asignado a un técnico), el render del chip queda indefinido.",
+      "pregunta_critica": "¿Qué conjunto de `status` puede devolver el listado del técnico, y existe un token de chip para cada uno en FE-8? ¿Qué renderiza el chip ante un estado no previsto por los tokens?",
+      "riesgo_si_no_se_corrige": "Un estado inesperado (p. ej. draft o closed) llega a la lista y el chip aparece sin estilo o rompe la maquetación, sin que ningún FR/edge case lo cubra.",
+      "severidad": "MEDIA",
+      "agente": "revisor-cinico"
+    },
+    {
+      "id": "T-001",
+      "categoria": "SIN_CRITERIO_PASS_FAIL",
+      "elemento_afectado": "FR-004",
+      "test_fallado": "PASS_FAIL",
+      "descripcion": "FR-004 exige una «sub-línea que muestra solo los campos de contexto con dato (cliente/ubicación si existieran)», pero el propio bloque Assumptions afirma que el contrato del detalle NO expone cliente ni ubicación (solo `evidence.count`/`content_types`). No se enumera ningún campo que sí esté garantizado en el payload, así que no existe un valor concreto que haga que un test de la sub-línea devuelva PASS: en la práctica la sub-línea quedaría siempre vacía y el requisito no fija qué renderiza cuando no hay contexto (¿se omite el nodo?, ¿se reserva el espacio?).",
+      "pregunta_critica": "¿Qué campos concretos del payload del detalle son los candidatos a sub-línea (nómbralos) y qué se renderiza exactamente cuando ninguno está presente — nodo omitido del DOM o placeholder? Sin esa lista no hay valor binario que testear.",
+      "riesgo_si_no_se_corrige": "Un dev renderiza un contenedor de sub-línea vacío (bloque fantasma), otro lo omite del DOM; ambos «cumplen» FR-004 y el test de fidelidad no puede discriminar.",
+      "severidad": "MEDIA",
+      "agente": "auditor-spec-theater"
+    },
+    {
+      "id": "T-002",
+      "categoria": "SIN_CRITERIO_PASS_FAIL",
+      "elemento_afectado": "SC-001 | SC-002",
+      "test_fallado": "PASS_FAIL",
+      "descripcion": "SC-001/SC-002 combinan una parte testeable (presencia de código mono + chip + nombre + fila de meta / cabecera + notas + tiles, verificable por DOM) con «reproduce la estructura del artifact» y «aprobación humana de fidelidad». La cláusula de fidelidad no fija ningún valor binario: «reproduce»/«fiel» depende de un juicio humano subjetivo, no de un umbral (p. ej. tolerancia de posición, tokens exactos, orden de nodos). No hay valor concreto que convierta la fidelidad en PASS/FAIL.",
+      "pregunta_critica": "¿Qué criterio objetivo cierra la fidelidad más allá del checklist de elementos presentes — lista cerrada de nodos+tokens exigidos, o se acepta explícitamente que la fidelidad es un gate humano NO automatizable? Si es lo segundo, sepárese de la parte medible por DOM.",
+      "riesgo_si_no_se_corrige": "El SC pasa/falla según opinión del revisor de turno; dos revisores pueden aprobar/rechazar la misma implementación, y no hay test reproducible que respalde el gate G3.",
+      "severidad": "MEDIA",
+      "agente": "auditor-spec-theater"
+    },
+    {
+      "id": "T-003",
+      "categoria": "MULTIPLE_INTERPRETACION",
+      "elemento_afectado": "FR-005",
+      "test_fallado": "2_IMPLEMENTACIONES",
+      "descripcion": "FR-005 pide mostrar las notas «en una tarjeta etiquetada (estilo «notas» del artifact)». La etiqueta está fijada en US3/AS-3.1 («Notas del técnico»), pero «estilo tarjeta» no fija qué tokens/estructura la definen (¿qué constituye «tarjeta»: borde, sombra, fondo, radio concretos?). Dos implementaciones válidas divergen: (a) un `<section>` con `--shadow`/`--radius`/fondo de superficie; (b) un simple bloque con borde izquierdo de acento. Ambas «etiquetan» y «no son párrafo plano».",
+      "pregunta_critica": "¿Qué tokens/atributos concretos definen la «tarjeta» de notas (fondo, radio, sombra, padding) para que el test compruebe su presencia, en vez de «estilo notas»?",
+      "riesgo_si_no_se_corrige": "Cada dev elige un contenedor distinto que igualmente pasa «no es párrafo»; el resultado no coincide con el artifact y solo lo detecta la revisión visual subjetiva.",
+      "severidad": "MEDIA",
+      "agente": "auditor-spec-theater"
+    },
+    {
+      "id": "T-004",
+      "categoria": "MULTIPLE_INTERPRETACION",
+      "elemento_afectado": "Edge Cases (Evidencia con count 0)",
+      "test_fallado": "2_IMPLEMENTACIONES",
+      "descripcion": "El edge case dice «Evidencia con count 0: no se muestran tiles (o estado explícito «sin evidencia»), no un bloque vacío» — el «(o)» ofrece dos comportamientos distintos (ocultar la sección vs. mostrar un mensaje). FR-006 sí lo pincha («SHALL mostrar un estado explícito «sin evidencia» y 0 tiles»), de modo que edge case y FR se contradicen literalmente en el caso count=0.",
+      "pregunta_critica": "¿El caso count=0 renderiza SIEMPRE el estado «sin evidencia» (como FR-006) o puede ocultar la sección (como sugiere el edge case)? Elíjase uno y elimínese el «(o)».",
+      "riesgo_si_no_se_corrige": "Un dev sigue el edge case y oculta la sección; otro sigue FR-006 y muestra «sin evidencia»; el test de count=0 no puede afirmar un DOM esperado único.",
+      "severidad": "MEDIA",
+      "agente": "auditor-spec-theater"
+    },
+    {
+      "id": "S-001",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-002 vs US1 Acceptance Scenario 2 / clarificación «siempre Tú»",
+      "descripcion": "La clarificación y FR-002 fijan que el técnico se renderiza SIEMPRE como «Tú» porque «todas sus órdenes son suyas», pero el Acceptance Scenario 2 de US1 admite «si es otro, aparece su identificador». Esa contradicción revela una asunción no verificada: que el endpoint del listado está acotado en backend a `assigned_to == usuario_sesión`. Si el listado devolviera una orden no asignada al usuario (IDOR / fallo de aislamiento), la UI la etiquetaría falsamente como «Tú», enmascarando un fallo de autorización en lugar de exponerlo.",
+      "pregunta_critica": "¿El contrato del listado garantiza que SOLO devuelve órdenes con `assigned_to == usuario_sesión`? Si no está garantizado en backend, ¿por qué la UI hardcodea «Tú» en vez de comparar `assigned_to` con el id de sesión y mostrar el identificador real cuando no coincida (como pide AS-2)?",
+      "riesgo_si_no_se_corrige": "La etiqueta «Tú» incondicional oculta órdenes ajenas si el backend filtra mal, convirtiendo un IDOR/fallo de aislamiento en un problema invisible; además la spec queda internamente contradictoria sobre la representación de propiedad.",
+      "severidad": "ALTA",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "S-002",
+      "categoria": "ESCALADA_PRIVILEGIOS",
+      "elemento_afectado": "US2 / FR-004 (detalle para técnico y supervisor)",
+      "descripcion": "El detalle se renderiza «como técnico y como supervisor» abriendo una orden por id, pero la spec no fija qué órdenes puede abrir cada rol: ¿un technician puede abrir el detalle de una orden NO asignada a él vía el id de la URL? ¿un supervisor ve el detalle de cualquier orden o solo las de su ámbito/equipo? FR-007 delega en FE-8 sin afirmar que existe control backend 401/403/404 para el detalle de órdenes no propias.",
+      "pregunta_critica": "¿El endpoint de detalle rechaza (403/404) que un technician abra una orden no asignada a él, y acota el supervisor a su ámbito? ¿Las capturas/tests de fidelidad ejercitan el caso «no-propietario» o solo el propietario feliz?",
+      "riesgo_si_no_se_corrige": "Si el detalle se verifica solo con el propietario, el camino IDOR (technician abriendo orden ajena por id) queda sin cobertura y un fallo de autorización de lectura pasa desapercibido en esta feature que precisamente re-toca esa vista.",
+      "severidad": "MEDIA",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "S-003",
+      "categoria": "SEGURIDAD",
+      "elemento_afectado": "FR-005 (tarjeta «Notas del técnico») / FR-004 (sub-línea contexto)",
+      "descripcion": "Las notas y la sub-línea de contexto (cliente/ubicación «si existieran») pueden contener PII/datos de cliente. La spec renderiza `notes` verbatim en una tarjeta y contempla mostrar cliente/ubicación en la cabecera; no acota si esos campos son PII que deba minimizarse ni si el supervisor (rol distinto del autor técnico) está autorizado a leer las notas y la PII del cliente en el mismo detalle.",
+      "pregunta_critica": "¿Las notas del técnico y los campos cliente/ubicación de la sub-línea contienen PII, y está el rol supervisor autorizado a verlos? ¿La cabecera podría exponer PII de cliente si el contrato empezara a exponer cliente/ubicación (el FR lo contempla condicionalmente)?",
+      "riesgo_si_no_se_corrige": "Renderizar notas/PII sin acotar la autorización de lectura por rol podría exponer datos de cliente a un rol que no debería verlos, o normalizar mostrar PII en cabecera si el contrato cambia.",
+      "severidad": "MEDIA",
+      "agente": "revisor-rbac-seguridad"
+    }
+  ]
+}
