@@ -56,3 +56,8 @@
 - **S-001/H-003-r5** (submit no re-verifica pertenencia de la ref staged): FR-023 → ref ligada a (dueño, orden); submit re-verifica o rechaza (404/422).
 - **H-001-r5** (purga «en la tx PG» contradice no-transaccionalidad del blob): FR-017 → la tx PG marca superado (reemplazo lógico inmediato, 410); la purga física del blob es GC post-commit.
 - **H-002-r5** (disparo/criterio del GC de staging): FR-024 → GC programado, TTL de staging 24h, distingue abandonado (>24h sin fila) de en-vuelo.
+
+## Ronda 6 (resueltos — anclados al contrato/schema existentes)
+- **H-001-r6** (submit «no cambia cuerpo» vs «referencia refs»): RESUELTO — `submitOrderExecution` YA lleva `evidence: EvidenceRef[]` con `object_ref` (verificado en el contrato); esos object_ref ahora vienen de `uploadOrderEvidence`. Shape sin cambios → compatible; no hay contradicción.
+- **H-002-r6** (TOCTOU reasignación vs submit): RESUELTO — la re-verificación de pertenencia + transición van bajo la **concurrencia optimista de `Order.version`** (ya existente); reasignación concurrente → 409 al submit rancio.
+- **T-001-r6** (dos GC sobre el mismo «blob sin fila»): RESUELTO — **un único GC** (FR-024) con TTL 24h cubre staged-abandonado y huérfano-por-rollback (mismo estado observable); FR-011 remite a él.
