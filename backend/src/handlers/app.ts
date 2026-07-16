@@ -122,8 +122,13 @@ function registerOrderRoutes(app: Express, deps: AppDeps): void {
   // Reasignación (004): 403 FORBIDDEN_ROLE dentro del handler (orden 401→403→404→422 de FR-004).
   app.post('/v1/orders/:orderId/reassignments', auth, reassignOrderHandler(deps.reassignDeps));
   // Subida de evidencia (024, US1): SOLO `auth` (sin requireRole, igual que getOrderDetail); autz-primero
-  // (dueño+in_progress) y 404 uniforme resueltos DENTRO del handler (FR-020).
-  app.post('/v1/orders/:orderId/evidence', auth, uploadEvidenceHandler(deps.uploadEvidenceDeps));
+  // (dueño+in_progress) y 404 uniforme resueltos DENTRO del handler (FR-020). authWithDeniedAccessLog emite
+  // el 401 (S-003, misma señal best-effort que getOrderDetail/getOrderEvidence); el handler emite el 404.
+  app.post(
+    '/v1/orders/:orderId/evidence',
+    authWithDeniedAccessLog(auth, deps.uploadEvidenceDeps.deniedLogger, 'uploadOrderEvidence'),
+    uploadEvidenceHandler(deps.uploadEvidenceDeps),
+  );
   // Lectura de evidencia (024, US2): SOLO `auth` (sin requireRole, autz heredada EXACTA de getOrderDetail,
   // FR-003); 401 vía authWithDeniedAccessLog (endpoint propio), 404/410 dentro del handler (FR-007/FR-009).
   app.get(

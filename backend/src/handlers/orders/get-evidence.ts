@@ -18,7 +18,7 @@ import type {
 import { isOrderVisible } from '../../domain/order/read-side/order-detail-visibility';
 import type { DeniedAccessLoggerPort } from '../../domain/order/read-side/ports';
 import type { StoragePort } from '../../domain/ports/storage';
-import { domainError } from '../../domain/result';
+import { domainError, isDomainError } from '../../domain/result';
 import { sanitizeResource } from '../../infra/audit/denied-access-logger';
 import { sendError } from '../error-mapper';
 import { UUID_RE, orderNotFound } from './order-http';
@@ -37,6 +37,23 @@ function evidenceGone(): ReturnType<typeof domainError> {
   return domainError('EVIDENCE_GONE', 'La evidencia ya no está disponible.', {
     agentAction: 'Esta evidencia fue purgada o pertenece a un ciclo superado; no hay nada que recuperar.',
   });
+}
+
+function serviceUnavailable(): ReturnType<typeof domainError> {
+  return domainError('SERVICE_UNAVAILABLE', 'El servicio no está disponible.');
+}
+
+// Distingue "blob ausente" (legacy/superado/purgado por el GC, FR-009 → 410 EVIDENCE_GONE) de un fallo REAL
+// del StoragePort (almacenamiento caído → 503 fail-closed, I-001). El adaptador de filesystem señaliza la
+// ausencia del blob con un error de Node con `.code === 'ENOENT'`; cualquier otro error (permisos, disco no
+// disponible, un fake de test que simula el store caído) se trata como indisponibilidad del servicio.
+function isBlobMissing(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'code' in e &&
+    (e as NodeJS.ErrnoException).code === 'ENOENT'
+  );
 }
 
 // Sirve el binario con las cabeceras defensivas de FR-004/D7: nunca capacidad portadora, sin cachear, sin
@@ -67,20 +84,29 @@ async function handleAuthorized(
   let result: Awaited<ReturnType<StoragePort['read']>>;
   try {
     result = await deps.storage.read(handle);
-  } catch {
-    // Blob ausente del store (legacy nunca almacenado, o superado y purgado por el GC de FR-024, FR-009).
-    sendError(res, evidenceGone());
-    return;
+  } catch (e) {
+    if (isBlobMissing(e)) {
+      // Blob ausente del store (legacy nunca almacenado, o superado y purgado por el GC de FR-024, FR-009).
+      sendError(res, evidenceGone());
+      return;
+    }
+    // Fallo REAL del almacenamiento (caído/inaccesible) → 503 fail-closed (I-001), distinto de "blob
+    // ausente". Se lanza para que el catch-all del `.then/.catch` (isDomainError) lo traduzca a 503.
+    throw serviceUnavailable();
   }
   if (!Buffer.isBuffer(result)) {
     sendError(res, evidenceGone()); // firma expirada/manipulada (defensivo; no debería ocurrir aquí)
     return;
   }
   // FR-021: la lectura AUTORIZADA (200) deja un registro append-only (actor/orderId/evidenceId/timestamp,
-  // sin object_ref/binario) ANTES de servir el binario. Deliberadamente FUERA del try de arriba: un fallo
-  // aquí NUNCA debe mapearse a 410 "no disponible" (eso es solo del store); cae al catch-all del handler
-  // (500), nunca silencioso (a diferencia de la señal best-effort de acceso DENEGADO).
-  await deps.readAudit.record({ actorId, orderId, evidenceId });
+  // sin object_ref/binario) ANTES de servir el binario. Un fallo aquí (p. ej. BD caída) NUNCA debe servir
+  // el binario sin auditar; se clasifica como 503 fail-closed (I-002), nunca 500 genérico ni silencioso (a
+  // diferencia de la señal best-effort de acceso DENEGADO).
+  try {
+    await deps.readAudit.record({ actorId, orderId, evidenceId });
+  } catch {
+    throw serviceUnavailable();
+  }
   sendBinary(res, result);
 }
 
@@ -128,7 +154,11 @@ export function getOrderEvidenceHandler(deps: GetEvidenceDeps): RequestHandler {
         }
         await handleAuthorized(deps, res, orderId, evidenceId, auth.userId);
       })
-      .catch(() => {
+      .catch((e: unknown) => {
+        if (isDomainError(e)) {
+          sendError(res, e); // SERVICE_UNAVAILABLE (503) propagado por el reader/storage/readAudit
+          return;
+        }
         sendError(res, domainError('INTERNAL', 'Error interno.'));
       });
   };

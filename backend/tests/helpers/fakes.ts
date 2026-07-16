@@ -186,6 +186,7 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
         findOrderForUpload: async () => null,
         filterCommittedRefs: async () => new Set(),
       },
+      deniedLogger: { record: () => undefined },
     },
     getEvidenceDeps: {
       reader: {

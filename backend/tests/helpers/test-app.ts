@@ -87,6 +87,19 @@ export function makeTestAppWithEvidence(
   return { app, prisma };
 }
 
+// 024 (I-001/S-003) — app con override de uploadEvidenceDeps (lookup/storage que fallan / deniedLogger
+// captor), conservando el resto de adaptadores reales (Postgres + storage por defecto). Mismo patrón que
+// makeTestAppWithEvidence, para uploadOrderEvidence.
+type UploadEvidenceOverride = Partial<AppDeps['uploadEvidenceDeps']>;
+export function makeTestAppWithUpload(
+  over: UploadEvidenceOverride,
+  overrides: Partial<Config> = {},
+): { app: Express; prisma: PrismaClient } {
+  const { deps, prisma } = buildContainer(testConfig(overrides));
+  const app = buildApp({ ...deps, uploadEvidenceDeps: { ...deps.uploadEvidenceDeps, ...over } });
+  return { app, prisma };
+}
+
 export function cookieValue(setCookie: string[] | string | undefined, name: string): string {
   const arr = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
   const found = arr.find((c) => c.startsWith(`${name}=`));

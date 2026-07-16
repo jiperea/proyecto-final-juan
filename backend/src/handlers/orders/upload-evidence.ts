@@ -9,8 +9,10 @@ import type { Request, RequestHandler, Response } from 'express';
 import Busboy from 'busboy';
 import { EVIDENCE_MAX, SIZE_BYTES_MAX, validateUploadedImage } from '../../domain/order/evidence';
 import type { EvidenceUploadLookupPort } from '../../domain/order/write-side/evidence-upload-ports';
+import type { DeniedAccessLoggerPort } from '../../domain/order/read-side/ports';
 import type { StoragePort } from '../../domain/ports/storage';
-import { domainError } from '../../domain/result';
+import { domainError, isDomainError } from '../../domain/result';
+import { sanitizeResource } from '../../infra/audit/denied-access-logger';
 import { sendError } from '../error-mapper';
 import { UUID_RE, orderNotFound } from './order-http';
 import '../http-types';
@@ -18,6 +20,9 @@ import '../http-types';
 export interface UploadEvidenceDeps {
   readonly storage: StoragePort;
   readonly lookup: EvidenceUploadLookupPort;
+  // S-003: MISMA señal best-effort de acceso denegado (401/404) que getOrderDetail/getOrderEvidence
+  // (FR-009, recurso saneado, sin PII). 401 lo emite el wrapper de ruta; el handler emite el 404 (con actor).
+  readonly deniedLogger: DeniedAccessLoggerPort;
 }
 
 function payloadTooLarge(): ReturnType<typeof domainError> {
@@ -30,6 +35,10 @@ function stagingLimitExceeded(): ReturnType<typeof domainError> {
   return domainError('STAGING_LIMIT_EXCEEDED', 'Se alcanzó el tope de evidencias pendientes de envío.', {
     agentAction: 'Envía la ejecución con las evidencias ya subidas antes de añadir más (tope 10).',
   });
+}
+
+function serviceUnavailable(): ReturnType<typeof domainError> {
+  return domainError('SERVICE_UNAVAILABLE', 'El servicio no está disponible.');
 }
 
 // Autz-primero (FR-020): technician dueño ACTUAL + orden `in_progress`. Cualquier otra combinación → 404
@@ -50,7 +59,13 @@ async function isAuthorizedForUpload(
 // Cuenta los blobs staged VIVOS (sin fila OrderEvidence aún) de (ownerId, orderId) — FR-022. Los ya
 // committeados no cuentan (nuevo ciclo tras reject-resubmit empieza limpio).
 async function countLiveStaged(deps: UploadEvidenceDeps, ownerId: string, orderId: string): Promise<number> {
-  const listed = await deps.storage.list();
+  let listed: Awaited<ReturnType<StoragePort['list']>>;
+  try {
+    listed = await deps.storage.list();
+  } catch {
+    // Almacenamiento caído (I-001) → 503 fail-closed, nunca un 500 genérico.
+    throw serviceUnavailable();
+  }
   const mine = listed.filter((s) => s.ownerId === ownerId && s.orderId === orderId);
   if (mine.length === 0) {
     return 0;
@@ -119,8 +134,26 @@ function drainRequest(req: Request): Promise<void> {
   });
 }
 
-async function respondUnauthorized(req: Request, res: Response): Promise<void> {
+async function respondUnauthorized(
+  deps: UploadEvidenceDeps,
+  req: Request,
+  res: Response,
+  actorId: string,
+  orderId: string,
+): Promise<void> {
   await drainRequest(req);
+  // best-effort (FR-009): un fallo del logger NUNCA degrada la respuesta 404 (S-003, misma señal que
+  // getOrderDetail/getOrderEvidence).
+  try {
+    deps.deniedLogger.record({
+      actor: actorId,
+      endpoint: 'uploadOrderEvidence',
+      recurso: sanitizeResource(orderId),
+      outcome: '404_not_visible',
+    });
+  } catch {
+    /* no bloqueante */
+  }
   sendError(res, orderNotFound());
 }
 
@@ -148,12 +181,18 @@ async function processAuthorizedUpload(
     sendError(res, stagingLimitExceeded());
     return;
   }
-  const objectRef = await deps.storage.putStaged({
-    bytes: parsed.bytes,
-    contentType: parsed.declaredContentType,
-    ownerId,
-    orderId,
-  });
+  let objectRef: string;
+  try {
+    objectRef = await deps.storage.putStaged({
+      bytes: parsed.bytes,
+      contentType: parsed.declaredContentType,
+      ownerId,
+      orderId,
+    });
+  } catch {
+    // Almacenamiento caído al guardar (I-001) → 503 fail-closed, nunca un 500 genérico.
+    throw serviceUnavailable();
+  }
   res.status(201).json({ object_ref: objectRef });
 }
 
@@ -166,19 +205,24 @@ export function uploadEvidenceHandler(deps: UploadEvidenceDeps): RequestHandler 
     }
     const orderId = req.params.orderId ?? '';
     if (!UUID_RE.test(orderId)) {
-      void respondUnauthorized(req, res); // malformado = "no existe" (no-enumeración), antes de la BD
+      // malformado = "no existe" (no-enumeración), antes de la BD.
+      void respondUnauthorized(deps, req, res, auth.userId, orderId);
       return;
     }
 
     isAuthorizedForUpload(deps, orderId, auth.role, auth.userId)
       .then(async (authorized) => {
         if (!authorized) {
-          await respondUnauthorized(req, res);
+          await respondUnauthorized(deps, req, res, auth.userId, orderId);
           return;
         }
         await processAuthorizedUpload(deps, req, res, orderId, auth.userId);
       })
-      .catch(() => {
+      .catch((e: unknown) => {
+        if (isDomainError(e)) {
+          sendError(res, e); // SERVICE_UNAVAILABLE (503) propagado por el lookup/storage (I-001)
+          return;
+        }
         sendError(
           res,
           domainError('INTERNAL', 'Error interno.', {

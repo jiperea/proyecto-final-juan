@@ -1,0 +1,39 @@
+{
+  "phase": "G3",
+  "feature": "024-evidence-binary-signed-url",
+  "round": 1,
+  "note": "G3 = G1+G2 (regresion) + implementacion vs spec/contrato + promptfoo (N/A, sin IA). Panel: revisor-implementacion (REQUIERE_CAMBIOS), revisor-rbac-seguridad (APROBADA_CON_COMENTARIOS). Nucleo de seguridad verificado en codigo (autz heredada, 404 uniforme, dispatcher excluido, evidenceId∈orderId sin IDOR, AES-256-GCM byte-a-byte, no-fuga en logs, auditoria en tabla propia, GC/retencion invariante fila/blob, re-verificacion de refs en transaccion). Tests genuinos.",
+  "bloqueantes": 0,
+  "altas": 1,
+  "medias": 5,
+  "total": 6,
+  "veredicto": "REQUIERE_CAMBIOS",
+  "resumen": "0 bloqueantes; 1 ALTA real (I-001: los endpoints nuevos nunca devuelven el 503 que el contrato declara, degradan a 500 — divergencia de contrato + rompe fail-closed de 006/008). 5 MEDIA: I-002 (fallo de auditoria de lectura mal clasificado + sin test), S-001 (timing side-channel en autz de subida), S-002 (object_ref firmado no cifrado), S-003 (subida sin senal de auditoria de denegados). Remediacion a nivel implementacion, sin reabrir G1/G2.",
+  "huecos": [
+    {
+      "id": "I-001", "severidad": "ALTA", "fuente": "revisor-implementacion", "disposicion": "FIX",
+      "titulo": "uploadOrderEvidence/getOrderEvidence nunca devuelven 503 (contrato lo declara)",
+      "descripcion": "Ambos handlers mapean CUALQUIER excepcion a 500 (INTERNAL); evidence-read-repository.ts/evidence-upload-repository.ts no traducen el error de conexion Prisma a domainError('SERVICE_UNAVAILABLE') como order-detail-reader.ts, y los handlers no propagan con isDomainError como get-order-detail.ts. El 503 del contrato es inalcanzable; una caida transitoria de BD/almacenamiento se ve como 500 no reintentable."
+    },
+    {
+      "id": "I-002", "severidad": "MEDIA", "fuente": "revisor-implementacion", "disposicion": "FIX",
+      "titulo": "Fallo de readAudit.record en getOrderEvidence mal clasificado + sin test",
+      "descripcion": "El fallo del INSERT de auditoria de lectura cae al catch-all → 500 (deberia 503 tras I-001); el binario no se sirve pese a leerse OK. Sin test del camino."
+    },
+    {
+      "id": "S-003", "severidad": "MEDIA", "fuente": "revisor-rbac-seguridad", "disposicion": "FIX",
+      "titulo": "uploadOrderEvidence sin senal de auditoria de accesos denegados",
+      "descripcion": "A diferencia de getOrderDetail/getOrderEvidence, la subida no emite senal best-effort de acceso denegado (401/404); un sondeo de escalada en subida no deja rastro. Anadir simetria con la lectura."
+    },
+    {
+      "id": "S-001", "severidad": "MEDIA", "fuente": "revisor-rbac-seguridad", "disposicion": "ACEPTADO",
+      "titulo": "Timing side-channel en isAuthorizedForUpload (rol≠technician 0 queries vs technician-no-dueno 1 query)",
+      "descripcion": "Diferencia de latencia distingue el motivo de denegacion pese al 404 uniforme del body. Senal marginal (requiere medir latencia; no revela binario ni PII). ACEPTADO: coste/beneficio bajo; el 404 uniforme del body se preserva. Documentado, no bloqueante."
+    },
+    {
+      "id": "S-002", "severidad": "MEDIA", "fuente": "revisor-rbac-seguridad", "disposicion": "ACEPTADO",
+      "titulo": "object_ref firmado (HMAC) pero no cifrado — decodificable por el titular",
+      "descripcion": "El payload (ownerId/orderId/createdAt/nonce) es decodificable por quien recibe el token. El titular es SIEMPRE el dueno, que ya conoce esos datos; nunca se comparte entre usuarios ni se expone en lectura/detalle/logs (FR-008 verificado). ACEPTADO: integridad garantizada (infalsificable); confidencialidad no requerida por el modelo. Se aclara en comentario que es 'infalsificable', no 'confidencial'."
+    }
+  ]
+}

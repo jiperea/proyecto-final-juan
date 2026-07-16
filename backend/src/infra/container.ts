@@ -178,7 +178,11 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
       redactor: { redact: redactStructured },
       deniedLogger: new PinoDeniedAccessLogger(createLogger()),
     }, // 008/#010
-    uploadEvidenceDeps: { storage: a.storage, lookup: a.evidenceUploadLookup }, // 024, US1
+    uploadEvidenceDeps: {
+      storage: a.storage,
+      lookup: a.evidenceUploadLookup,
+      deniedLogger: new PinoDeniedAccessLogger(createLogger()), // S-003
+    }, // 024, US1
     getEvidenceDeps: {
       reader: a.evidenceReader,
       storage: a.storage,
