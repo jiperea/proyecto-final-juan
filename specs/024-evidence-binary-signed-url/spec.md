@@ -17,8 +17,8 @@
 
 ### Session 2026-07-16 (decisiones por defecto informado — el panel G1 las valida)
 
-- Q: ¿Mecanismo de **subida** (FR-012)? → A: **Multipart directo a nuestra API**. El backend recibe el binario, **valida allowlist/tamaño en el borde** y lo almacena cifrado, atómico con la transición/auditoría (FR-011). Motivo: sin dependencia cloud de pago (dev-local/mock), validación y control server-side de la superficie, coherente con hexagonal. Se descarta pre-signed PUT (el cliente subiría directo a un store externo; complica validación de tipo/tamaño y no hay store cloud en dev).
-- Q: ¿Cómo se **sirve la lectura** (FR-013)? → A: Un **endpoint de lectura autoriza (por orden+rol) y responde 302 redirect a una URL firmada efímera** (token firmado + **TTL ≤300 s**) servida por el backend (adaptador local en dev). Motivo: cumple «URL firmada ≤300 s» de forma verificable (expiración testeable), no expone `object_ref`, y el front solo sigue el enlace (`<img>`/nueva pestaña). Equivale funcionalmente a devolver la URL en el cuerpo, pero el 302 simplifica el front.
+- Q: ¿Mecanismo de **subida** (FR-012)? → A: **Endpoint nuevo `uploadOrderEvidence` multipart** (no se cambia el cuerpo de `submitOrderExecution`, que sigue JSON → evolución compatible). El backend valida allowlist/tamaño/**contenido real** en el borde y almacena cifrado. Sin pre-signed PUT ni store cloud en dev (validación y control server-side, coherente con hexagonal).
+- Q: ¿Cómo se **sirve la lectura** (FR-013)? → A: **200 same-origin autenticado por sesión** (no 302 a URL pública). El endpoint autoriza (orden+rol, como `getOrderDetail`), y el acceso al objeto se concede internamente mediante un **token firmado ligado al principal+orden+evidencia, single-use, TTL ≤300 s**; el binario se entrega en la respuesta (200) y el front lo renderiza desde un **blob** (`Referrer-Policy: no-referrer`, `Cache-Control: no-store`). No hay URL firmada pública/detached (evita fuga por DOM/Referer/historial, S-006). La garantía «≤300 s» se mide sobre la **vigencia del token** (expira y es de un solo uso), no sobre una URL pública. *(Reconcilia el 302 inicial con el endurecimiento de seguridad de G1.)*
 - Q: ¿**Plazo de retención** del binario PII (FR-009)? → A: **90 días tras el cierre**, decidido y fijo; después se **purga** (410). Metadatos/auditoría permanecen (XI).
 
 ### Session 2026-07-16b (endurecimiento de seguridad tras G1 — anclado al modelo existente)
@@ -102,18 +102,19 @@ Como responsable de datos, la evidencia (PII) se protege: cifrada en reposo, aut
 - **FR-004**: WHEN la autorización es válida THE sistema SHALL conceder acceso mediante un **token firmado efímero (TTL ≤ 300 s)** ligado al **principal autenticado + `orderId` + `evidenceId`**, **de un solo uso**; no es un enlace público ni permanente ni un bearer reutilizable por terceros.
 - **FR-005**: WHEN el token firmado está **caducado, manipulado, ya usado, o presentado por un principal distinto** del que lo obtuvo THE sistema SHALL denegar el acceso.
 - **FR-006**: THE evidencia SHALL **no** ser accesible por URL directa sin token válido ligado al principal (test explícito de acceso directo denegado).
-- **FR-007**: WHEN falta sesión THE sistema SHALL responder **401**; WHEN el actor autenticado no está autorizado, la orden no existe, es ajena, o el `evidenceId` no existe THE sistema SHALL responder **404 uniforme** (no-enumeración) — **nunca 403**, coherente con `getOrderDetail`. La respuesta es **constante** para todos esos casos (indistinguible existencia vs autorización).
+- **FR-007**: THE comprobación SHALL seguir esta **precedencia**: (1) sin sesión → **401**; (2) autorización (orden+rol, como `getOrderDetail`) → si no autorizado / orden inexistente / ajena / `evidenceId` inexistente → **404 uniforme** (nunca 403), respuesta **constante** e indistinguible; (3) **solo si el actor está autorizado** se evalúan existencia del binario/purga (410, FR-009). Así **410 nunca es visible a un no-autorizado** (evita enumerar «existió y fue purgada» vs «no existe»).
 - **FR-008**: THE sistema SHALL **no** emitir en logs/errores el token/URL firmada, el `object_ref` ni el binario (redacción de PII en logs).
-- **FR-009**: THE binario de evidencia SHALL retenerse mientras la orden no esté `closed` y **hasta 90 días tras el cierre**; superado ese plazo se **purga** y el acceso responde **410** sin filtrar, conservando **metadatos y auditoría** (inmutables, XI).
+- **FR-009**: THE binario de evidencia SHALL retenerse mientras la orden no esté `closed` y **hasta 90 días tras el cierre**; superado ese plazo se **purga**. Para un actor **autorizado** (tras FR-007), pedir una evidencia **purgada** o **histórica/legacy sin binario almacenado** (evidencia previa a esta feature, solo metadatos) devuelve **410 «no disponible»** (indistinguible entre purgada y legacy); metadatos y auditoría permanecen (inmutables, XI). El **410 solo se expone a autorizados** (FR-007).
 - **FR-010**: THE front (detalle de orden) SHALL permitir **abrir cada foto** de evidencia (sustituye el placeholder «Imagen N» de FE-9 por una miniatura/enlace real), con estados de **carga/error**.
 - **FR-011**: THE persistencia SHALL ser consistente pese a no haber transacción distribuida entre almacenamiento y BD: el binario se escribe **primero** (staging); la **transacción de Postgres (metadatos de evidencia + transición + auditoría) es la fuente de verdad atómica** — una evidencia solo «cuenta» si su fila de metadatos commitea. Si el commit falla, el binario queda **huérfano y lo purga un GC** (reconciliación); nunca hay metadato sin binario ni `count` inconsistente para el lector.
-- **FR-012**: WHEN el técnico dueño sube evidencia THE cliente SHALL enviarla como **multipart directo a la API**; el backend valida allowlist/tamaño en el borde y almacena el binario cifrado (sin pre-signed PUT ni store cloud en dev). *(Resuelto en clarify.)*
+- **FR-012**: WHEN el técnico dueño sube evidencia THE cliente SHALL usar un **endpoint nuevo `uploadOrderEvidence` (multipart)** que recibe la(s) imagen(es), valida allowlist/tamaño/contenido y almacena el binario cifrado creando la fila de metadatos del ciclo `in_progress`. **`submitOrderExecution` NO cambia su cuerpo (sigue JSON)**: transiciona a `pending_review` referenciando la evidencia ya subida — así la evolución del contrato es **realmente compatible** (no rompe el request de una operación existente). Sin pre-signed PUT ni store cloud en dev.
+- **FR-020**: THE subida (`uploadOrderEvidence`) SHALL autorizarse **server-side**: solo el **técnico dueño actual** con la orden en `in_progress`; cualquier otro rol/estado → **401** (sin sesión) / **404 uniforme** (nunca 403), aunque se salte la UI. Doble capa: la UI oculta y el backend es la autoridad.
 - **FR-013**: WHEN el front necesita mostrar/abrir una imagen THE cliente SHALL obtenerla por **fetch autenticado same-origin** (con la sesión) que devuelve el binario, y renderizarla desde un **blob en memoria** (`blob:`), **sin** poner el token/URL firmada en el DOM (`<img src>` directo), el historial ni la cabecera `Referer`. El endpoint responde con `Referrer-Policy: no-referrer` y `Cache-Control: no-store`.
 - **FR-014**: THE detalle de la orden (para roles autorizados) SHALL exponer, además de `count`/`content_types`, la **lista de identificadores opacos de evidencia** (`evidenceId` + `content_type` por ítem) para que el front construya el acceso a cada imagen; el `object_ref` interno **no** se expone.
 - **FR-015**: WHEN se solicita `{evidenceId}` bajo `{orderId}` THE sistema SHALL **verificar que la evidencia pertenece a esa orden**; si no, **404 uniforme** (evita usar un `orderId` propio para leer evidencia de otra orden).
 - **FR-016**: WHEN una orden se **reasigna** (cambia `assigned_to`) THE acceso a la evidencia SHALL seguir la autorización vigente de `getOrderDetail`: el **nuevo** técnico dueño accede; el **saliente pierde** el acceso; el supervisor mantiene el suyo. (No se define partición por equipo/tenant: organización única/plana.)
-- **FR-017**: THE evidencia visible SHALL ser la del **ciclo de ejecución vigente**; WHEN una orden rechazada se reenvía (`in_progress → pending_review`), el nuevo envío **reemplaza** el conjunto de evidencia del ciclo anterior (el `count` refleja el ciclo vigente), coherente con «ciclo vigente» del contrato.
-- **FR-018**: THE purga de binarios (FR-009) SHALL ejecutarse por un **proceso programado** (no perezoso) que recorre órdenes `closed` con antigüedad > 90 días y purga su binario; un binario nunca accedido igualmente se purga.
+- **FR-017**: THE evidencia visible SHALL ser la del **ciclo de ejecución vigente**; WHEN una orden rechazada se reenvía (`in_progress → pending_review`), el nuevo envío **reemplaza** el conjunto de evidencia del ciclo anterior (el `count` refleja el ciclo vigente). Los **binarios del ciclo superado se purgan de inmediato** en el reemplazo (aunque la orden siga viva, no espera al job de 90 días) y sus `evidenceId` dejan de ser accesibles (410 a autorizados).
+- **FR-018**: THE purga por retención (FR-009) SHALL ejecutarse por un **proceso programado** (no perezoso) que recorre órdenes `closed` con antigüedad > 90 días y purga su binario (un binario nunca accedido igualmente se purga). Es independiente de la purga inmediata de ciclos superados (FR-017).
 
 ### Key Entities
 
@@ -123,7 +124,7 @@ Como responsable de datos, la evidencia (PII) se protege: cifrada en reposo, aut
 
 - **Fichero**: `contracts/orders.openapi.yaml` (OpenAPI 3.1), evolución **compatible** (no rompe `EvidenceMeta`; `count`/`content_types` se conservan; se **añade** la lista de ítems con `evidenceId`+`content_type`).
 - **Endpoints** (decisiones de clarify ya cerradas):
-  - **Subida**: `submitOrderExecution` evoluciona a **multipart** (imagen(es) + notas); valida allowlist/tamaño; sin `createEvidenceUploadUrl`.
+  - **Subida**: **endpoint nuevo** `uploadOrderEvidence` — `POST /v1/orders/{orderId}/evidence` (**multipart**, imagen(es)) — rol `technician (dueño actual)`, orden `in_progress` — `201`/`401`/`404`/`413`/`415`/`422`. `submitOrderExecution` **no cambia** (sigue JSON; referencia la evidencia subida). Sin `createEvidenceUploadUrl`/pre-signed.
   - **Lectura**: `getOrderEvidence` — `GET /v1/orders/{orderId}/evidence/{evidenceId}` — roles `technician (dueño actual)`, `supervisor` — respuestas `200` (binario, mismo origen, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`) · `401` · **`404` uniforme** (no 403) · `410` (purgada). Acceso ligado al principal+orden+evidencia, single-use, TTL≤300 s.
   - **Detalle**: `getOrderDetail` amplía `EvidenceMeta` con `items: [{evidenceId, content_type}]` (compatible; solo roles autorizados).
 - **Errores** `{code,message,details,agent_action}` con HTTP correcto (400/401/404/410/413/415/422/503); `413`/`415` para tamaño/tipo. **No se usa 403** (404 uniforme).
@@ -132,8 +133,8 @@ Como responsable de datos, la evidencia (PII) se protege: cifrada en reposo, aut
 
 | FR | Endpoint(s) | Test(s) |
 |----|-------------|---------|
-| FR-001 | `submitOrderExecution` | `integration/evidence-upload-store` (count=N, cifrado) |
-| FR-002 | `submitOrderExecution` | `contract/evidence-validation` (415 tipo, 413 tamaño) |
+| FR-001 | `uploadOrderEvidence`+`submitOrderExecution` | `integration/evidence-upload-store` (count=N, cifrado) |
+| FR-002 | `uploadOrderEvidence` | `contract/evidence-validation` (415 tipo, 413 tamaño, 422) |
 | FR-003 | `getOrderEvidence` | `integration/evidence-authz` (dueño/supervisor sí, dispatcher no) |
 | FR-004 | `getOrderEvidence` | `integration/evidence-token-ttl` (≤300s, single-use, ligado a principal) |
 | FR-005 | `getOrderEvidence` | `integration/evidence-token-invalid` (caducado/manipulado/reusado/otro principal) |
@@ -142,14 +143,16 @@ Como responsable de datos, la evidencia (PII) se protege: cifrada en reposo, aut
 | FR-008 | (logging) | `integration/evidence-nolog` (grep sin token/object_ref/binario) |
 | FR-009 | (retención) | `integration/evidence-retention-410` |
 | FR-010 | front detalle | `unit/evidence-open-image` (abrir, carga/error) |
-| FR-011 | `submitOrderExecution` | `integration/evidence-atomic-gc` (commit BD = verdad; huérfano purgado) |
-| FR-012 | `submitOrderExecution` | `contract/submit-multipart` |
+| FR-011 | `uploadOrderEvidence` | `integration/evidence-atomic-gc` (commit BD = verdad; huérfano purgado) |
+| FR-012 | `uploadOrderEvidence` | `contract/upload-multipart` (submit sigue JSON, sin romper) |
 | FR-013 | front detalle | `unit/evidence-blob-no-leak` (blob:, sin URL en DOM/Referer) |
 | FR-014 | `getOrderDetail` | `contract/detail-evidence-items` (evidenceId+content_type) |
 | FR-015 | `getOrderEvidence` | `integration/evidence-belongs-to-order` (mismatch → 404) |
 | FR-016 | `getOrderEvidence` | `integration/evidence-reassign-access` (nuevo sí, saliente no) |
 | FR-017 | `submitOrderExecution` | `integration/evidence-cycle-replace` (reenvío reemplaza) |
 | FR-018 | (job de purga) | `integration/evidence-purge-job` |
+| FR-019 | `uploadOrderEvidence` | `integration/evidence-content-validation` (magic-bytes; tipo falseado → 415/422) |
+| FR-020 | `uploadOrderEvidence` | `integration/evidence-upload-authz` (dueño+in_progress sí; otro rol/estado → 401/404) |
 
 ## Success Criteria *(mandatory)*
 

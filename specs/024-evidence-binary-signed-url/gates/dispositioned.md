@@ -25,3 +25,11 @@
 - **T-003** (contrato con pre-signed abierto): resuelto con H-007 (solo multipart).
 - **T-004** (FR-002 «4xx» genérico): FR-002 → 415/413/422 concretos.
 - **S-007** (acceso a `closed` en retención): Assumptions → hereda getOrderDetail, sin acceso especial.
+
+## Ronda 2 (resueltos)
+- **H-001-r2** (evidencia histórica sin binario): FR-009 → a autorizado, legacy/purgada = **410 «no disponible»** (indistinguibles).
+- **S-001-r2** (precedencia 410 vs 404 = enumeración): FR-007 → autz PRIMERO; 410 solo visible a autorizados; no-autorizado siempre 404.
+- **H-002-r2** (binarios de ciclo superado en orden viva): FR-017 → purga inmediata en el reemplazo; ids → 410.
+- **H-003-r2** (JSON→multipart rompe submit): FR-012/Contrato → endpoint NUEVO `uploadOrderEvidence` (multipart); `submitOrderExecution` sin cambios (compatible de verdad).
+- **H-004-r2** (302 del clarify vs 200-blob del endurecimiento): reconciliado → 200 same-origin + token firmado ligado al principal single-use ≤300s; SC-003 mide el token, no URL pública.
+- **S-002-r2** (autz de subida sin FR): FR-020 → subida solo dueño actual + in_progress; 401/404.
