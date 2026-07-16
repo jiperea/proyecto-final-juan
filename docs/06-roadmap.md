@@ -126,6 +126,7 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 | FE-5 | `017-front-reskin` | **Reskin del front + tema oscuro** (transversal, presentación): refresh del design system (acento naranja, paleta de estados, radios/sombras suaves, **Stepper** del FSM, tarjeta de resumen IA) + **tema oscuro** (reescribe §2.4). **Sin ampliar alcance funcional, sin estilos sueltos, WCAG 2.1 AA en ambos temas.** | FE-1..FE-4 | "la app se ve como la exploración y funciona igual, en claro y oscuro" |
 | FE-6 | `020-front-architecture` | **Arquitectura y buenas prácticas de front** (gobernanza): `docs/front-architecture.md` **explicativo** (el porqué de cada convención) que formaliza la estructura ya existente (`features/` + kit `ui/` + capa `api/` + TanStack Query + tokens) y fija reglas de React (presentacional vs contenedor, lógica en hooks, estados carga/error/vacío/sin-permiso, a11y, límites de estado) **enforced por eslint**. Espeja para el front la disciplina que el back tiene en la constitution. | FE-5 | "el front tiene arquitectura documentada y el lint la hace cumplir" |
 | FE-7 | `021-front-dual-accent` | **Fidelidad estética con el artifact — doble token de acento** (presentación): recupera el naranja vivo del artifact (`#DC5A24`) para superficies grandes/decorativas y mantiene un acento **accesible** solo donde hay texto blanco (botones). Máxima fidelidad **sin romper AA**. Verificación visual con **Playwright MCP** (claro/oscuro). Sin ampliar alcance ni estilos sueltos. | FE-5, FE-6 | "el acento se ve como el artifact y sigue cumpliendo AA en ambos temas" |
+| FE-8 | `022-front-visual-fidelity-preview` | **Réplica literal del artifact — fidelidad visual completa** (presentación): lleva **todas** las pantallas (login, lista móvil, detalle, registrar ejecución, escritorio master-detail de oficina) a la **estructura y tokens** del artifact — fondo gris, chips de estado del preview (`in_progress` teal) con punto de color, control segmentado, chrome de oficina (topbar buscador+avatar, cabecera de tabla, fila con barra de acento). Cierra lo que FE-5/FE-7 dejaron "parecido pero no igual" (solo estilos/acento, no estructura). Tensión acento vivo en botones ↔ **objetivo** WCAG AA a resolver en clarify/G1. Verificación **Playwright MCP** + aprobación humana de fidelidad. Sin backend/contratos/IA/RBAC. | FE-5, FE-6, FE-7 | "el front se ve IGUAL que el artifact en todas las pantallas, claro y oscuro" |
 
 > **Sistema de diseño (UX/UI) — se define justo antes de FE-1**, no por adelantado: tokens/paleta, tipografía,
 > componentes base, patrón responsive campo↔oficina, accesibilidad **WCAG 2.1 AA** (Constitution, Convenciones).
@@ -148,6 +149,20 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > el reskin de FE-5 quedó "parecido pero no igual" al artifact porque el naranja se oscureció (`#c2410c`) para
 > cumplir AA; el **doble token** recupera el `#DC5A24` vivo donde no lleva texto y mantiene el accesible en
 > botones. Orden: FE-6 antes que FE-7 (la estética se ciñe a las convenciones recién documentadas).
+>
+> **FE-8 (022-front-visual-fidelity-preview) — decidida 2026-07-16**: FE-5 (reskin) y FE-7 (doble token) acercaron
+> **estilos y acento** pero mantuvieron la **estructura existente**, así que el front seguía sin verse *igual* que
+> el artifact de exploración ([[front-preview-artifact]]): faltaban fondo gris, chips del preview (`in_progress`
+> teal + punto), control segmentado, y el *chrome* de oficina del escritorio. **FE-8** hace la **réplica literal**
+> de esas pantallas. Matiz de gobernanza: el **brief no menciona color/contraste/accesibilidad**; WCAG 2.1 AA es un
+> **"objetivo"** de la constitución, no del brief → la petición de acento vivo *literal* en botones (~3.4:1) se
+> evalúa en clarify/G1 (flexibilizar el objetivo con justificación vs. adaptación accesible). Presentación pura,
+> sin tocar backend/contratos/IA/RBAC.
+>
+> **Modo dev con HMR (tooling, NO feature → sin gates SDD)** — 2026-07-16: `docker-compose.override.yml` (fusión
+> automática con el compose base: back/front montados por volumen sobre `node:20`, Vite HMR + `tsx watch`) + targets
+> `make dev` (código en vivo, front `:5173`) / `make build` (paridad prod). No toca el pipeline CI/CD ni la imagen
+> de producción. Implementado **directo** (rama `chore/docker-dev-mode` → PR #21 a develop), sin `specify→G1→G2→G3`.
 >
 > **Tooling de desarrollo (meta, NO feature de producto → sin gates SDD)** — 2026-07-15: el panel de agentes era
 > **solo de verificación** (gates). Se añaden **agentes de autoría** especializados por stack en `.claude/agents/`:
