@@ -21,3 +21,7 @@
 - **H-002** (Assumption «detalle solo count/content_types» contradice `notes`): RESUELTO. Corregida la Assumption: `OrderDetailResponse` expone `order` + `notes` (opcional, technician-dueño/supervisor) + `evidence`.
 - **H-003/T-002** (cardinalidad content_types vs count): RESUELTO por invariante del contrato `count == content_types.length` (1:1, ordenado); enum = solo imágenes → etiqueta «Imagen N» honesta; sin caso de mismatch.
 - **T-001** (qué identificador del técnico): RESUELTO. `assigned_to` es un **UUID opaco (sin nombre/PII)** por contrato → se muestra ese UUID cuando no es «Tú»; no hay nombre que mostrar.
+
+## Ronda 3 (cierre)
+- **H-001-r3** (origen del userId + scope SC-006): RESUELTO. FR-002 → `userId` del contexto de sesión existente (`useSession`, solo lectura); SC-006 permite importarlo sin tocar auth.
+- **H-002-r3** (UUID 36 chars desborda ≤390px): RESUELTO. FR-002 → UUID truncado a forma corta (8 chars, mono) cuando aplica; sin scroll horizontal.
