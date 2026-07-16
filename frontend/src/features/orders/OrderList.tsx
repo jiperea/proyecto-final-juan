@@ -3,6 +3,8 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { ApiError } from '../../api/client';
 import type { Order, OrderListResponse, Role } from '../../api/types';
 import { Button, EmptyState, InlineError, Segmented, Spinner, StatusBadge } from '../../ui';
+import { useSession } from '../auth/session';
+import { resolveAssignee } from './resolveAssignee';
 import type { OrderFilterState } from './useOrderFilter';
 import './orders.css';
 
@@ -17,10 +19,14 @@ const SEGMENT_OPTIONS = [
   { value: 'all' as const, label: 'Todas' },
 ];
 
-// FE-8 (022): tarjeta/fila del preview — código mono, chip, nombre, cliente (sin dato en el contrato →
-// «—», no se inventa) y técnico cuando el payload del rol lo incluye (assigned_to no-null).
+// FE-9 (023) · FE-8 (022): tarjeta/fila del artifact — fila superior (código mono + chip), nombre, y
+// fila de meta con cliente («—», el contrato no lo expone) y técnico (`resolveAssignee`: «Tú» /
+// UUID truncado / «Sin asignar»). Markup compartido entre tarjeta apilada (móvil) y fila de oficina
+// (`order-item--row`, ≥1024px, FR-002) — la regla de meta aplica igual en ambas.
 function OrderItem({ order, selectedId, wide }: { order: Order; selectedId: string | undefined; wide: boolean }) {
   const current = order.id === selectedId;
+  const { user } = useSession();
+  const assignee = resolveAssignee(order.assigned_to, user?.userId);
   return (
     <li>
       <Link
@@ -30,8 +36,13 @@ function OrderItem({ order, selectedId, wide }: { order: Order; selectedId: stri
       >
         <span className="order-item__code">#{order.id.slice(0, 8)}</span>
         <span className="order-item__title">{order.title}</span>
-        {wide ? <span className="order-item__client">—</span> : null}
-        <StatusBadge status={order.status} />
+        <div className="order-item__meta">
+          <span className="order-item__client">—</span>
+          <span className="order-item__assignee">{assignee}</span>
+        </div>
+        <span className="order-item__status">
+          <StatusBadge status={order.status} />
+        </span>
       </Link>
     </li>
   );

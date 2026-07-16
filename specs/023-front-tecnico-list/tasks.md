@@ -15,8 +15,8 @@
 **Test independiente**: login `technician@fieldops.test` móvil ≤390px; tarjeta = pantalla 02 del artifact; técnico «Tú».
 
 - [ ] T002 [P] [US1] **[Red]** `frontend/tests/unit/order-card-meta.test.tsx`: la tarjeta muestra fila superior (código mono + chip), nombre, y **fila de meta** con cliente «—» y técnico; helper `resolveAssignee(assigned_to, sessionUserId)` → «Tú» (coincide), UUID truncado 8 chars (distinto), **«Sin asignar»** (null **o** sessionUserId indefinido/loading). Falla hasta T003/T004 (FR-001/002/003).
-- [ ] T003 [US1] Crear helper puro `frontend/src/features/orders/resolveAssignee.ts`: `(assigned_to: string|null, sessionUserId: string|undefined) => 'Tú' | string(uuid8) | 'Sin asignar'` (userId indefinido → «Sin asignar»). Verde parte de T002.
-- [ ] T004 [US1] En `frontend/src/features/orders/OrderList.tsx` (`OrderItem`) + `orders.css`: maquetar la tarjeta del artifact — fila superior (`--font-mono` código + `StatusBadge`), nombre, **fila de meta** (cliente «—»; técnico vía `resolveAssignee` con `useSession().user?.userId`); sin scroll horizontal ≤390px. `OrderItem` es **compartido** con la fila de oficina (`order-item--row`, FE-8) → la regla de meta aplica también ahí (K-004: incluir en T002 un caso de fila de oficina con `assigned_to` ≠ usuario → UUID). Verde T002 (FR-001/002/003).
+- [X] T003 [US1] Crear helper puro `frontend/src/features/orders/resolveAssignee.ts`: `(assigned_to: string|null, sessionUserId: string|undefined) => 'Tú' | string(uuid8) | 'Sin asignar'` (userId indefinido → «Sin asignar»). Verde parte de T002.
+- [X] T004 [US1] En `frontend/src/features/orders/OrderList.tsx` (`OrderItem`) + `orders.css`: maquetar la tarjeta del artifact — fila superior (`--font-mono` código + `StatusBadge`), nombre, **fila de meta** (cliente «—»; técnico vía `resolveAssignee` con `useSession().user?.userId`); sin scroll horizontal ≤390px. `OrderItem` es **compartido** con la fila de oficina (`order-item--row`, FE-8) → la regla de meta aplica también ahí (K-004: incluir en T002 un caso de fila de oficina con `assigned_to` ≠ usuario → UUID). Verde T002 (FR-001/002/003).
 
 ## Phase 3: US2 — Cabecera del detalle (P1) 🎯 MVP
 
@@ -24,7 +24,7 @@
 **Test independiente**: abrir detalle como técnico y supervisor; cabecera = código mono + nombre del artifact.
 
 - [ ] T005 [P] [US2] **[Red]** `frontend/tests/unit/order-detail-header.test.tsx`: el detalle muestra una **cabecera** con **código monoespaciado** + **nombre**; **no** hay sub-línea de contexto (sin cliente/ubicación). Falla hasta T006 (FR-004).
-- [ ] T006 [US2] En `frontend/src/features/orders/OrderDetailView.tsx` + `orders.css`: reemplazar el `h2` plano por la **cabecera** del artifact (código `--font-mono` + nombre), sin sub-línea. No cambia la visibilidad de acciones por rol. Verde T005 (FR-004).
+- [X] T006 [US2] En `frontend/src/features/orders/OrderDetailView.tsx` + `orders.css`: reemplazar el `h2` plano por la **cabecera** del artifact (código `--font-mono` + nombre), sin sub-línea. No cambia la visibilidad de acciones por rol. Verde T005 (FR-004).
 
 ## Phase 4: US3 — Notas y evidencia del detalle (P2)
 
@@ -32,9 +32,9 @@
 **Test independiente**: detalle con notas y evidencia; notas en tarjeta, tiles 4/3 = pantalla 03 del artifact.
 
 - [ ] T007 [P] [US3] **[Red]** `frontend/tests/unit/order-detail-notes.test.tsx`: `notes` con contenido → **tarjeta** «Notas del técnico» (section con surface+border+`--radius-md`+`--shadow-1`), texto escapado; `notes` ausente/vacío/solo-espacios → **no** tarjeta. Falla hasta T008 (FR-005).
-- [ ] T008 [US3] En `frontend/src/features/orders/OrderDetailView.tsx` + `orders.css`: notas en tarjeta etiquetada (tokens), solo si `notes?.trim()`. Verde T007 (FR-005).
+- [X] T008 [US3] En `frontend/src/features/orders/OrderDetailView.tsx` + `orders.css`: notas en tarjeta etiquetada (tokens), solo si `notes?.trim()`. Verde T007 (FR-005).
 - [ ] T009 [P] [US3] **[Red]** `frontend/tests/unit/order-detail-evidence.test.tsx`: `evidence.count` = N>0 → **N tiles** 4/3 (`--radius-sm`) etiquetados **«Imagen N»** 1-based; `count` = 0 → estado **«sin evidencia»** y 0 tiles. Falla hasta T010 (FR-006).
-- [ ] T010 [US3] En `frontend/src/features/orders/OrderDetailView.tsx` (sección de evidencia del **detalle**, NO `EvidencePicker` —ese es la pantalla de registrar ejecución, fuera de alcance—) + `orders.css`: rejilla de tiles «Imagen N» por `count` (1-based) con relación 4/3; «sin evidencia» si 0. Verde T009 (FR-006).
+- [X] T010 [US3] En `frontend/src/features/orders/OrderDetailView.tsx` (sección de evidencia del **detalle**, NO `EvidencePicker` —ese es la pantalla de registrar ejecución, fuera de alcance—) + `orders.css`: rejilla de tiles «Imagen N» por `count` (1-based) con relación 4/3; «sin evidencia» si 0. Verde T009 (FR-006).
 
 ## Phase 5: Polish, verificación y evidencia
 
