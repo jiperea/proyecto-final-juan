@@ -19,3 +19,20 @@ export interface EvidenceReaderPort {
   /** `null` si no existe fila `OrderEvidence` con ese `id` PARA ESE `orderId` (verifica pertenencia, FR-015). */
   findEvidenceRow(orderId: string, evidenceId: string): Promise<EvidenceRowLookup | null>;
 }
+
+/** Evento de LECTURA autorizada de evidencia (FR-021): sin `objectRef`/binario, solo identificadores opacos. */
+export interface EvidenceReadEvent {
+  readonly actorId: string;
+  readonly orderId: string;
+  readonly evidenceId: string;
+}
+
+/**
+ * Sink de auditoría de lectura, APPEND-ONLY (FR-021, XI). Tabla propia `EvidenceReadAudit`, separada de
+ * `OrderAudit` a propósito: no contamina la semántica FSM que `OrderAudit` sostiene hoy (derivación de
+ * `last_rejection_reason` por transición más reciente). Solo se invoca en un `getOrderEvidence` autorizado
+ * (200); los accesos denegados (401/404) NO pasan por aquí (heredan la señal best-effort existente).
+ */
+export interface EvidenceReadAuditPort {
+  record(event: EvidenceReadEvent): Promise<void>;
+}

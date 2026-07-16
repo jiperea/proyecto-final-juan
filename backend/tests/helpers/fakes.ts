@@ -202,6 +202,7 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
       },
       deniedLogger: { record: () => undefined },
       signTtlSeconds: 300,
+      readAudit: { record: async () => undefined },
     },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,

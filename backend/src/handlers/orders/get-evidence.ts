@@ -11,7 +11,10 @@
 // cliente-visible (FR-004/FR-005).
 import type { RequestHandler, Response } from 'express';
 import { detectMagicContentType } from '../../domain/order/evidence';
-import type { EvidenceReaderPort } from '../../domain/order/read-side/evidence-read-ports';
+import type {
+  EvidenceReaderPort,
+  EvidenceReadAuditPort,
+} from '../../domain/order/read-side/evidence-read-ports';
 import { isOrderVisible } from '../../domain/order/read-side/order-detail-visibility';
 import type { DeniedAccessLoggerPort } from '../../domain/order/read-side/ports';
 import type { StoragePort } from '../../domain/ports/storage';
@@ -26,6 +29,8 @@ export interface GetEvidenceDeps {
   readonly storage: StoragePort;
   readonly deniedLogger: DeniedAccessLoggerPort;
   readonly signTtlSeconds: number;
+  /** Auditoría append-only de lectura autorizada (FR-021); NUNCA se invoca en 401/404/410. */
+  readonly readAudit: EvidenceReadAuditPort;
 }
 
 function evidenceGone(): ReturnType<typeof domainError> {
@@ -50,6 +55,7 @@ async function handleAuthorized(
   res: Response,
   orderId: string,
   evidenceId: string,
+  actorId: string,
 ): Promise<void> {
   const row = await deps.reader.findEvidenceRow(orderId, evidenceId);
   if (row === null) {
@@ -58,17 +64,24 @@ async function handleAuthorized(
   }
   // Firma interna backend↔store, TTL corto (D6) — nunca expuesta al cliente (FR-004/FR-005).
   const handle = await deps.storage.signRead(row.objectRef, deps.signTtlSeconds);
+  let result: Awaited<ReturnType<StoragePort['read']>>;
   try {
-    const result = await deps.storage.read(handle);
-    if (!Buffer.isBuffer(result)) {
-      sendError(res, evidenceGone()); // firma expirada/manipulada (defensivo; no debería ocurrir aquí)
-      return;
-    }
-    sendBinary(res, result);
+    result = await deps.storage.read(handle);
   } catch {
     // Blob ausente del store (legacy nunca almacenado, o superado y purgado por el GC de FR-024, FR-009).
     sendError(res, evidenceGone());
+    return;
   }
+  if (!Buffer.isBuffer(result)) {
+    sendError(res, evidenceGone()); // firma expirada/manipulada (defensivo; no debería ocurrir aquí)
+    return;
+  }
+  // FR-021: la lectura AUTORIZADA (200) deja un registro append-only (actor/orderId/evidenceId/timestamp,
+  // sin object_ref/binario) ANTES de servir el binario. Deliberadamente FUERA del try de arriba: un fallo
+  // aquí NUNCA debe mapearse a 410 "no disponible" (eso es solo del store); cae al catch-all del handler
+  // (500), nunca silencioso (a diferencia de la señal best-effort de acceso DENEGADO).
+  await deps.readAudit.record({ actorId, orderId, evidenceId });
+  sendBinary(res, result);
 }
 
 export function getOrderEvidenceHandler(deps: GetEvidenceDeps): RequestHandler {
@@ -113,7 +126,7 @@ export function getOrderEvidenceHandler(deps: GetEvidenceDeps): RequestHandler {
           deny();
           return;
         }
-        await handleAuthorized(deps, res, orderId, evidenceId);
+        await handleAuthorized(deps, res, orderId, evidenceId, auth.userId);
       })
       .catch(() => {
         sendError(res, domainError('INTERNAL', 'Error interno.'));

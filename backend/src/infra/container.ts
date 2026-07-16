@@ -34,6 +34,7 @@ import { FsStorageAdapter } from './storage/fs-storage-adapter';
 import { registerStorageFor } from './storage/storage-registry';
 import { PrismaEvidenceUploadRepository } from './repositories/evidence-upload-repository';
 import { PrismaEvidenceReadRepository } from './repositories/evidence-read-repository';
+import { PrismaEvidenceReadAuditRepository } from './repositories/evidence-read-audit-repository';
 
 const MIN_MS = 60_000;
 const DAY_MS = 86_400_000;
@@ -98,6 +99,7 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
     ),
     evidenceUploadLookup: new PrismaEvidenceUploadRepository(prisma),
     evidenceReader: new PrismaEvidenceReadRepository(prisma), // 024, US2 (getOrderEvidence)
+    evidenceReadAudit: new PrismaEvidenceReadAuditRepository(prisma), // 024, US3 (FR-021)
     orderReview: new PrismaReviewOrderRepository(prisma),
     rateLimit: new InMemoryRateLimit({
       max: config.lockoutMax,
@@ -182,6 +184,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
       storage: a.storage,
       deniedLogger: new PinoDeniedAccessLogger(createLogger()),
       signTtlSeconds: config.evidenceSignTtlSeconds,
+      readAudit: a.evidenceReadAudit, // 024, US3 (FR-021)
     }, // 024, US2
 
     cookie: {

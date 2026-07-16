@@ -118,11 +118,11 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ### Implementación
 
-- [ ] T040 [US3] Redacción de PII en logs para los nuevos flujos (object_ref/firma/binario nunca): revisar logger en `upload-evidence.ts`/`get-evidence.ts` y helper de redacción común (FR-008).
-- [ ] T041 [US3] Auditoría de lectura append-only en `get-evidence.ts` (actor/orderId/evidenceId/timestamp, sin binario) reutilizando `infra/audit/`; y señal best-effort de accesos denegados heredada del patrón de `getOrderDetail` (FR-021/#009).
-- [ ] T042 [P] [US3] Job GC `backend/src/infra/storage/gc-job.ts` (FR-024): purga blobs sin fila vigente (staged >TTL, huérfanos, superados); corre ≥ a diario; nunca toca blob de fila vigente.
-- [ ] T043 [P] [US3] Job retención `backend/src/infra/storage/retention-job.ts` (FR-018): closed >90 d → purga física; latencia ≤24 h; independiente del GC.
-- [ ] T044 [US3] Registrar/programar ambos jobs (scheduler existente o entrypoint) y su config; documentar disparo.
+- [x] T040 [US3] Redacción de PII en logs para los nuevos flujos (object_ref/firma/binario nunca): revisar logger en `upload-evidence.ts`/`get-evidence.ts` y helper de redacción común (FR-008).
+- [x] T041 [US3] Auditoría de lectura append-only en `get-evidence.ts` (actor/orderId/evidenceId/timestamp, sin binario) — tabla nueva `EvidenceReadAudit` (append-only, separada de `OrderAudit` para no contaminar su semántica FSM); señal best-effort de accesos denegados heredada del patrón de `getOrderDetail` (FR-021/#009).
+- [x] T042 [P] [US3] Job GC `backend/src/infra/storage/gc-job.ts` (FR-024): purga blobs sin fila vigente (staged >TTL, huérfanos, superados); corre ≥ a diario; nunca toca blob de fila vigente.
+- [x] T043 [P] [US3] Job retención `backend/src/infra/storage/retention-job.ts` (FR-018): closed >90 d → purga física; latencia ≤24 h; independiente del GC.
+- [x] T044 [US3] Registrar/programar ambos jobs (`backend/src/infra/storage/schedule-jobs.ts`, invocado desde `main.ts`) y su config; documentar disparo.
 
 **Checkpoint**: los tres SC de seguridad (SC-003/004/005) y la retención (SC-006) verdes.
 

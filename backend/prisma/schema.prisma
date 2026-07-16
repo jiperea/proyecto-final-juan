@@ -35,6 +35,7 @@ model User {
   auditsAsTo    OrderAudit[] @relation("OrderAuditToAssignee")
   evidenceUploads OrderEvidence[]        // 005: evidencias subidas por este usuario (uploaded_by)
   notesCreated    OrderExecutionNotes[]  // 005: notas de ejecución creadas por este usuario (created_by)
+  evidenceReads   EvidenceReadAudit[]    // 024: lecturas autorizadas de evidencia (actor)
 
   @@map("users")
 }
@@ -108,6 +109,7 @@ model Order {
   audits      OrderAudit[]
   evidence       OrderEvidence[]       // 005
   executionNotes OrderExecutionNotes[] // 005
+  evidenceReadAudits EvidenceReadAudit[] // 024: lecturas autorizadas de evidencia de esta orden
 
   @@index([status, assignedTo])
   @@index([createdAt])
@@ -163,9 +165,33 @@ model OrderEvidence {
   attempt     Int?
   at          DateTime   @default(now()) @db.Timestamptz(3)
 
+  reads       EvidenceReadAudit[] // 024: lecturas autorizadas registradas de esta fila
+
   @@index([orderId])
   @@index([auditId])
   @@map("order_evidence")
+}
+
+// Feature 024 (US3, FR-021) — auditoría de LECTURA de evidencia, append-only (mismo patrón de trigger de
+// BD que `order_audit`/`order_evidence`). Tabla NUEVA y separada de `OrderAudit` a propósito: `OrderAudit`
+// discrimina el ciclo vigente por transición (`toStatus`/`fromStatus`/`reason` — ver order-detail-reader.ts
+// y la derivación de `last_rejection_reason`); insertar aquí filas de "lectura" (sin transición) contaminaría
+// esa semántica FSM. `EvidenceReadAudit` es un sink de auditoría independiente: solo se escribe en un
+// `getOrderEvidence` autorizado (200), nunca en accesos denegados (401/404, que solo emiten la señal
+// best-effort ya existente — infra/audit/denied-access-logger.ts). Sin `objectRef`/binario (FR-008).
+model EvidenceReadAudit {
+  id          String        @id @db.Uuid
+  orderId     String        @map("order_id") @db.Uuid
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  evidenceId  String        @map("evidence_id") @db.Uuid
+  evidence    OrderEvidence @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+  actorId     String        @map("actor_id") @db.Uuid
+  actor       User          @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  at          DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@index([orderId])
+  @@index([evidenceId])
+  @@map("evidence_read_audit")
 }
 
 // Feature 005 — OrderExecutionNotes (payload PII, MUTABLE/purgable — NO append-only, Constitution IX).
