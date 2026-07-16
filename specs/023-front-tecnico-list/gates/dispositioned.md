@@ -25,3 +25,6 @@
 ## Ronda 3 (cierre)
 - **H-001-r3** (origen del userId + scope SC-006): RESUELTO. FR-002 → `userId` del contexto de sesión existente (`useSession`, solo lectura); SC-006 permite importarlo sin tocar auth.
 - **H-002-r3** (UUID 36 chars desborda ≤390px): RESUELTO. FR-002 → UUID truncado a forma corta (8 chars, mono) cuando aplica; sin scroll horizontal.
+
+## Ronda 4 (cierre del tema scope, anclado a listOrders)
+- **H-001-r4 / S-001-r4** (scope del listado): RESUELTO por contrato. `listOrders` acota server-side por rol (técnico = propias activas; draft/closed ausentes) → «Tú» es el flujo real; UUID/neutro = guarda defensiva unit-testable, no flujo de aceptación; no llega dato ajeno al cliente. FR-010 extendido al listado; US1-AS2 reformulado (guarda defensiva).
