@@ -33,3 +33,12 @@
 - **H-003-r2** (JSON→multipart rompe submit): FR-012/Contrato → endpoint NUEVO `uploadOrderEvidence` (multipart); `submitOrderExecution` sin cambios (compatible de verdad).
 - **H-004-r2** (302 del clarify vs 200-blob del endurecimiento): reconciliado → 200 same-origin + token firmado ligado al principal single-use ≤300s; SC-003 mide el token, no URL pública.
 - **S-002-r2** (autz de subida sin FR): FR-020 → subida solo dueño actual + in_progress; 401/404.
+
+## Ronda 3 (resueltos)
+- **H-001-r3** (modelo de token autocontradictorio): RESUELTO decidiendo UN modelo — lectura **200 same-origin por sesión**, **sin token/URL de cliente**; la firma ≤300s es **interna backend↔store**. FR-004/005/013 + clarify + US2 + SC-003 alineados.
+- **H-004-r3** (US2/SC-003 seguían con «URL firmada» de cliente): RESUELTO, reescritos al modelo de sesión.
+- **H-002-r3** (ciclo upload↔submit): FR-022 → acumula pre-envío; abandonada/reasignada-antes-de-submit se purga; detalle in_progress muestra al dueño lo subido.
+- **H-003-r3** (reasignación antes del submit con evidencia del saliente): FR-022 → se purga la staging del saliente; el nuevo dueño empieza sin evidencia.
+- **H-005-r3** (representación de items legacy): FR-014 → usan el `id` de fila ya existente; abrir → 410.
+- **T-001-r3** (415 vs 422 en contenido falseado): FR-019 → determinista: fuera de allowlist=415; en allowlist pero contenido no-imagen=422.
+- **S-001-r3** (sin auditoría de LECTURA): FR-021 → auditar lectura (actor/orderId/evidenceId/ts) sin binario.
