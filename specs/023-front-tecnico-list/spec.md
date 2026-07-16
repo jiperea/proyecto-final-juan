@@ -14,6 +14,14 @@
 > contratos ni RBAC; consume los contratos ya congelados y los tokens del design system establecidos en FE-8.
 > Proporcionalidad (XV): acotada a 2 pantallas.
 
+## Clarifications
+
+### Session 2026-07-16 (decisiones por defecto informado — brief prescriptivo, sin ambigüedad crítica)
+
+- Q: ¿Cómo se muestra el «técnico» en la tarjeta de la lista del técnico? → A: Siempre **«Tú»** — esta lista es la del propio técnico (todas sus órdenes son suyas); el caso «otro técnico» no aplica en esta vista.
+- Q: ¿Qué contiene la sub-línea del detalle si el contrato no expone cliente/ubicación? → A: Solo los campos **con dato**; los ausentes se **omiten** (no se inventan). Si no hay ninguno, la cabecera queda con código + nombre.
+- Q: ¿Qué muestran los tiles placeholder de evidencia? → A: Una etiqueta placeholder **«foto N»** (índice), como el artifact — es un marcador, no un dato inventado; no hay imagen real (contrato sin URL firmada).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Tarjeta de orden fiel al artifact en la lista (Priority: P1)
@@ -86,11 +94,11 @@ etiquetada y la evidencia como tiles de relación 4/3, como el artifact.
 ### Functional Requirements
 
 - **FR-001**: WHEN el técnico ve una orden en la lista THE front SHALL renderizar la tarjeta del artifact: fila superior con **código monoespaciado** (`--font-mono`) + **chip de estado**, **nombre** debajo, y una **fila de meta**.
-- **FR-002**: THE fila de meta SHALL mostrar el **cliente** (o **«—»** si el contrato no lo expone) y el **técnico** = `assigned_to`, representado como **«Tú»** cuando coincide con el usuario en sesión.
+- **FR-002**: THE fila de meta SHALL mostrar el **cliente** (o **«—»** si el contrato no lo expone) y el **técnico**. En la lista del técnico (esta vista), el técnico es siempre el usuario en sesión → se representa como **«Tú»**.
 - **FR-003**: THE front SHALL **no inventar** datos ausentes del contrato (cliente, ubicación): usa placeholders explícitos («—») u omite el campo, nunca valores ficticios.
-- **FR-004**: WHEN se abre el detalle de una orden THE front SHALL renderizar una **cabecera** con **código monoespaciado**, **nombre** y una **sub-línea** de contexto con los campos disponibles del payload.
+- **FR-004**: WHEN se abre el detalle de una orden THE front SHALL renderizar una **cabecera** con **código monoespaciado** y **nombre**; y una **sub-línea** que muestra **solo** los campos de contexto con dato en el payload (cliente/ubicación si existieran), **omitiendo** los ausentes sin inventarlos (si no hay ninguno, la cabecera queda con código + nombre).
 - **FR-005**: WHEN el payload del detalle incluye `notes` THE front SHALL mostrarlas en una **tarjeta etiquetada** (estilo «notas» del artifact), no como párrafo plano.
-- **FR-006**: WHEN el payload del detalle incluye `evidence` con `count` = N (>0) THE front SHALL renderizar **N tiles placeholder** de relación **4/3** (usando `--radius-sm`), reflejando el recuento sin construir imágenes reales (el contrato no expone URL firmada); con `count` = 0 THE front SHALL mostrar un estado explícito «sin evidencia» y **0** tiles.
+- **FR-006**: WHEN el payload del detalle incluye `evidence` con `count` = N (>0) THE front SHALL renderizar **N tiles placeholder** de relación **4/3** (usando `--radius-sm`), cada tile con una **etiqueta placeholder «foto N»** (índice), reflejando el recuento sin construir imágenes reales (el contrato no expone URL firmada); con `count` = 0 THE front SHALL mostrar un estado explícito «sin evidencia» y **0** tiles.
 - **FR-007**: THE feature SHALL **no** modificar backend, contratos, endpoints ni lógica RBAC; la visibilidad de acciones por rol/estado del detalle no cambia respecto a FE-8.
 - **FR-008**: THE front SHALL mantener la disciplina «token o nada» (sin hex/px/font sueltos) reutilizando los tokens de FE-8, y preservar tema claro/oscuro y responsive por viewport sin regresión.
 - **FR-009**: WHEN se cierra la implementación THE equipo SHALL adjuntar capturas (Playwright MCP) de la lista del técnico (móvil) y del detalle (técnico y supervisor) en claro y oscuro, para la **aprobación humana de fidelidad**.
