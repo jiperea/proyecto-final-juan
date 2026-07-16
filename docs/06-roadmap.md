@@ -84,6 +84,13 @@ Revisado el resto del roadmap con el Principio XV y la lección de 001:
 > DNI/NIF/NIE, matrícula, IBAN, tarjeta}: pasaporte, nº póliza/cliente, cuenta no-IBAN, etc. — residual
 > best-effort (prompt+eval), a endurecer (patrones adicionales o NER) antes de datos reales sensibles.
 
+> **Cierre de #007/BL-068 → feature `024-evidence-binary-signed-url` (2026-07-16)**: subida binaria real
+> (`uploadOrderEvidence` multipart, staging cifrado AES-256-GCM) + lectura por sesión (`getOrderEvidence`,
+> firma interna ≤300 s backend↔almacenamiento, sin token/URL cliente-visible) + retención 90 d post-cierre
+> con purga física por job. `submitOrderExecution` conserva su forma (evolución compatible). G1 PASS/G2 PASS;
+> implementación US1+US2+US3 verde; **Polish en curso** (arch test/a11y/quickstart/cobertura, ver
+> `docs/traceability.md §024`). No reabre BL-069 (notas) ni BL-001/002/067 (otras deudas del mismo lote).
+
 > **Fixture de demostrabilidad → feature #019 (`019-seed-approvable-review`)**: el seed añade una orden
 > `pending_review` de technician1 **con evidencia + audit** (ancla `SEED_ORDERS.approvableReview`) para que
 > el flujo **aprobar** del supervisor sea demostrable desde un arranque limpio (sin ejecutar antes el paso

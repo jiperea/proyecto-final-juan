@@ -1,6 +1,7 @@
 import { http, HttpResponse, delay } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import * as axeMatchers from 'vitest-axe/matchers';
 import { axe } from '../a11y/axe-fieldops'; // FR-010: excepción AA acotada centralizada
 import { server } from '../../mocks/server';
@@ -138,5 +139,30 @@ describe('Abrir la imagen de evidencia (024 · T027/FR-010/FR-013)', () => {
     await screen.findByAltText('Imagen 1');
 
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('(e) el tile es alcanzable y activable SOLO con teclado (T046): Tab hasta el botón + Enter abre la imagen', async () => {
+    bootAs('technician');
+    server.use(
+      http.get(`/v1/orders/${ORDER_ID}`, () => HttpResponse.json(orderWithEvidence())),
+      http.get(`/v1/orders/${ORDER_ID}/evidence/${EVIDENCE_ID_1}`, () =>
+        HttpResponse.arrayBuffer(new Uint8Array([1, 2, 3]).buffer, {
+          status: 200,
+          headers: { 'Content-Type': 'image/jpeg' },
+        }),
+      ),
+    );
+    const u = userEvent.setup();
+    renderApp(<AppRoutes />, `/orders/${ORDER_ID}`);
+    await screen.findByRole('heading', { name: 'Orden con foto real' });
+
+    const openButton = screen.getByRole('button', { name: /Ver imagen 1 de 2/i });
+    openButton.focus();
+    expect(openButton).toHaveFocus();
+
+    await u.keyboard('{Enter}');
+
+    const img = await screen.findByAltText('Imagen 1');
+    expect(img.getAttribute('src')).toMatch(/^blob:/);
   });
 });

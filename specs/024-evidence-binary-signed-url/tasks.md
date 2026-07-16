@@ -81,7 +81,7 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 ### Tests (Red primero) ⚠️
 
 - [x] T022 [P] [US2] Contract test `backend/tests/contract/get-evidence.contract.spec.ts` — `getOrderEvidence` × {200, 401, 404, 410} + cabeceras (nosniff/no-referrer/no-store) + **aserción backend de FR-004**: el cuerpo/headers de la 200 NO contienen ninguna URL firmada ni token de cliente.
-- [ ] T023 [P] [US2] Contract test `backend/tests/contract/detail-evidence-items.contract.spec.ts` — `getOrderDetail.evidence.items[]` (evidence_id+content_type; omitido a dispatcher).
+- [x] T023 [P] [US2] `getOrderDetail.evidence.items[]` (evidence_id+content_type; omitido a dispatcher) — **cubierto in situ** en `backend/tests/contract/get-order-detail.contract.spec.ts` (aserción count===items.length) + `get-order-detail.technician.spec.ts`; no se crea fichero redundante.
 - [x] T024 [P] [US2] Integration test `backend/tests/integration/evidence-authz.spec.ts` — dueño/supervisor 200, dispatcher 404 (FR-003); 100% pares rol×autz (SC-002).
 - [x] T025 [P] [US2] Integration test `backend/tests/integration/evidence-404-uniforme.spec.ts` — 401 sin sesión; 404 no-autz/ajena/inexistente/closed; evidence_id∉order → 404 (FR-007/FR-015).
 - [x] T026 [P] [US2] Integration test `backend/tests/integration/evidence-410-legacy-superado.spec.ts` — autorizado en alcance con blob legacy/superado → 410; closed → 404 (nunca 410) (FR-009).
@@ -130,11 +130,11 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T045 [P] Test de arquitectura `backend/tests/arch/` — el dominio no importa `node:crypto`/fs/Express en los nuevos módulos (Principio III).
-- [ ] T046 [P] Front a11y: `alt` descriptivo, foco y `prefers-reduced-motion` en la apertura de imagen (`OrderDetailView.tsx`); axe verde.
-- [ ] T047 [P] Actualizar `docs/traceability.md` con el mapa RF→endpoint→tarea→test de la 024.
-- [ ] T048 Ejecutar validación de `specs/024-evidence-binary-signed-url/quickstart.md` (escenarios 1–4) end-to-end.
-- [ ] T049 Verificar cobertura (dominio/servicios ≥80%, contratos/transiciones 100%) y `tsc/eslint/vitest` verdes; 0 regresiones (SC-007).
+- [x] T045 [P] Test de arquitectura `backend/tests/arch/` — el dominio no importa `node:crypto`/fs/Express en los nuevos módulos (Principio III).
+- [x] T046 [P] Front a11y: `alt` descriptivo, foco y `prefers-reduced-motion` en la apertura de imagen (`OrderDetailView.tsx`); axe verde.
+- [x] T047 [P] Actualizar `docs/traceability.md` con el mapa RF→endpoint→tarea→test de la 024.
+- [x] T048 Ejecutar validación de `specs/024-evidence-binary-signed-url/quickstart.md` (escenarios 1–4) end-to-end.
+- [x] T049 Verificar cobertura (dominio/servicios ≥80%, contratos/transiciones 100%) y `tsc/eslint/vitest` verdes; 0 regresiones (SC-007).
 
 ---
 
