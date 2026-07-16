@@ -1,0 +1,45 @@
+# FieldOps — MODO DEV (código en vivo + HMR). Docker fusiona este fichero automáticamente
+# con docker-compose.yml al hacer `docker compose up` (no hace falta ningún -f).
+#
+# Qué cambia respecto al compose base (paridad prod):
+#   - back/front NO se hornean en imagen: se montan por volumen y corren en `node:20` con
+#     recarga en caliente (Vite HMR en front, `tsx watch` en back). Editas y se refleja al
+#     instante, sin reconstruir nada.
+#   - db/db-test se heredan sin cambios.
+#
+# Requisitos: `node_modules` de back y front instalados para Linux (ya hecho; si clonas de cero,
+# usa `bash scripts/dcnode.sh npm install` para el back y el equivalente para el front).
+#
+# Para validar la IMAGEN de paridad prod (sin este override):
+#   docker compose -f docker-compose.yml up -d --build      (front en :8080, nginx)
+services:
+  backend:
+    image: node:20
+    build: !reset null
+    working_dir: /app
+    command: sh -c "npx prisma generate && npm run dev"
+    environment:
+      DATABASE_URL: postgresql://fieldops:fieldops@db:5432/fieldops
+      NODE_ENV: development
+      PORT: '3000'
+    volumes:
+      - ./backend:/app
+    healthcheck: !reset null
+
+  frontend:
+    image: node:20
+    build: !reset null
+    working_dir: /app
+    # --host expone Vite fuera del contenedor; el puerto 1:1 mantiene el WebSocket de HMR feliz.
+    command: sh -c "npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      # En la red del compose, el backend es el servicio `backend` (Vite proxya /v1 → aquí).
+      VITE_BACKEND_ORIGIN: http://backend:3000
+    volumes:
+      - ./frontend:/app
+    ports: !override
+      - '5173:5173' # UI dev con HMR en http://localhost:5173
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck: !reset null
