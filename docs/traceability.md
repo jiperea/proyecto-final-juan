@@ -458,3 +458,42 @@ Feature de **presentación (solo CSS)**. Baseline: 3 superficies sin texto usan 
 | FR-007 | alcance solo-CSS | T008 | `git diff`: solo `.css` prod + docs + tests |
 | FR-008 | gates de front | T007 | tsc/eslint/stylelint/build/vitest 261/261 |
 | FR-009 | entrada de `--color-accent-vivid` en design-system.md | T009 | inspección del doc |
+
+## FE-8 · 022-front-visual-fidelity-preview (fidelidad visual al preview de exploración)
+
+Feature de **presentación (solo `frontend/`)**: fidelidad visual al artifact de exploración «FieldOps ·
+Vistas mínimas del front». Sin endpoints/IA/backend/contratos ni cambios RBAC (FR-013). La columna
+"endpoint" se sustituye por el **componente/archivo** que satisface el FR.
+
+| FR | Descripción | Componente / archivo | Test(s) |
+|----|-------------|-----------------------|---------|
+| FR-001 | tokens neutros del preview (bg/surface/surface-2, claro+oscuro) | `ui/tokens.css` (4 bloques) | `unit/tokens-preview` |
+| FR-002/002(kicker N/A) | acento vivo como token (marca «F», foco, barra/selección de fila, fondo de botón primario); enumeración cerrada | `ui/tokens.css` (`--color-accent-vivid`), `components.css` (`.brand-mark`, `.btn:focus-visible`), `orders.css` (`.order-item[aria-current]`, `.order-item--row[aria-current]`) | `unit/tokens-preview`, `unit/stepper-states` (paso actual NO usa acento vivo) |
+| FR-003 | chips de estado con paleta del preview (5 estados, teal `in_progress`) + punto `::before` `currentColor`; desviación AA documentada (4 chips claros oscurecidos mínimamente) | `ui/tokens.css` (`--status-*-fg/bg`), `components.css` (`.badge::before`) | `unit/tokens-preview`, `unit/status-badge-dot`, `a11y/contrast-tokens` |
+| FR-004 | bordes/radios (`--radius-sm` 9px, `--radius-md` 14px)/`--shadow-1` del preview | `ui/tokens.css` | `unit/tokens-preview` |
+| FR-005/005a/005b | segmentado «Activas/Todas» (píldora de superficie, no acento) + filtro en cliente + 3 estados vacíos con precedencia | `ui/Segmented.tsx`, `components.css` (`.seg`), `features/orders/useOrderFilter.ts`, `OrderList.tsx`/`OrdersView.tsx` | `unit/orders-filter` |
+| FR-006 | stepper: paso actual morado `pending_review` + halo (box-shadow 4px), done=verde `closed`, pending=surface-2; sustituye el naranja de FE-7 | `ui/Stepper.tsx`, `components.css` (`.stepper__step--current .stepper__dot`) | `unit/stepper-states` |
+| FR-007/007a/007c | chrome de oficina (topbar marca/buscador/rol/avatar, cabecera de tabla, fila con barra de acento + `accent-soft`); buscador en cliente; selección persiste con nota si el filtro la excluye | `features/orders/OfficeTopbar.tsx`, `orders.css` (`.office-topbar`, `.order-item--row`, `.order-table-head`), `useOrderFilter.ts` (reutilizado) | `unit/office-search`, `unit/layout-by-viewport` |
+| FR-008 | rejilla de evidencia 3-col + tile «+» (muted, sin acento) + píldora de requisito | `features/orders/EvidencePicker.tsx`/`ExecutionForm.tsx`, `orders.css` (`.evidence-grid`, `.evidence-add`) | `unit/evidence-capture` |
+| FR-009 | login: hero centrado (marca «F», wordmark, tagline, 2 campos, botón «Entrar») | `features/auth/LoginPage.tsx`, `auth.css` | `unit/login-hero` |
+| FR-010 | acento vivo literal + texto blanco en botón primario; excepción AA documentada y acotada (~3.4:1) | `components.css` (`.btn--primary`), `tests/a11y/axe-fieldops.ts` (exclude `.btn--primary`) | `a11y/*` (via `axe-fieldops.ts`), inspección de la supresión anotada |
+| FR-011/011a/011b | layout por viewport (no por rol); único estado de filtro (segmento+término) con precedencia búsqueda→«Todas»; sin scroll horizontal 360–1440 | `AppShell.tsx`/`OrdersView.tsx` (breakpoint `--bp-lg`), `useOrderFilter.ts` | `unit/layout-by-viewport`, `unit/orders-filter` |
+| FR-012 | disciplina de design system (0 hex/px/font sueltos en vistas) | todas las vistas tocadas | `stylelint` (`npm run lint`) |
+| FR-013/013a | sin cambios backend/contratos/RBAC; visibilidad de acciones sin relajar/ampliar | (invariante, sin componente propio) | `git diff --name-only develop` (T028) |
+| FR-014 | capturas Playwright MCP (5 pantallas × 2 temas) + aprobación humana de fidelidad | — | evidencia en PR (T026), rúbrica SC-001 |
+| FR-015 | no reproduce el andamiaje del mockup (phone frame, barra "9:41", chrome de navegador) | vistas de app únicamente | revisión visual (capturas T026) |
+| FR-016 | tarjeta IA con morado `pending_review` (borde/cabecera/fondo) + nota de guardián; gate de rol en el render del panel de detalle (no en el layout compartido) | `features/orders/IncidentSummaryPanel.tsx`, `components.css` (`.ai-summary`) | `unit/incident-summary-card` |
+| SC-001 | checklist estructural + aprobación humana de fidelidad (rúbrica) | — | capturas T026 (evidencia PR) |
+| SC-002/002a | tokens claros/oscuros = preview (`getComputedStyle`); contraste no-textual del acento vivo ≥3:1 | `ui/tokens.css` | `unit/tokens-preview` |
+| SC-003 | 0 hex/px/font sueltos introducidos | vistas tocadas | `stylelint` |
+| SC-004 | 0 regresiones (tsc/eslint/stylelint/build/vitest incl. axe); única supresión permitida = FR-010 | suite completa | `npm run lint`/`typecheck`/`build`, `vitest` |
+| SC-005 | excepción AA de FR-010 documentada y trazable | `tests/a11y/axe-fieldops.ts` | inspección (comentario con motivo/alcance/contraste medido) |
+| SC-006 | alcance del diff = solo frontend + config a11y/tests + estos dos docs | — | `git diff --name-only develop` (T028) |
+
+> Invariantes preservados (no relajados por el reskin): el conjunto de órdenes cargado sigue acotado por
+> RBAC en backend (el filtro en cliente opera dentro de ese conjunto); las miniaturas de evidencia siguen
+> por URL firmada efímera ≤300s, sin persistirse/cachearse ni filtrarse en logs.
+>
+> Deuda/fuera de alcance (documentado, no silencioso): **paginación de listados** (probablemente backend,
+> cursor) queda para una fase de mejora futura; el filtrado en cliente (FR-005a/FR-007a) asume el conjunto
+> completo sin paginación de servidor (H-003).

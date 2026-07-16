@@ -32,14 +32,21 @@ que necesite un color usa el token semántico, nunca el hex.
 
 ### 2.1 Base (neutros)
 
-| Token | Valor (light) | Uso |
-|---|---|---|
-| `--color-bg` | `#ffffff` | Fondo de página |
-| `--color-surface` | `#f8fafc` | Tarjetas, paneles |
-| `--color-border` | `#cbd5e1` | Bordes, separadores (≥3:1 con surface) |
-| `--color-text` | `#1e293b` | Texto principal (≈13:1 sobre bg ✓ AAA) |
-| `--color-text-muted` | `#475569` | Texto secundario (≈7:1 ✓ AA) |
-| `--color-text-on-accent` | `#ffffff` | Texto sobre superficies de color fuerte |
+> **FE-8 (022)** actualiza estos valores a los del **preview de exploración** («FieldOps · Vistas mínimas
+> del front»): el fondo de página pasa a un **gris suave** (no blanco puro) y se añade `--color-surface-2`
+> (segundo plano de superficie, p. ej. píldora inactiva del segmentado/conmutador). Ambos temas están
+> fijados en `tests/unit/tokens-preview.test.ts`.
+
+| Token | Valor (light) | Valor (dark) | Uso |
+|---|---|---|---|
+| `--color-bg` | `#f4f6f8` | `#0e141a` | Fondo de página (FE-8: gris suave, no blanco puro) |
+| `--color-surface` | `#ffffff` | `#18212b` | Tarjetas, paneles |
+| `--color-surface-2` | `#edf0f3` | `#212c38` | Segundo plano de superficie (píldora inactiva de `Segmented`/`ThemeToggle`, tile de evidencia) |
+| `--color-border` | `#e1e6eb` | `#2a3744` | Bordes, separadores |
+| `--color-text` | `#1e293b` | `#e7edf3` | Texto principal |
+| `--color-text-muted` | `#475569` | `#aab8c7` | Texto secundario |
+| `--color-text-on-accent` | `#ffffff` | `#1a1005` | Texto sobre `--color-primary` (varía por tema) |
+| `--color-text-on-accent-vivid` | `#ffffff` | `#ffffff` | Texto sobre `--color-accent-vivid` (FE-8, fijo en ambos temas — ver FR-010) |
 
 ### 2.2 Semánticos (acción y feedback)
 
@@ -47,7 +54,7 @@ que necesite un color usa el token semántico, nunca el hex.
 |---|---|---|---|
 | `--color-primary` | `#c2410c` (naranja) | blanco sobre él ≈5.2:1 ✓ | Acción principal, enlaces, **texto** de acento (≥4.5:1) |
 | `--color-primary-hover` | `#9a3412` | — | Estado hover/active |
-| `--color-accent-vivid` (FE-7) | `#dc5a24` claro / `#ff7a45` oscuro | ≥3:1 vs bg/surface/surface-2 (2 temas) | **Acento VIVO del artifact — SOLO superficies SIN texto** (anillo de foco, punto del Stepper, borde de selección). **Nunca bajo texto** (con blanco ≈3.4:1 < 4.5): ahí va `--color-primary`. |
+| `--color-accent-vivid` (FE-7/FE-8) | `#dc5a24` claro / `#ff7a45` oscuro | ≥3:1 vs bg/surface/surface-2 (2 temas) | Acento VIVO del artifact. Enumeración cerrada de superficies (FE-8, FR-002): marca «F» (`.brand-mark`), anillo de foco, barra/selección de fila (`.order-item[aria-current]`), **y el fondo del botón primario** (`.btn--primary`). **Excepción AA acotada (FR-010, ver nota abajo)**: el botón primario es la única superficie donde este token va **bajo texto** (blanco, ~3.4:1 < 4.5). El paso actual del Stepper **NO** usa este token (usa el morado `pending_review`, ver §6). |
 | `--color-accent-soft` | `#fff1e9` | — | Tinte suave del acento (fondos sutiles) |
 | `--color-danger` | `#b91c1c` | blanco ≈6:1 ✓ | Rechazar, destructivo, error |
 | `--color-success` | `#15803d` | blanco ≈5:1 ✓ | Aprobar, éxito |
@@ -57,23 +64,48 @@ que necesite un color usa el token semántico, nunca el hex.
 > **Nota AA:** todos los pares texto/fondo declarados cumplen ≥4.5:1 (texto normal) o ≥3:1 (texto grande
 > ≥18.66px bold / 24px, y bordes/estados de foco). Cualquier token nuevo **debe** validarse antes de
 > entrar (herramienta determinista: axe-core en test, ver §7).
+>
+> **Excepción AA — botón primario (FE-8, FR-010):** el botón primario (`.btn--primary`) usa el acento
+> vivo (`#dc5a24` claro / `#ff7a45` oscuro) con **texto blanco**, de forma **literal** al artifact
+> (~3.4:1 en claro, por debajo del objetivo AA 4.5:1 de texto normal). Es una **excepción única y
+> acotada** a esta superficie — decidida en `clarify` (022, 2026-07-16) porque el brief no exige AA (es
+> un "objetivo" de la constitución) y la fidelidad al artifact prima aquí. Se materializa como una
+> **exclusión de región** (no una desactivación global) en `frontend/tests/a11y/axe-fieldops.ts`
+> (`exclude: [['.btn--primary']]`, con comentario que enlaza a FR-010): el resto de la suite de a11y
+> sigue exigiendo AA sin relajar el umbral (regla `color-contrast` activa en todo lo demás). El
+> **contraste no-textual** del acento vivo (foco/barra de selección, ≥3:1 WCAG 1.4.11) queda **fuera**
+> de esta excepción y se verifica en `tests/unit/tokens-preview.test.ts`.
 
 ### 2.3 Estado de la orden (badge)
 
 Los 5 estados del FSM. **Siempre** badge = tinte de fondo + **etiqueta de texto en español** (color no
-único). El técnico solo ve activas; `draft`/`closed` no aparecen en listado pero el detalle puede
-mostrar `closed`.
+único), con un **punto de color** (`::before`, `currentColor`) a la izquierda desde FE-8. El técnico solo
+ve activas; `draft`/`closed` no aparecen en listado pero el detalle puede mostrar `closed`.
 
-| Estado (code) | Etiqueta UI | `--status-*-bg` | `--status-*-fg` |
-|---|---|---|---|
-| `assigned` | «Asignada» | `#dbeafe` | `#1e40af` |
-| `in_progress` | «En curso» | `#fef9c3` | `#854d0e` |
-| `pending_review` | «En revisión» | `#ede9fe` | `#5b21b6` |
-| `closed` | «Cerrada» | `#dcfce7` | `#166534` |
-| `draft` | «Borrador» | `#f1f5f9` | `#334155` |
+> **Paleta del preview (FE-8, FR-003):** actualizada a los valores del artifact, incluido `in_progress`
+> en **teal** (antes ámbar). Valores en claro y oscuro fijados en `tests/unit/tokens-preview.test.ts`.
+
+| Estado (code) | Etiqueta UI | `--status-*-bg` (light) | `--status-*-fg` (light) | `--status-*-bg` (dark) | `--status-*-fg` (dark) |
+|---|---|---|---|---|---|
+| `draft` | «Borrador» | `#eaedf1` | `#475569`* | `#26313d` | `#94a3b4` |
+| `assigned` | «Asignada» | `#e4ecfd` | `#1d4ed8`* | `#1e2a44` | `#6fa0ff` |
+| `in_progress` (teal) | «En curso» | `#def0f5` | `#0a5f77`* | `#123039` | `#4fc2de` |
+| `pending_review` | «En revisión» | `#ede6fc` | `#7c3aed` | `#2a2140` | `#b896ff` |
+| `closed` | «Cerrada» | `#ddf1e5` | `#116c34`* | `#12321f` | `#4fc98a` |
 
 > Todos los pares `fg`/`bg` de badge cumplen ≥4.5:1. `draft` se documenta por completitud aunque el
 > contrato no lo exponga a ningún rol en listado/detalle.
+>
+> **Desviación de fidelidad documentada (FE-8, tema claro, marcada con \*):** los primeros planos
+> **literales** del artifact para `draft`/`assigned`/`in_progress`/`closed` en tema claro
+> (`#64748b`/`#2563eb`/`#0e7c9b`/`#178a4e`) quedan **por debajo de AA de texto** contra su propio fondo
+> (4.05 / 4.36 / 4.09 / 3.72:1). El chip de estado es **texto** (etiqueta), y la única excepción AA
+> acordada se acota al **botón primario** (arriba) — por tanto estos 4 primeros planos se **oscurecen
+> mínimamente, dentro del mismo matiz**, hasta alcanzar ≥4.5:1. Los **fondos** de los 5 chips, el
+> primer plano de `pending_review` (ya cumple AA literal, 4.70:1) y **todo el tema oscuro** quedan
+> **literales** al artifact. Regla aplicada: *el color de estado es texto → el objetivo AA aplica*
+> (a diferencia del acento vivo en el botón, que es la única excepción documentada). Verificado por
+> `tests/a11y/contrast-tokens.test.ts` (SC-002).
 
 ### 2.4 Tema oscuro (FE-5 / 017)
 
@@ -93,8 +125,9 @@ aplica `data-theme` antes del primer pintado (misma clave que `ui/theme.ts` — 
 
 **Contraste AA en ambos temas** verificado por `tests/a11y/contrast-tokens.test.ts` (lista cerrada de
 pares × claro/oscuro). Valores oscuros (extracto): `--color-bg #0e141a`, `--color-surface #18212b`,
-`--color-text #e7edf3`, `--color-text-muted #aab8c7`, acento `--color-primary #fb923c` con
-`--color-text-on-accent #1a1005`, `--color-accent-vivid #ff7a45` (foco/Stepper/selección),
+`--color-surface-2 #212c38` (FE-8), `--color-text #e7edf3`, `--color-text-muted #aab8c7`, acento
+`--color-primary #fb923c` con `--color-text-on-accent #1a1005`, `--color-accent-vivid #ff7a45` (marca/foco/
+selección de fila — **no** el Stepper desde FE-8, ver §2.3/§6),
 `--color-focus-ring var(--color-accent-vivid)`; estados con fondos tenues + texto claro.
 
 ---
@@ -111,6 +144,7 @@ Fuente del sistema (sin descarga de webfont → rendimiento y offline en campo):
 | `--font-body` | 16px / 400 / 1.5 | Texto (nunca <16px en campo) |
 | `--font-label` | 14px / 600 / 1.4 | Etiquetas de formulario, badges |
 | `--font-caption` | 13px / 400 / 1.4 | Metadatos (fecha, versión) |
+| `--font-mono` (FE-8) | 13px / 600 / 1.4, `--font-mono-family` (ui-monospace) | Código de orden monoespaciado en tarjetas/filas del preview (`.order-item__code`) |
 
 > Mínimo 16px en cuerpo para legibilidad en móvil al sol y para no forzar zoom (evita disparadores de
 > reflow WCAG 1.4.10). Escalable con `rem`; respeta el zoom del navegador hasta 200%.
@@ -121,8 +155,11 @@ Fuente del sistema (sin descarga de webfont → rendimiento y offline en campo):
 
 - **Espaciado** (escala 4px): `--space-1:4` `--space-2:8` `--space-3:12` `--space-4:16` `--space-6:24`
   `--space-8:32`. Nada de píxeles sueltos.
-- **Radios (FE-5, más suaves):** `--radius-sm:9px` `--radius-md:14px` `--radius-full:9999px` (badges/avatar).
-- **Elevación:** `--shadow-1` (tarjeta) y `--shadow-2` (panel/menú), **sombras suaves de dos capas**, no color.
+- **Radios (FE-5/FE-8, fieles al preview):** `--radius-sm:9px` `--radius-md:14px` `--radius-full:9999px`
+  (badges/avatar).
+- **Elevación:** `--shadow-1` = `0 1px 2px rgba(16,24,32,.05), 0 8px 24px rgba(16,24,32,.06)` (tarjeta,
+  segmento activo del `Segmented`/`ThemeToggle`; valor del preview, FE-8) y `--shadow-2` (panel/menú),
+  **sombras suaves de dos capas**, no color.
 - **Objetivo táctil:** todo control interactivo **≥44×44px** (WCAG 2.5.5 / campo con guantes).
 - **Motion:** transiciones ≤200ms; **respeta `prefers-reduced-motion`** (sin animación si el usuario lo
   pide).
@@ -144,6 +181,20 @@ Breakpoints (mobile-first):
   móvil colapsa a navegación lista→detalle (push).
 - Sin scroll horizontal del body a ningún ancho; tablas anchas scrollan dentro de su contenedor.
 
+### 5.1 Chrome de oficina (FE-8, `≥1024px`, cualquier rol)
+
+El *master-detail* de oficina añade, fiel al artifact, el **chrome** que antes no existía (FR-007):
+
+- **`OfficeTopbar`** (`.office-topbar`): marca «F» (`.brand-mark`, acento vivo), buscador (filtra en
+  cliente por substring insensible a mayúsculas/acentos, FR-007a), rol y avatar (inicial del nombre).
+  El layout depende del **viewport**, no del rol (FR-011): cualquier rol en escritorio ve este chrome.
+- **Cabecera de tabla** (`.order-table-head`): columnas Código/Orden/Cliente/Estado.
+- **Fila de tabla** (`.order-item--row`): en selección (`[aria-current="true"]`), fondo
+  `--color-accent-soft` + **barra de acento** a la izquierda (`box-shadow: inset` con
+  `--color-accent-vivid`), fiel al artifact.
+- Si un filtro excluye la orden **seleccionada**, el panel de detalle la conserva con una nota discreta
+  (no se vacía abruptamente, FR-007c).
+
 ---
 
 ## 6. Inventario de componentes base (`frontend/src/ui/`)
@@ -163,9 +214,11 @@ Componentes propios (sin librería pesada). Cada uno documenta su API de props y
 | `EmptyState` / `Spinner` | texto, no solo icono; `aria-busy` | Estados de carga/vacío |
 | `Modal` (confirmación rechazo con motivo) | foco atrapado, `Esc` cierra, restaura foco | Revisión — FE-4 |
 | `SkipLink` («Saltar al contenido») | visualmente oculto salvo con foco de teclado; usa `--color-focus-ring`/`--space-*`; salta a `<main>` (WCAG 2.4.1) | Shell (todas) |
-| `Stepper` (FE-5) | `<ol>` del ciclo de vida (5 estados); `aria-current="step"` en el actual; estado por color **+ texto** «(actual/completado/pendiente)»; presentación pura (props) | Detalle de orden |
+| `Stepper` (FE-5, colores actualizados FE-8) | `<ol>` del ciclo de vida (5 estados); `aria-current="step"` en el actual; estado por color **+ texto** «(actual/completado/pendiente)»; presentación pura (props). **FE-8:** el paso **current** usa el morado fijo `pending_review` + halo (`box-shadow 0 0 0 4px` con `--status-pending_review-bg`) — **sustituye** el acento vivo naranja que FE-7 le había puesto; **done** = verde fijo (token `closed`); **pending** = `--color-surface-2` + borde. El morado del paso actual es independiente del estado real de la orden. | Detalle de orden |
 | `ThemeToggle` (FE-5) | grupo de botones (claro/oscuro/sistema) con `aria-pressed`; foco visible; sin datos de negocio; persiste en `localStorage` | Shell (todas) |
 | `BackToList` («Volver a la lista») | control de retorno visible al colapsar master-detail <1024px; foco al activar; ≥44px; texto español; tokens de `ui/` (no estilos sueltos) | MasterDetail colapsado (FE-1) |
+| `Segmented` (FE-8) | control segmentado accesible (`role="radiogroup"`/`radio` o `tablist`/`tab`, según implementación); foco visible; respeta `prefers-reduced-motion`; el segmento **activo** es una **píldora de superficie** (`--color-surface` + `--shadow-1` + `--color-text`), **no** el acento vivo, fiel al artifact | «Mis órdenes» (Activas/Todas, FE-8) |
+| `OfficeTopbar` (FE-8) | marca «F» + buscador (filtra en cliente) + rol + avatar; ver §5.1 | Master-detail de oficina, `≥1024px`, cualquier rol |
 
 **Estados obligatorios de toda vista de datos:** *cargando · vacío · error · sin-permiso*. Un endpoint que
 puede devolver 404/409/503 tiene su estado de UI definido; nada se queda colgado.
