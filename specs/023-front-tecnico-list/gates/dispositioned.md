@@ -15,3 +15,9 @@
 - **T-003** («tarjeta» sin tokens): RESUELTO. FR-005 → tokens concretos (surface + border + `--radius-md` + `--shadow-1`).
 - **S-002** (quién abre qué detalle): RESUELTO. FR-010 → detalle server-authoritative (query por id, 401/403/404 del backend), sin relajar.
 - **S-003** (PII en notas/cliente): RESUELTO. FR-010 → misma exposición que hoy por rol, escapado, sin nueva superficie de PII ni logs.
+
+## Ronda 2 (ancladas al contrato verificado, orders.openapi.yaml)
+- **H-001** (¿listado expone assigned_to?): RESUELTO. `Order.assigned_to` es requerido (`uuid | null`) y el listado devuelve `Order[]` → el condicional es ejecutable.
+- **H-002** (Assumption «detalle solo count/content_types» contradice `notes`): RESUELTO. Corregida la Assumption: `OrderDetailResponse` expone `order` + `notes` (opcional, technician-dueño/supervisor) + `evidence`.
+- **H-003/T-002** (cardinalidad content_types vs count): RESUELTO por invariante del contrato `count == content_types.length` (1:1, ordenado); enum = solo imágenes → etiqueta «Imagen N» honesta; sin caso de mismatch.
+- **T-001** (qué identificador del técnico): RESUELTO. `assigned_to` es un **UUID opaco (sin nombre/PII)** por contrato → se muestra ese UUID cuando no es «Tú»; no hay nombre que mostrar.
