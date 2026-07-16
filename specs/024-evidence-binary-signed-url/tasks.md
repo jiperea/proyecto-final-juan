@@ -80,13 +80,13 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ### Tests (Red primero) ⚠️
 
-- [ ] T022 [P] [US2] Contract test `backend/tests/contract/get-evidence.contract.spec.ts` — `getOrderEvidence` × {200, 401, 404, 410} + cabeceras (nosniff/no-referrer/no-store) + **aserción backend de FR-004**: el cuerpo/headers de la 200 NO contienen ninguna URL firmada ni token de cliente.
+- [x] T022 [P] [US2] Contract test `backend/tests/contract/get-evidence.contract.spec.ts` — `getOrderEvidence` × {200, 401, 404, 410} + cabeceras (nosniff/no-referrer/no-store) + **aserción backend de FR-004**: el cuerpo/headers de la 200 NO contienen ninguna URL firmada ni token de cliente.
 - [ ] T023 [P] [US2] Contract test `backend/tests/contract/detail-evidence-items.contract.spec.ts` — `getOrderDetail.evidence.items[]` (evidence_id+content_type; omitido a dispatcher).
-- [ ] T024 [P] [US2] Integration test `backend/tests/integration/evidence-authz.spec.ts` — dueño/supervisor 200, dispatcher 404 (FR-003); 100% pares rol×autz (SC-002).
-- [ ] T025 [P] [US2] Integration test `backend/tests/integration/evidence-404-uniforme.spec.ts` — 401 sin sesión; 404 no-autz/ajena/inexistente/closed; evidence_id∉order → 404 (FR-007/FR-015).
-- [ ] T026 [P] [US2] Integration test `backend/tests/integration/evidence-410-legacy-superado.spec.ts` — autorizado en alcance con blob legacy/superado → 410; closed → 404 (nunca 410) (FR-009).
+- [x] T024 [P] [US2] Integration test `backend/tests/integration/evidence-authz.spec.ts` — dueño/supervisor 200, dispatcher 404 (FR-003); 100% pares rol×autz (SC-002).
+- [x] T025 [P] [US2] Integration test `backend/tests/integration/evidence-404-uniforme.spec.ts` — 401 sin sesión; 404 no-autz/ajena/inexistente/closed; evidence_id∉order → 404 (FR-007/FR-015).
+- [x] T026 [P] [US2] Integration test `backend/tests/integration/evidence-410-legacy-superado.spec.ts` — autorizado en alcance con blob legacy/superado → 410; closed → 404 (nunca 410) (FR-009).
 - [ ] T027 [P] [US2] Front test `frontend/src/features/orders/OrderDetailView.evidence.test.tsx` — abre imagen desde `blob:`, estados carga/error, sin URL en DOM (FR-010/FR-013) + axe.
-- [ ] T052 [P] [US2] Integration test `backend/tests/integration/evidence-reassign-access.spec.ts` — tras reasignar la orden (cambia `assigned_to`), el técnico **saliente** pierde acceso a `getOrderEvidence` (→404) y el **nuevo** dueño lo obtiene (→200); el supervisor mantiene el suyo; autz re-evaluada por petición (FR-016).
+- [x] T052 [P] [US2] Integration test `backend/tests/integration/evidence-reassign-access.spec.ts` — tras reasignar la orden (cambia `assigned_to`), el técnico **saliente** pierde acceso a `getOrderEvidence` (→404) y el **nuevo** dueño lo obtiene (→200); el supervisor mantiene el suyo; autz re-evaluada por petición (FR-016).
 
 ### Implementación
 
