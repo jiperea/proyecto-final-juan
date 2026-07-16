@@ -1,0 +1,92 @@
+{
+  "phase": "G3",
+  "feature": "022-front-visual-fidelity-preview",
+  "bloqueantes": 0,
+  "altas": 0,
+  "total": 7,
+  "veredicto": "APROBADA_CON_COMENTARIOS",
+  "huecos": [
+    {
+      "id": "I-001",
+      "categoria": "TEST_INSUFICIENTE",
+      "elemento_afectado": "frontend/tests/a11y/axe-fieldops.ts:17 — axe({exclude:[['.btn--primary']]})",
+      "evidencia": "La excepción AA se materializa como `AxeCore.run({ include:[container], exclude:[['.btn--primary']] })`, que retira el elemento .btn--primary y su subárbol de TODA la auditoría axe, no solo de la regla color-contrast.",
+      "descripcion": "FR-010/SC-004 exigen una «supresión de regla de contraste acotada» al botón primario; la implementación excluye el botón de la ejecución completa de axe, silenciando también cualquier OTRA regla (nombre accesible, ARIA, roles) sobre los botones primarios, más allá de contraste.",
+      "pregunta_critica": "¿Debería la supresión limitarse a la regla `color-contrast` para ese selector (p. ej. `rules`/`options` de axe) en lugar de excluir el nodo entero, para que el resto de reglas de a11y sigan verificándose en los botones primarios?",
+      "riesgo_si_no_se_corrige": "Un defecto de accesibilidad no-contraste introducido en un botón primario (p. ej. sin nombre accesible) pasaría la suite sin detectarse; la supresión es más amplia que la única excepción autorizada.",
+      "severidad": "MEDIA",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "I-002",
+      "categoria": "FR_NO_IMPLEMENTADO",
+      "elemento_afectado": "FR-006 | frontend/src/features/orders/OrderDetailView.tsx:161-166",
+      "evidencia": "La sección de evidencia del detalle renderiza únicamente `<p>{evidence.count} archivo(s)</p>`; no hay rejilla ni `<img>` con relación 4/3 + `--radius-sm`. Las únicas miniaturas del proyecto (`.evidence-item__thumb`, EvidencePicker) son cuadradas (`var(--touch-target)`), y solo el tile «+» (`.evidence-add`) usa `aspect-ratio: 4/3`.",
+      "descripcion": "FR-006 pide replicar «las secciones de notas y evidencia con miniaturas de relación 4/3 y --radius-sm»; el detalle no muestra miniaturas (solo un contador) y las miniaturas del picker no son 4/3. La fidelidad literal de la sección de evidencia del preview queda parcial.",
+      "pregunta_critica": "¿Es una limitación acotada por la deuda #007 (evidencia no persistida → sin URL firmada que mostrar en el detalle) y debe anotarse explícitamente, o el picker (FR-008) debería usar tiles 4/3 para coincidir con el «+» y con el artifact?",
+      "riesgo_si_no_se_corrige": "La aprobación humana de fidelidad (SC-001) podría rechazar la pantalla de detalle/ejecución por no reproducir la rejilla de miniaturas 4/3 del preview.",
+      "severidad": "MEDIA",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "I-003",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-011a / SC-001(c) | frontend/tests/unit/layout-by-viewport.test.tsx:7-10 · tasks.md T026",
+      "evidencia": "El test deja constancia de que el aserto operable `scrollWidth <= clientWidth` (FR-011a) no se cubre en jsdom y se traspasa a Playwright MCP en T026; T026 está sin marcar (`[ ]`) en tasks.md.",
+      "descripcion": "El criterio medible central de FR-011a (sin scroll horizontal 360–1440px) y la parte (c) de la rúbrica SC-001 no tienen cobertura automatizada en la suite fusionada; dependen íntegramente de T026, aún pendiente.",
+      "pregunta_critica": "¿Queda el «sin scroll horizontal» verificado como checkpoint humano de PR (T026) antes del merge, o conviene un e2e Playwright determinista que asegure el aserto sin depender de captura manual?",
+      "riesgo_si_no_se_corrige": "Un solapamiento/overflow horizontal en tablet o en el viewport contrario podría llegar a producción sin que ninguna verificación automática lo detecte.",
+      "severidad": "MEDIA",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "I-004",
+      "categoria": "FR_NO_IMPLEMENTADO",
+      "elemento_afectado": "FR-007a | frontend/src/features/orders/OfficeTopbar.tsx:29 · OrderList.tsx:33,99",
+      "evidencia": "El placeholder del buscador anuncia «Buscar por código, orden, cliente o técnico» y la cabecera de tabla renderiza una columna «Cliente» que siempre muestra «—» (`order-item__client`). No existe campo «cliente» en el contrato `Order`; `useOrderFilter.matchesTerm` solo busca sobre id/title/assigned_to.",
+      "descripcion": "El buscador y la tabla prometen un campo «cliente» que nunca tiene dato ni puede coincidir. Es coherente con FR-007a («campos presentes en el payload»), pero la UI publicita una capacidad/columna vacía, desviándose de la fidelidad honesta del artifact.",
+      "pregunta_critica": "¿Debe el placeholder/columna «Cliente» omitirse o marcarse claramente como no disponible mientras el contrato no exponga el cliente, para no anunciar una búsqueda/columna que siempre resuelve «—»?",
+      "riesgo_si_no_se_corrige": "Confusión de usuario: buscar por nombre de cliente nunca devuelve resultados y una columna permanece vacía, sin explicación.",
+      "severidad": "MEDIA",
+      "agente": "revisor-implementacion"
+    },
+    {
+      "id": "S-001",
+      "categoria": "FUGA_DATOS",
+      "elemento_afectado": "FR-007c | H-005 | useOrderFilter.ts",
+      "descripcion": "FR-007c ordena MANTENER en el panel de detalle la orden seleccionada cuando un filtro EN CLIENTE la excluye. Pero H-005 dice que tras un refetch/invalidación/mutación la lista se re-deriva sobre el nuevo conjunto y 'la selección persiste'. No se distingue el caso en que la orden desaparece del nuevo payload por un cambio de ámbito RBAC en servidor (p. ej. tras una reasignación que la saca del scope del rol) frente al caso de simple filtro cliente: si se persiste el panel indiscriminadamente, se seguiría mostrando una orden que el backend ya no incluiría para ese rol.",
+      "pregunta_critica": "¿La persistencia de la orden seleccionada (FR-007c/H-005) se acota a exclusión por FILTRO CLIENTE, y cuando un refetch la elimina del payload role-scoped (ya no la devuelve el backend para ese rol) el panel se limpia en lugar de mostrar datos fuera de ámbito actual?",
+      "riesgo_si_no_se_corrige": "Exposición de datos de una orden que ha salido del ámbito RBAC del usuario tras un cambio de estado/asignación: el panel sigue mostrando cliente/evidencia stale que el backend ya no autorizaría, confundiendo 'quitado por filtro' con 'quitado por permisos'.",
+      "severidad": "MEDIA",
+      "agente": "revisor-rbac-seguridad"
+    },
+    {
+      "id": "K-001",
+      "categoria": "COBERTURA",
+      "elemento_afectado": "FR-015",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-015 exige replicar ÚNICAMENTE las vistas de app y NO reproducir el andamiaje del mockup (marco de móvil, barra 'status 9:41', chrome de navegador simulado, URL falsa). Ninguna tarea de tasks.md ni test lo verifica: es un requisito negativo que no aparece trazado en ninguna tarea de implementación ni de verificación (T003–T028 lo omiten; T026/SC-001 solo comprueban presencia de elementos del artifact, no la ausencia del andamiaje).",
+      "pregunta_critica": "¿Qué tarea/test garantiza que el front NO renderiza el phone frame, la barra '9:41' ni el chrome de navegador del mockup? Falta un aserto de exclusión (p. ej. en la checklist estructural de SC-001/T026 o en un test de estructura).",
+      "riesgo_si_no_se_corrige": "Un desarrollador podría copiar literalmente el andamiaje del mockup (o dejarlo sin verificar), y la fidelidad 'literal' pasaría los tests estructurales positivos sin detectar que se replicó recurso de presentación del artifact ajeno a la app.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    },
+    {
+      "id": "K-002",
+      "categoria": "TRAZABILIDAD",
+      "elemento_afectado": "FR-013a",
+      "artefactos_en_conflicto": [
+        "spec.md",
+        "tasks.md"
+      ],
+      "descripcion": "FR-013a (cada acción reasignar/iniciar-registrar/aprobar-rechazar visible SOLO por rol+estado según la lógica existente; el reskin no relaja ni amplía la visibilidad) solo aparece mencionado de pasada en T013 ('acciones por rol sin cambiar su visibilidad'), sin ninguna tarea de test dedicada en tasks.md que asegure la no-regresión de la visibilidad por rol/estado. La cadena FR→test queda sin cerrar para este invariante de UI, pese a ser un punto sensible del reskin.",
+      "pregunta_critica": "¿Qué test nombrable en tasks.md cubre que replicar el preview NO renderiza acciones fuera de rol/estado? Debe añadirse una tarea [Red]/test explícito (o anclar T013 a un test de regresión de visibilidad) para trazar FR-013a→test.",
+      "riesgo_si_no_se_corrige": "Al re-maquetar el detalle (T013) se podría exponer una acción fuera de rol/estado en la UI sin que ningún test lo detecte (defensa en profundidad rota), dejando el invariante 'no relaja RBAC en UI' sin verificación determinista.",
+      "severidad": "MEDIA",
+      "agente": "revisor-consistencia"
+    }
+  ]
+}
