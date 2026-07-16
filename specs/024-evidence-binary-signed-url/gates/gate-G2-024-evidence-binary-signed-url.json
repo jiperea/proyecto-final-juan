@@ -1,0 +1,18 @@
+{
+  "phase": "G2",
+  "feature": "024-evidence-binary-signed-url",
+  "round": 2,
+  "note": "G2 ronda 2 = verificacion tras remediar la ronda 1. consistencia: K-001/K-002/K-003 cerrados (T051 cycle-replace, T052 reassign-access, T050 atomic-gc existen y casan con la matriz); K-004 cerrado (fila FR-004 -> contract/get-evidence.contract; T022 con asercion backend). cinico: H-001 (dedup) resuelto en spec/data-model/tests, y el resto en T018/T021 (dedup -> 422 sin silencio). Fixes finales editoriales sin ripple: no se re-ejecuta ronda 3 (anti-espiral, XV).",
+  "bloqueantes": 0,
+  "altas": 0,
+  "medias": 0,
+  "total": 0,
+  "veredicto": "PASS",
+  "resumen": "G2 CONVERGE. Sin regresion de G1 (404 uniforme, autz heredada, purga sin acceso, un object_ref<->una fila, TTL por edad, AES-256-GCM). Cobertura FR->tarea completa: se anadieron T050 (FR-011 atomic-gc), T051 (FR-017 cycle-replace), T052 (FR-016 reassign-access) y la asercion backend de FR-004 en T022. Inconsistencia de 'dedup silencioso' resuelta a 422 estricto en spec/data-model/tests/impl. Matriz de trazabilidad alineada con los ficheros reales de tasks.md. 0 bloqueantes / 0 altas / 0 medias. Listo para /speckit-implement -> G3.",
+  "huecos": [],
+  "historial": {
+    "ronda1": { "veredicto": "REQUIERE_CAMBIOS", "bloqueantes": 1, "altas": 2, "medias": 2, "ids": ["K-001", "K-002", "H-001-dedup", "K-003", "K-004"] },
+    "ronda2_residuos": ["H-002 (dedup en T018/T021)", "K-004 (fila FR-004 evidence-session-serve)"],
+    "resolucion": "Todos remediados a nivel tasks/spec-trazabilidad; sin tocar el diseno de G1."
+  }
+}

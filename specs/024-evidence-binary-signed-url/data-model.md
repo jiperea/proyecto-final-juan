@@ -58,7 +58,7 @@ El binario vive en el store (filesystem dev/test, S3-like prod), **cifrado AES-2
 - **Tamaño**: >25 MiB o 0 bytes → **413** (cortado en streaming).
 - **Tope de ciclo**: ≤10 blobs staged vivos; 11.º upload → **422**; `submit` con `evidence[]` >10 → **422**.
 - **Submit re-verifica** cada `object_ref` (in-tx): ajeno/otra orden/otro actor → **404**; malformado → **422**; con fila ya creada → **422**; edad > TTL staging → **422**; sin fila y blob presente y dueño+orden OK → crea fila.
-- **Dedup**: `object_ref`s repetidos en `evidence[]` → una sola fila por blob.
+- **Repetidos**: `object_ref` repetido dentro del mismo `evidence[]` → **422** (entrada inválida; no se deduplica en silencio). El tope ≤10 se cuenta sobre el array crudo.
 
 ## Mapa RBAC (heredado de `getOrderDetail`)
 

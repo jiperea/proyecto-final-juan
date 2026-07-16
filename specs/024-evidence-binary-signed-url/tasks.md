@@ -56,15 +56,17 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 - [ ] T013 [P] [US1] Integration test `backend/tests/integration/evidence-upload-store.spec.ts` — 201 con object_ref; blob cifrado; `count` tras submit (FR-001).
 - [ ] T014 [P] [US1] Integration test `backend/tests/integration/evidence-upload-authz.spec.ts` — autz-primero: no-dueño/estado≠in_progress → 404 antes de validar contenido (FR-020).
 - [ ] T015 [P] [US1] Integration test `backend/tests/integration/evidence-content-validation.spec.ts` — magic-bytes; tipo fuera allowlist → 415; falseado/corrupto → 422; HEIC por marca `ftyp` (FR-019).
-- [ ] T016 [P] [US1] Integration test `backend/tests/integration/evidence-cycle-lifecycle.spec.ts` — acumula ≤10; 11.º → 422; submit>10 → 422; dedup de object_ref (FR-022/H-004).
-- [ ] T017 [P] [US1] Integration test `backend/tests/integration/evidence-ref-ownership.spec.ts` — submit re-verifica ref (ajeno/otra orden/otro actor → 404; malformado → 422; fila-existente → 422; expirado → 422); doble-submit → 409 (FR-023).
+- [ ] T016 [P] [US1] Integration test `backend/tests/integration/evidence-cycle-lifecycle.spec.ts` — acumula ≤10 (array crudo); 11.º → 422; submit>10 → 422; **`object_ref` repetido en `evidence[]` → 422** (no dedup silencioso) (FR-022/FR-023).
+- [ ] T017 [P] [US1] Integration test `backend/tests/integration/evidence-ref-ownership.spec.ts` — submit re-verifica ref (ajeno/otra orden/otro actor → 404; malformado → 422; fila-existente → 422; expirado → 422; repetido → 422); doble-submit → 409 (FR-023).
+- [ ] T050 [P] [US1] Integration test `backend/tests/integration/evidence-atomic-gc.spec.ts` — fallo intermedio (blob staged escrito, transacción de submit hace rollback) → blob queda huérfano → GC lo purga; commit BD = verdad (FR-011).
+- [ ] T051 [P] [US1] Integration test `backend/tests/integration/evidence-cycle-replace.spec.ts` — reject → reenvío con fotos nuevas → attempt anterior marcado superado **inmediato al commit**; `getOrderDetail.items`/`getOrderEvidence` exponen solo el ciclo vigente; evidenceId superados → 410 a autorizados en alcance (FR-017).
 
 ### Implementación
 
-- [ ] T018 [US1] Ampliar reglas de dominio en `backend/src/domain/order/evidence.ts` (validación de contenido real/magic-bytes + HEIC `ftyp`; tope de ciclo ≤10 vivos; dedup).
+- [ ] T018 [US1] Ampliar reglas de dominio en `backend/src/domain/order/evidence.ts` (validación de contenido real/magic-bytes + HEIC `ftyp`; tope de ciclo ≤10 sobre el array crudo; **`object_ref` repetido en `evidence[]` → 422, NO deduplicar en silencio**).
 - [ ] T019 [US1] Handler `backend/src/handlers/orders/upload-evidence.ts` (multipart streaming con `busboy`, corte 25 MiB; autz-primero heredando `isOrderVisible` + estado `in_progress`; 404 uniforme; llama `StoragePort.putStaged`).
 - [ ] T020 [US1] Montar ruta `POST /v1/orders/:orderId/evidence` en `backend/src/handlers/app.ts` (solo `auth`, SIN `requireRole`, igual que getOrderDetail).
-- [ ] T021 [US1] Verificación de refs en el submit: `backend/src/domain/order/write-side/submit-execution.ts` + `backend/src/infra/repositories/order-write-side-repository.ts` (en la `$transaction` existente: re-verificar cada object_ref —dueño+orden, sin fila previa, blob existe in-tx—, dedup, crear filas `OrderEvidence`; códigos 404/422/409).
+- [ ] T021 [US1] Verificación de refs en el submit: `backend/src/domain/order/write-side/submit-execution.ts` + `backend/src/infra/repositories/order-write-side-repository.ts` (en la `$transaction` existente: re-verificar cada object_ref —dueño+orden, sin fila previa, blob existe in-tx—, **rechazar object_ref repetido en `evidence[]` con 422 (sin dedup silencioso)**, crear filas `OrderEvidence`; códigos 404/422/409).
 
 **Checkpoint**: US1 funcional y testeable de forma independiente.
 
@@ -78,12 +80,13 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ### Tests (Red primero) ⚠️
 
-- [ ] T022 [P] [US2] Contract test `backend/tests/contract/get-evidence.contract.spec.ts` — `getOrderEvidence` × {200, 401, 404, 410} + cabeceras (nosniff/no-referrer/no-store).
+- [ ] T022 [P] [US2] Contract test `backend/tests/contract/get-evidence.contract.spec.ts` — `getOrderEvidence` × {200, 401, 404, 410} + cabeceras (nosniff/no-referrer/no-store) + **aserción backend de FR-004**: el cuerpo/headers de la 200 NO contienen ninguna URL firmada ni token de cliente.
 - [ ] T023 [P] [US2] Contract test `backend/tests/contract/detail-evidence-items.contract.spec.ts` — `getOrderDetail.evidence.items[]` (evidence_id+content_type; omitido a dispatcher).
 - [ ] T024 [P] [US2] Integration test `backend/tests/integration/evidence-authz.spec.ts` — dueño/supervisor 200, dispatcher 404 (FR-003); 100% pares rol×autz (SC-002).
 - [ ] T025 [P] [US2] Integration test `backend/tests/integration/evidence-404-uniforme.spec.ts` — 401 sin sesión; 404 no-autz/ajena/inexistente/closed; evidence_id∉order → 404 (FR-007/FR-015).
 - [ ] T026 [P] [US2] Integration test `backend/tests/integration/evidence-410-legacy-superado.spec.ts` — autorizado en alcance con blob legacy/superado → 410; closed → 404 (nunca 410) (FR-009).
 - [ ] T027 [P] [US2] Front test `frontend/src/features/orders/OrderDetailView.evidence.test.tsx` — abre imagen desde `blob:`, estados carga/error, sin URL en DOM (FR-010/FR-013) + axe.
+- [ ] T052 [P] [US2] Integration test `backend/tests/integration/evidence-reassign-access.spec.ts` — tras reasignar la orden (cambia `assigned_to`), el técnico **saliente** pierde acceso a `getOrderEvidence` (→404) y el **nuevo** dueño lo obtiene (→200); el supervisor mantiene el suyo; autz re-evaluada por petición (FR-016).
 
 ### Implementación
 
