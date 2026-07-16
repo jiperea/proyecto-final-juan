@@ -30,7 +30,11 @@ function toDto(view: OrderDetailView): OrderDetailResponseDto {
     body.notes = view.notes;
   }
   if (view.evidence !== undefined) {
-    body.evidence = { count: view.evidence.count, content_types: [...view.evidence.contentTypes] };
+    body.evidence = {
+      count: view.evidence.count,
+      content_types: [...view.evidence.contentTypes],
+      items: view.evidence.items.map((i) => ({ evidence_id: i.id, content_type: i.contentType })),
+    };
   }
   if (view.lastRejectionReason !== undefined) {
     body.last_rejection_reason = view.lastRejectionReason;

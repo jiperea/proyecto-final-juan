@@ -29,6 +29,7 @@ import type { SubmitExecutionDeps } from '../domain/order/write-side/submit-exec
 import { reviewOrderHandler } from './orders/review';
 import type { ReviewOrderDeps } from '../domain/order/write-side/review-order';
 import { summarizeIncidentHandler, type SummarizeIncidentHandlerDeps } from './orders/ai-summary';
+import { uploadEvidenceHandler, type UploadEvidenceDeps } from './orders/upload-evidence';
 import { authenticate } from './middleware/authenticate';
 import { authorizeProbe } from './middleware/authorize';
 import { csrf, type SessionValidityPort } from './middleware/csrf';
@@ -63,6 +64,8 @@ export interface AppDeps {
   readonly summaryDeps: SummarizeIncidentHandlerDeps;
   // 008/#010 — detalle de orden (read-side): reader snapshot + pii-redactor + logger de accesos denegados.
   readonly orderDetailDeps: GetOrderDetailDeps;
+  // 024 — subida de evidencia (uploadOrderEvidence, US1): StoragePort + lookup de autz-primero/tope staging.
+  readonly uploadEvidenceDeps: UploadEvidenceDeps;
   readonly cookie: CookieOptions;
 }
 
@@ -115,6 +118,9 @@ function registerOrderRoutes(app: Express, deps: AppDeps): void {
   );
   // Reasignación (004): 403 FORBIDDEN_ROLE dentro del handler (orden 401→403→404→422 de FR-004).
   app.post('/v1/orders/:orderId/reassignments', auth, reassignOrderHandler(deps.reassignDeps));
+  // Subida de evidencia (024, US1): SOLO `auth` (sin requireRole, igual que getOrderDetail); autz-primero
+  // (dueño+in_progress) y 404 uniforme resueltos DENTRO del handler (FR-020).
+  app.post('/v1/orders/:orderId/evidence', auth, uploadEvidenceHandler(deps.uploadEvidenceDeps));
   // Inicio de trabajo (005, US1): 401→403→404 (pertenencia/uuid)→422 (estado).
   app.post('/v1/orders/:orderId/start', auth, requireRole('technician'), startOrderWorkHandler(deps.startDeps));
   // Registro de ejecución (005, US2): 401→403→422 (payload)→404 (pertenencia)→422 (estado).

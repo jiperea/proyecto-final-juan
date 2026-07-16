@@ -15,7 +15,7 @@ export interface StageBlobOptions {
   readonly bytes: Buffer;
   readonly contentType: string;
   /** Instante (epoch ms) a usar como `createdAt` embebido en el ref. Por defecto, ahora mismo. */
-  readonly atMs?: number;
+  readonly atMs?: number | undefined;
 }
 
 export async function stageBlob(opts: StageBlobOptions): Promise<string> {

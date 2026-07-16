@@ -29,6 +29,10 @@ function snap(over: Partial<OrderDetailSnapshot> = {}): OrderDetailSnapshot {
     lastReject: { id: 'rej-1', at: new Date('2026-07-02T11:00:00Z'), reason: 'faltan fotos' },
     notes: 'notas del técnico',
     evidenceContentTypes: ['image/jpeg', 'image/png'],
+    evidenceItems: [
+      { id: 'ev-1', contentType: 'image/jpeg' },
+      { id: 'ev-2', contentType: 'image/png' },
+    ],
     ...over,
   };
 }
@@ -37,7 +41,14 @@ describe('assembleOrderDetail — technician (FR-001/002/003/006)', () => {
   it('motivo saneado presente; notas + evidencia del ciclo; count == content_types.length', () => {
     const view = assembleOrderDetail({ role: 'technician', snapshot: snap(), redactor: identityRedactor });
     expect(view.notes).toBe('notas del técnico');
-    expect(view.evidence).toEqual({ count: 2, contentTypes: ['image/jpeg', 'image/png'] });
+    expect(view.evidence).toEqual({
+      count: 2,
+      contentTypes: ['image/jpeg', 'image/png'],
+      items: [
+        { id: 'ev-1', contentType: 'image/jpeg' },
+        { id: 'ev-2', contentType: 'image/png' },
+      ],
+    });
     expect(view.evidence?.count).toBe(view.evidence?.contentTypes.length);
     expect(view.lastRejectionReason).toBe('faltan fotos');
   });
@@ -64,10 +75,16 @@ describe('assembleOrderDetail — technician (FR-001/002/003/006)', () => {
   it('sin ciclo → evidence {count:0,content_types:[]}, notes omitida, sin motivo', () => {
     const view = assembleOrderDetail({
       role: 'technician',
-      snapshot: snap({ lastSubmit: null, lastReject: null, notes: null, evidenceContentTypes: [] }),
+      snapshot: snap({
+        lastSubmit: null,
+        lastReject: null,
+        notes: null,
+        evidenceContentTypes: [],
+        evidenceItems: [],
+      }),
       redactor: identityRedactor,
     });
-    expect(view.evidence).toEqual({ count: 0, contentTypes: [] });
+    expect(view.evidence).toEqual({ count: 0, contentTypes: [], items: [] });
     expect('notes' in view).toBe(false);
     expect('lastRejectionReason' in view).toBe(false);
   });

@@ -2,8 +2,10 @@ import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createLogger } from '../../src/infra/logger';
 import { SEED_PASSWORD, SEED_USERS } from '../../prisma/seed-data';
-import { makeTestApp } from '../helpers/test-app';
+import { makeTestApp, testConfig } from '../helpers/test-app';
 import { makeOrder } from '../helpers/transition';
+import { stageBlob } from '../helpers/evidence-storage';
+import { validJpeg } from '../helpers/image-fixtures';
 
 // T024 (005, SC-007) — no-fuga de PII: notes y object_ref centinela NO aparecen en logs ni en el cuerpo de
 // error; OrderAudit.reason = "execution_registered" (nunca el texto de las notas — Constitution XI).
@@ -11,6 +13,8 @@ const { app, prisma } = makeTestApp();
 afterAll(async () => {
   await prisma.$disconnect();
 });
+const ENC_KEY = testConfig().evidenceEncKey;
+const BASE_DIR = testConfig().evidenceStorageDir;
 
 const T = SEED_USERS.technician;
 const SENTINEL_NOTES = 'PII_NOTES_SENTINEL_zzz';
@@ -55,12 +59,20 @@ describe('no-fuga de notes/object_ref (005, SC-007)', () => {
 
   it('OrderAudit.reason = "execution_registered" (nunca el texto de las notas)', async () => {
     const o = await makeOrder(prisma, { status: 'in_progress', assignedTo: T.id });
+    const ref = await stageBlob({
+      baseDir: BASE_DIR,
+      encKey: ENC_KEY,
+      ownerId: T.id,
+      orderId: o.id,
+      bytes: validJpeg(),
+      contentType: 'image/jpeg',
+    });
     const res = await request(app)
       .post(`/v1/orders/${o.id}/execution`)
       .set('Authorization', `Bearer ${techTok}`)
       .send({
         notes: SENTINEL_NOTES,
-        evidence: [{ object_ref: SENTINEL_REF, content_type: 'image/jpeg', size_bytes: 100 }],
+        evidence: [{ object_ref: ref, content_type: 'image/jpeg', size_bytes: 100 }],
       });
     expect(res.status).toBe(200);
     const audit = await prisma.orderAudit.findFirstOrThrow({ where: { orderId: o.id } });

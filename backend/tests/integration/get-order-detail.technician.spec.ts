@@ -39,7 +39,13 @@ describe('getOrderDetail — technician (US1)', () => {
     expect(res.body.order.status).toBe('in_progress');
     expect(res.body.order.assigned_to).toBe(SEED_USERS.technician.id);
     expect(res.body.notes).toBe('Cambié el fusible.');
-    expect(res.body.evidence).toEqual({ count: 2, content_types: ['image/jpeg', 'image/png'] });
+    expect(res.body.evidence.count).toBe(2);
+    expect(res.body.evidence.content_types).toEqual(['image/jpeg', 'image/png']);
+    expect(res.body.evidence.items).toHaveLength(2); // 024/FR-014: items[] mismo orden/longitud
+    expect(res.body.evidence.items.map((i: { content_type: string }) => i.content_type)).toEqual([
+      'image/jpeg',
+      'image/png',
+    ]);
     expect(res.body.last_rejection_reason).toBe('Faltan fotos del cuadro.');
   });
 
@@ -56,7 +62,7 @@ describe('getOrderDetail — technician (US1)', () => {
     const o = await makeOrder(prisma, { status: 'assigned', assignedTo: SEED_USERS.technician.id });
     const res = await get(o.id, tok);
     expect(res.status).toBe(200);
-    expect(res.body.evidence).toEqual({ count: 0, content_types: [] });
+    expect(res.body.evidence).toEqual({ count: 0, content_types: [], items: [] });
     expect(res.body).not.toHaveProperty('notes');
     expect(res.body).not.toHaveProperty('last_rejection_reason');
   });

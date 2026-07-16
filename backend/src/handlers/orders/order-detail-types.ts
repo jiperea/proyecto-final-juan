@@ -4,9 +4,15 @@
 // (domain/order/read-side/ports.ts: OrderDetailSnapshot/EvidenceMeta) para no invertir capas (III).
 import type { OrderDto } from '../contract/order-types';
 
+export interface EvidenceItemDto {
+  evidence_id: string;
+  content_type: string;
+}
+
 export interface EvidenceMetaDto {
   count: number;
   content_types: string[];
+  items: EvidenceItemDto[];
 }
 
 export interface OrderDetailResponseDto {

@@ -18,19 +18,21 @@ import { PrismaOrderDetailReader } from './repositories/order-detail-reader';
 import { PinoDeniedAccessLogger } from './audit/denied-access-logger';
 import { redactStructured } from '../domain/ai/pii-redactor';
 import {
-  PrismaOrderExecutionRepository,
   PrismaOrderReassignmentRepository,
   PrismaOrderTransitionRepository,
   PrismaOrderVisibilityRepository,
   PrismaStartOrderWorkRepository,
   PrismaUserLookupRepository,
 } from './repositories/order-write-side-repository';
+import { PrismaOrderExecutionRepository } from './repositories/order-execution-repository';
 import { PrismaReviewOrderRepository } from './repositories/order-review-repository';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
 import { PrismaSessionRepository } from './repositories/session-repository';
 import { PrismaUserRepository } from './repositories/user-repository';
 import { InMemorySessionState } from './session-state/in-memory';
 import { FsStorageAdapter } from './storage/fs-storage-adapter';
+import { registerStorageFor } from './storage/storage-registry';
+import { PrismaEvidenceUploadRepository } from './repositories/evidence-upload-repository';
 
 const MIN_MS = 60_000;
 const DAY_MS = 86_400_000;
@@ -64,6 +66,12 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
   });
   const refreshTokens = new PrismaRefreshTokenRepository(prisma);
   const sessions = new PrismaSessionRepository(prisma);
+  // 024 — StoragePort: blobs de evidencia cifrados en filesystem (dev/prod-local); en test se puede
+  // sustituir por el fake en memoria (tests/helpers/fake-storage.ts) al construir AppDeps. Se registra
+  // en el registro auxiliar (storage-registry) para que un repositorio instanciado FUERA del container
+  // (tests white-box) pueda resolverlo por defecto (ver order-write-side-repository.ts).
+  const storage = new FsStorageAdapter({ baseDir: config.evidenceStorageDir, encKey: config.evidenceEncKey, clock });
+  registerStorageFor(prisma, storage);
   return {
     clock,
     accountState,
@@ -82,7 +90,12 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
     userLookup: new PrismaUserLookupRepository(prisma),
     orderReassignment: new PrismaOrderReassignmentRepository(prisma),
     startOrderWork: new PrismaStartOrderWorkRepository(prisma),
-    orderExecution: new PrismaOrderExecutionRepository(prisma),
+    orderExecution: new PrismaOrderExecutionRepository(
+      prisma,
+      storage,
+      config.evidenceStagingTtlHours * 3_600_000,
+    ),
+    evidenceUploadLookup: new PrismaEvidenceUploadRepository(prisma),
     orderReview: new PrismaReviewOrderRepository(prisma),
     rateLimit: new InMemoryRateLimit({
       max: config.lockoutMax,
@@ -91,9 +104,7 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
       lockoutSecret: config.lockoutSecret,
     }),
     ...buildAiAdapters(prisma, config), // 007
-    // 024 — StoragePort: blobs de evidencia cifrados en filesystem (dev/prod-local); en test se
-    // puede sustituir por el fake en memoria (tests/helpers/fake-storage.ts) al construir AppDeps.
-    storage: new FsStorageAdapter({ baseDir: config.evidenceStorageDir, encKey: config.evidenceEncKey, clock }),
+    storage,
   };
 }
 
@@ -163,6 +174,7 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
       redactor: { redact: redactStructured },
       deniedLogger: new PinoDeniedAccessLogger(createLogger()),
     }, // 008/#010
+    uploadEvidenceDeps: { storage: a.storage, lookup: a.evidenceUploadLookup }, // 024, US1
 
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,

@@ -63,10 +63,10 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ### Implementación
 
-- [ ] T018 [US1] Ampliar reglas de dominio en `backend/src/domain/order/evidence.ts` (validación de contenido real/magic-bytes + HEIC `ftyp`; tope de ciclo ≤10 sobre el array crudo; **`object_ref` repetido en `evidence[]` → 422, NO deduplicar en silencio**).
-- [ ] T019 [US1] Handler `backend/src/handlers/orders/upload-evidence.ts` (multipart streaming con `busboy`, corte 25 MiB; autz-primero heredando `isOrderVisible` + estado `in_progress`; 404 uniforme; llama `StoragePort.putStaged`).
-- [ ] T020 [US1] Montar ruta `POST /v1/orders/:orderId/evidence` en `backend/src/handlers/app.ts` (solo `auth`, SIN `requireRole`, igual que getOrderDetail).
-- [ ] T021 [US1] Verificación de refs en el submit: `backend/src/domain/order/write-side/submit-execution.ts` + `backend/src/infra/repositories/order-write-side-repository.ts` (en la `$transaction` existente: re-verificar cada object_ref —dueño+orden, sin fila previa, blob existe in-tx—, **rechazar object_ref repetido en `evidence[]` con 422 (sin dedup silencioso)**, crear filas `OrderEvidence`; códigos 404/422/409).
+- [x] T018 [US1] Ampliar reglas de dominio en `backend/src/domain/order/evidence.ts` (validación de contenido real/magic-bytes + HEIC `ftyp`; tope de ciclo ≤10 sobre el array crudo; **`object_ref` repetido en `evidence[]` → 422, NO deduplicar en silencio**).
+- [x] T019 [US1] Handler `backend/src/handlers/orders/upload-evidence.ts` (multipart streaming con `busboy`, corte 25 MiB; autz-primero heredando `isOrderVisible` + estado `in_progress`; 404 uniforme; llama `StoragePort.putStaged`).
+- [x] T020 [US1] Montar ruta `POST /v1/orders/:orderId/evidence` en `backend/src/handlers/app.ts` (solo `auth`, SIN `requireRole`, igual que getOrderDetail).
+- [x] T021 [US1] Verificación de refs en el submit: `backend/src/domain/order/write-side/submit-execution.ts` + `backend/src/infra/repositories/order-write-side-repository.ts` (en la `$transaction` existente: re-verificar cada object_ref —dueño+orden, sin fila previa, blob existe in-tx—, **rechazar object_ref repetido en `evidence[]` con 422 (sin dedup silencioso)**, crear filas `OrderEvidence`; códigos 404/422/409).
 
 **Checkpoint**: US1 funcional y testeable de forma independiente.
 
@@ -92,7 +92,7 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 - [ ] T028 [US2] Handler `backend/src/handlers/orders/get-evidence.ts` (autz heredada; precedencia 401→404→410; sirve binario con `signRead` interno ≤300 s; cabeceras nosniff/Content-Type-real/no-referrer/no-store; verifica evidence_id∈order).
 - [ ] T029 [US2] Montar ruta `GET /v1/orders/:orderId/evidence/:evidenceId` en `backend/src/handlers/app.ts` (solo `auth`).
-- [ ] T030 [US2] Ampliar `backend/src/handlers/orders/get-order-detail.ts` para incluir `evidence.items[]` (evidence_id = `OrderEvidence.id`, content_type; solo roles autorizados, omitido a dispatcher).
+- [x] T030 [US2] Ampliar `backend/src/handlers/orders/get-order-detail.ts` para incluir `evidence.items[]` (evidence_id = `OrderEvidence.id`, content_type; solo roles autorizados, omitido a dispatcher).
 - [ ] T031 [US2] Front: sustituir tiles no-clicables por miniatura/enlace real en `frontend/src/features/orders/OrderDetailView.tsx` (167-176) + hook de lectura por fetch→blob en `frontend/src/features/orders/useOrders.ts`; estados carga/error.
 - [ ] T032 [US2] Front: apuntar la subida de `EvidencePicker.tsx`/`ExecutionForm.tsx` al endpoint multipart `uploadOrderEvidence` (en `frontend/src/features/orders/write-api.ts`).
 

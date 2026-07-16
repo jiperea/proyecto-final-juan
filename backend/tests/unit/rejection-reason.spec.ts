@@ -22,6 +22,7 @@ function snap(over: Partial<OrderDetailSnapshot>): OrderDetailSnapshot {
     lastReject: null,
     notes: null,
     evidenceContentTypes: [],
+    evidenceItems: [],
     ...over,
   };
 }

@@ -1,15 +1,26 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import request from 'supertest';
 import { SEED_PASSWORD, SEED_USERS } from '../../prisma/seed-data';
-import { makeTestApp } from '../helpers/test-app';
+import { makeTestApp, testConfig } from '../helpers/test-app';
 import { makeOrder } from '../helpers/transition';
+import { stageBlob } from '../helpers/evidence-storage';
+import { validJpeg, validPng } from '../helpers/image-fixtures';
 
 // T020 (005, US2) — integración de submitOrderExecution. Happy path atómico + precedencia PAYLOAD PRIMERO
 // (401→403→422 payload→404 pertenencia→422 estado; evidencia antes que notas). Postgres real.
+// 024/FR-023: submitExecution re-verifica cada object_ref contra el StoragePort (dueño+orden, blob vivo);
+// los casos que SÍ completan la transición (happy path / 10 evidencias) usan blobs REALES (`stageBlob`,
+// mismo baseDir/encKey que el container bajo prueba) — los casos que fallan ANTES de tocar el object_ref
+// (payload inválido / orden ajena / estado no legal) conservan refs de formato arbitrario sin cambios.
 const { app, prisma } = makeTestApp();
 afterAll(async () => {
   await prisma.$disconnect();
 });
+const ENC_KEY = testConfig().evidenceEncKey;
+const BASE_DIR = testConfig().evidenceStorageDir;
+function stage(ownerId: string, orderId: string, bytes: Buffer, contentType: string) {
+  return stageBlob({ baseDir: BASE_DIR, encKey: ENC_KEY, ownerId, orderId, bytes, contentType });
+}
 
 const T = SEED_USERS.technician;
 const T2 = SEED_USERS.technician2;
@@ -39,7 +50,11 @@ function exec(orderId: string, body: unknown, tok: string | null = techTok) {
 describe('submitOrderExecution — integración (005, US2)', () => {
   it('happy path → 200 pending_review, version+1, 1 auditoría reason opaco, 1 notas, ≥1 evidencia enlazadas', async () => {
     const o = await makeOrder(prisma, { status: 'in_progress', assignedTo: T.id, version: 2 });
-    const res = await exec(o.id, validBody());
+    const ref = await stage(T.id, o.id, validJpeg(), 'image/jpeg');
+    const res = await exec(
+      o.id,
+      validBody({ evidence: [{ object_ref: ref, content_type: 'image/jpeg', size_bytes: 2048 }] }),
+    );
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('pending_review');
     expect(res.body.version).toBe(3);
@@ -66,11 +81,10 @@ describe('submitOrderExecution — integración (005, US2)', () => {
 
   it('acepta hasta 10 evidencias', async () => {
     const o = await makeOrder(prisma, { status: 'in_progress', assignedTo: T.id });
-    const evidence = Array.from({ length: 10 }, (_, i) => ({
-      object_ref: `ref/multi/${i}`,
-      content_type: 'image/png',
-      size_bytes: 100,
-    }));
+    const refs = await Promise.all(
+      Array.from({ length: 10 }, () => stage(T.id, o.id, validPng(), 'image/png')),
+    );
+    const evidence = refs.map((ref) => ({ object_ref: ref, content_type: 'image/png', size_bytes: 100 }));
     const res = await exec(o.id, validBody({ evidence }));
     expect(res.status).toBe(200);
     expect(await prisma.orderEvidence.count({ where: { orderId: o.id } })).toBe(10);

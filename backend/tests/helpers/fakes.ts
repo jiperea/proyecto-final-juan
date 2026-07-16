@@ -173,6 +173,20 @@ export function minimalAppDeps(over: Partial<AppDeps> = {}): AppDeps {
       redactor: { redact: (t) => t },
       deniedLogger: { record: () => undefined },
     },
+    uploadEvidenceDeps: {
+      storage: {
+        putStaged: async () => 'fake-ref',
+        parseRef: () => err('malformed' as const),
+        signRead: async () => 'fake-handle',
+        read: async () => ({ expired: true }) as const,
+        list: async () => [],
+        delete: async () => undefined,
+      },
+      lookup: {
+        findOrderForUpload: async () => null,
+        filterCommittedRefs: async () => new Set(),
+      },
+    },
     cookie: { refreshMaxAgeMs: 7 * 86_400_000, secure: false },
     ...over,
   };

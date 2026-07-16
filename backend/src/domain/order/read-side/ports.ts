@@ -2,11 +2,20 @@
 // Todo lo que necesita el ensamblador del detalle llega por estos puertos (inyección de dependencias).
 import type { OrderRecord } from '../model';
 
-// Metadatos de evidencia del ciclo vigente (NUNCA object_ref ni binario) — igual forma que EvidenceMeta de 007.
-// `contentTypes` viene ORDENADO por `at` asc (desempate por id) desde el reader; invariante count == length.
+// 024/FR-014 — identificador opaco de evidencia + su content_type (el `object_ref` interno NUNCA se expone).
+export interface EvidenceItem {
+  readonly id: string; // OrderEvidence.id (uuid) — es el `evidenceId` público
+  readonly contentType: string;
+}
+
+// Metadatos de evidencia del ciclo vigente (NUNCA object_ref ni binario) — igual forma que EvidenceMeta de 007,
+// ampliada (024/FR-014) con `items` (evolución compatible: `count`/`contentTypes` no cambian).
+// `contentTypes`/`items` vienen ORDENADOS por `at` asc (desempate por id) desde el reader; invariante
+// count == contentTypes.length == items.length, mismo orden.
 export interface EvidenceMeta {
   readonly count: number;
   readonly contentTypes: readonly string[];
+  readonly items: readonly EvidenceItem[];
 }
 
 // Transición de rechazo (006): fromStatus=pending_review, toStatus=in_progress. `reason` obligatorio (006).
@@ -33,6 +42,7 @@ export interface OrderDetailSnapshot {
   readonly lastReject: RejectAudit | null;
   readonly notes: string | null; // notas del ciclo vigente (null si no hay ciclo o no hay notas)
   readonly evidenceContentTypes: readonly string[]; // ciclo vigente, ordenado por `at` asc (id tiebreak)
+  readonly evidenceItems: readonly EvidenceItem[]; // 024/FR-014: mismo orden/longitud que evidenceContentTypes
 }
 
 // Lectura del snapshot consistente. `null` = la orden NO existe (→ 404). BD no disponible → lanza

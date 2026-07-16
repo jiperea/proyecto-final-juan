@@ -24,13 +24,18 @@ const SNAP: OrderDetailSnapshot = {
   lastReject: { id: 'rej-1', at: new Date('2026-07-02T09:00:00Z'), reason: 'motivo previo' },
   notes: 'notas del técnico',
   evidenceContentTypes: ['image/jpeg'],
+  evidenceItems: [{ id: 'ev-1', contentType: 'image/jpeg' }],
 };
 
 describe('assembleOrderDetail — supervisor/dispatcher (FR-002/FR-005)', () => {
   it('supervisor: notes + evidence, SIN last_rejection_reason', () => {
     const view = assembleOrderDetail({ role: 'supervisor', snapshot: SNAP, redactor });
     expect(view.notes).toBe('notas del técnico');
-    expect(view.evidence).toEqual({ count: 1, contentTypes: ['image/jpeg'] });
+    expect(view.evidence).toEqual({
+      count: 1,
+      contentTypes: ['image/jpeg'],
+      items: [{ id: 'ev-1', contentType: 'image/jpeg' }],
+    });
     expect('lastRejectionReason' in view).toBe(false);
   });
 
