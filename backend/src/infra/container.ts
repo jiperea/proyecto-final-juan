@@ -33,6 +33,7 @@ import { InMemorySessionState } from './session-state/in-memory';
 import { FsStorageAdapter } from './storage/fs-storage-adapter';
 import { registerStorageFor } from './storage/storage-registry';
 import { PrismaEvidenceUploadRepository } from './repositories/evidence-upload-repository';
+import { PrismaEvidenceReadRepository } from './repositories/evidence-read-repository';
 
 const MIN_MS = 60_000;
 const DAY_MS = 86_400_000;
@@ -96,6 +97,7 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
       config.evidenceStagingTtlHours * 3_600_000,
     ),
     evidenceUploadLookup: new PrismaEvidenceUploadRepository(prisma),
+    evidenceReader: new PrismaEvidenceReadRepository(prisma), // 024, US2 (getOrderEvidence)
     orderReview: new PrismaReviewOrderRepository(prisma),
     rateLimit: new InMemoryRateLimit({
       max: config.lockoutMax,
@@ -175,6 +177,12 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
       deniedLogger: new PinoDeniedAccessLogger(createLogger()),
     }, // 008/#010
     uploadEvidenceDeps: { storage: a.storage, lookup: a.evidenceUploadLookup }, // 024, US1
+    getEvidenceDeps: {
+      reader: a.evidenceReader,
+      storage: a.storage,
+      deniedLogger: new PinoDeniedAccessLogger(createLogger()),
+      signTtlSeconds: config.evidenceSignTtlSeconds,
+    }, // 024, US2
 
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,

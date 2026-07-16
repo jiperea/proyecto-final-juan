@@ -34,6 +34,9 @@ const STATUS: Record<ErrorCode, number> = {
   UNSUPPORTED_MEDIA_TYPE: 415,
   PAYLOAD_TOO_LARGE: 413,
   STAGING_LIMIT_EXCEEDED: 422,
+  // getOrderEvidence (US2): fila existe pero el blob es legacy/superado — solo para actor autorizado sobre
+  // orden en alcance (FR-009); 410 nunca visible a un no-autorizado (eso sigue siendo 404).
+  EVIDENCE_GONE: 410,
   // 006: revisión del supervisor. INVALID_REASON (motivo, payload) 422; EVIDENCE_MISSING (guard de evidencia
   // en approve, orden visible sin evidencia) 409 — DISTINTO de EVIDENCE_REQUIRED (005, payload) que sigue en 422.
   INVALID_REASON: 422,

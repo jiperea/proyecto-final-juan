@@ -38,6 +38,7 @@ export type ErrorCode =
   | 'UNSUPPORTED_MEDIA_TYPE' // 415 content_type declarado fuera de la allowlist (FR-019)
   | 'PAYLOAD_TOO_LARGE' // 413 tamaño >25 MiB o 0 bytes (streaming, sin bufferizar entero)
   | 'STAGING_LIMIT_EXCEEDED' // 422 tope ≤10 blobs staged vivos del ciclo superado (FR-022)
+  | 'EVIDENCE_GONE' // 410 getOrderEvidence: fila autorizada y en alcance, pero el blob es legacy o superado (FR-009)
   // --- 006: revisión del supervisor ---
   | 'INVALID_REASON' // 422 motivo inválido tras saneo (rechazo obligatorio; approve si se aporta) — 1..1000
   | 'EVIDENCE_MISSING' // 409 aprobar una orden visible en pending_review pero SIN ≥1 evidencia (invariante 005 rota)

@@ -90,8 +90,8 @@ description: "Task list — Evidencia fotográfica binaria y visualización por 
 
 ### Implementación
 
-- [ ] T028 [US2] Handler `backend/src/handlers/orders/get-evidence.ts` (autz heredada; precedencia 401→404→410; sirve binario con `signRead` interno ≤300 s; cabeceras nosniff/Content-Type-real/no-referrer/no-store; verifica evidence_id∈order).
-- [ ] T029 [US2] Montar ruta `GET /v1/orders/:orderId/evidence/:evidenceId` en `backend/src/handlers/app.ts` (solo `auth`).
+- [x] T028 [US2] Handler `backend/src/handlers/orders/get-evidence.ts` (autz heredada; precedencia 401→404→410; sirve binario con `signRead` interno ≤300 s; cabeceras nosniff/Content-Type-real/no-referrer/no-store; verifica evidence_id∈order).
+- [x] T029 [US2] Montar ruta `GET /v1/orders/:orderId/evidence/:evidenceId` en `backend/src/handlers/app.ts` (solo `auth`).
 - [x] T030 [US2] Ampliar `backend/src/handlers/orders/get-order-detail.ts` para incluir `evidence.items[]` (evidence_id = `OrderEvidence.id`, content_type; solo roles autorizados, omitido a dispatcher).
 - [ ] T031 [US2] Front: sustituir tiles no-clicables por miniatura/enlace real en `frontend/src/features/orders/OrderDetailView.tsx` (167-176) + hook de lectura por fetch→blob en `frontend/src/features/orders/useOrders.ts`; estados carga/error.
 - [ ] T032 [US2] Front: apuntar la subida de `EvidencePicker.tsx`/`ExecutionForm.tsx` al endpoint multipart `uploadOrderEvidence` (en `frontend/src/features/orders/write-api.ts`).
