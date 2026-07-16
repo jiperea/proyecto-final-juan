@@ -16,7 +16,7 @@
 
 - [ ] T002 [P] [US1] **[Red]** `frontend/tests/unit/order-card-meta.test.tsx`: la tarjeta muestra fila superior (código mono + chip), nombre, y **fila de meta** con cliente «—» y técnico; helper `resolveAssignee(assigned_to, sessionUserId)` → «Tú» (coincide), UUID truncado 8 chars (distinto), **«Sin asignar»** (null **o** sessionUserId indefinido/loading). Falla hasta T003/T004 (FR-001/002/003).
 - [ ] T003 [US1] Crear helper puro `frontend/src/features/orders/resolveAssignee.ts`: `(assigned_to: string|null, sessionUserId: string|undefined) => 'Tú' | string(uuid8) | 'Sin asignar'` (userId indefinido → «Sin asignar»). Verde parte de T002.
-- [ ] T004 [US1] En `frontend/src/features/orders/OrderList.tsx` (`OrderItem`) + `orders.css`: maquetar la tarjeta del artifact — fila superior (`--font-mono` código + `StatusBadge`), nombre, **fila de meta** (cliente «—»; técnico vía `resolveAssignee` con `useSession().user?.userId`); sin scroll horizontal ≤390px. Verde T002 (FR-001/002/003).
+- [ ] T004 [US1] En `frontend/src/features/orders/OrderList.tsx` (`OrderItem`) + `orders.css`: maquetar la tarjeta del artifact — fila superior (`--font-mono` código + `StatusBadge`), nombre, **fila de meta** (cliente «—»; técnico vía `resolveAssignee` con `useSession().user?.userId`); sin scroll horizontal ≤390px. `OrderItem` es **compartido** con la fila de oficina (`order-item--row`, FE-8) → la regla de meta aplica también ahí (K-004: incluir en T002 un caso de fila de oficina con `assigned_to` ≠ usuario → UUID). Verde T002 (FR-001/002/003).
 
 ## Phase 3: US2 — Cabecera del detalle (P1) 🎯 MVP
 
@@ -34,14 +34,14 @@
 - [ ] T007 [P] [US3] **[Red]** `frontend/tests/unit/order-detail-notes.test.tsx`: `notes` con contenido → **tarjeta** «Notas del técnico» (section con surface+border+`--radius-md`+`--shadow-1`), texto escapado; `notes` ausente/vacío/solo-espacios → **no** tarjeta. Falla hasta T008 (FR-005).
 - [ ] T008 [US3] En `frontend/src/features/orders/OrderDetailView.tsx` + `orders.css`: notas en tarjeta etiquetada (tokens), solo si `notes?.trim()`. Verde T007 (FR-005).
 - [ ] T009 [P] [US3] **[Red]** `frontend/tests/unit/order-detail-evidence.test.tsx`: `evidence.count` = N>0 → **N tiles** 4/3 (`--radius-sm`) etiquetados **«Imagen N»** 1-based; `count` = 0 → estado **«sin evidencia»** y 0 tiles. Falla hasta T010 (FR-006).
-- [ ] T010 [US3] En `frontend/src/features/orders/OrderDetailView.tsx` (o `EvidencePicker`/subcomponente de detalle) + `orders.css`: rejilla de tiles «Imagen N» por `count` (1-based) con relación 4/3; «sin evidencia» si 0. Verde T009 (FR-006).
+- [ ] T010 [US3] En `frontend/src/features/orders/OrderDetailView.tsx` (sección de evidencia del **detalle**, NO `EvidencePicker` —ese es la pantalla de registrar ejecución, fuera de alcance—) + `orders.css`: rejilla de tiles «Imagen N» por `count` (1-based) con relación 4/3; «sin evidencia» si 0. Verde T009 (FR-006).
 
 ## Phase 5: Polish, verificación y evidencia
 
 - [ ] T011 [US1] Confirmar disciplina «token o nada»: 0 hex/px/font sueltos (stylelint verde); reutiliza tokens de FE-8 (FR-008/SC-005).
-- [ ] T012 Correr los gates del front en verde: `cd frontend && npm run lint`, `tsc -b --noEmit`, `stylelint`, `build`, `vitest` (incl. axe). **0 regresiones**; `rbac-reskin-regression` verde (FR-007/SC-004).
+- [ ] T012 Correr los gates del front en verde: `cd frontend && npm run lint`, `tsc -b --noEmit`, `stylelint`, `build`, `vitest` (incl. axe). **0 regresiones**; `rbac-reskin-regression` verde; los **tests de tema/responsive existentes** (theme-toggle, master-detail-resize, etc.) siguen verdes → ancla determinista de la no-regresión de tema/viewport (FR-007/FR-008/SC-004).
 - [ ] T013 **Capturas Playwright MCP** (con login del seed) de la lista del técnico (móvil) y del detalle (técnico y supervisor) en **claro y oscuro**, para la **aprobación humana de fidelidad** (rúbrica SC-001/002). *(Requiere credencial del seed → pedir al usuario.)*
-- [ ] T014 Actualizar `docs/traceability.md` (fila **FE-9**: FR→componente→test) (FR-008).
+- [ ] T014 Actualizar `docs/traceability.md` (fila **FE-9**: FR→componente→test) — tarea de trazabilidad/proceso (Constitution VI), no de FR-008.
 - [ ] T015 **Verificación de alcance sobre el DIFF FINAL** (última): producción solo en `frontend/src/features/orders/**` (+ `orders.css`); import de solo-lectura de `features/auth/session` permitido; docs = `docs/traceability.md`; **0** backend/contracts/domain; **0** RBAC (FR-007/FR-010/SC-006).
 
 ## Dependencias
