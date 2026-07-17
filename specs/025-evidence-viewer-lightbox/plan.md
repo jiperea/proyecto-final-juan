@@ -83,13 +83,13 @@ frontend/src/
 │   ├── OrderDetailView.tsx      # MODIF — orquesta el visor sobre items[]; estado por orden (FR-014)
 │   ├── useOrders.ts             # useOrderEvidence (reutilizado; carga por evidence_id)
 │   └── ...
-├── i18n/errors.ts               # REUTILIZA mensajes (NOT_AVAILABLE_MESSAGE, messageForCode, FALLBACK)
+├── i18n/errors.ts               # REUTILIZA mensajes (messageForCode('EVIDENCE_GONE'), OFFLINE_MESSAGE, FALLBACK_MESSAGE)
 └── api/client.ts                # apiFetchBlob (reutilizado)
 
 frontend/tests|src/**/__tests__/  # NUEVO — EvidenceViewer.test.tsx (RTL + vitest-axe, getOrderEvidence mockeado)
 ```
 
-**Structure Decision**: Web app hexagonal; esta feature vive **solo en `frontend/src/`**. El componente nuevo `EvidenceViewer` encapsula el overlay+carrusel; `EvidenceTile` pasa de «pintar la imagen incrustada» a «ser el disparador que abre el visor en su posición»; `OrderDetailView` mantiene el estado de apertura/índice y lo reinicia al cambiar de orden (FR-014). Se extienden las clases `.dialog`/`.dialog-overlay` de `components.css` (o se añaden `.evidence-viewer*`) usando solo tokens.
+**Structure Decision**: Web app hexagonal; esta feature vive **solo en `frontend/src/`**. El componente nuevo `EvidenceViewer` encapsula el overlay+carrusel; `EvidenceTile` pasa de «pintar la imagen incrustada» a «ser el disparador que abre el visor en su posición»; `OrderDetailView` mantiene el estado de apertura/índice, y el reset entre órdenes lo da el **remount existente** (`key={orderId}` en `OrdersView`) — sin lógica de reset manual; el visor revoca sus object URLs al desmontar (FR-014). Se extienden las clases `.dialog`/`.dialog-overlay` de `components.css` (o se añaden `.evidence-viewer*`) usando solo tokens.
 
 ## Complexity Tracking
 

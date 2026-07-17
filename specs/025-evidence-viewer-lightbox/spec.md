@@ -33,7 +33,7 @@ Como técnico asignado o supervisor viendo el detalle de una orden, al pulsar un
 
 1. **Given** una orden visible con una evidencia cuyo blob existe, **When** el usuario activa el tile (click o Enter/Espacio), **Then** se abre un visor superpuesto (`role=dialog`, `aria-modal=true`) que muestra la imagen a tamaño completo obtenida por el flujo fetch→blob existente, sin que la URL del endpoint aparezca en el DOM.
 2. **Given** el visor abierto, **When** el usuario pulsa Esc, o el botón de cerrar, o hace click en el fondo (backdrop) fuera de la imagen, **Then** el visor se cierra y el foco vuelve al tile que lo abrió.
-3. **Given** el visor abierto mientras la imagen aún se descarga, **When** la descarga está en curso, **Then** se muestra un indicador de carga; **When** la descarga falla con 410, **Then** se muestra el mensaje «La evidencia ya no está disponible» (heredado de 024) dentro del visor, sin imagen rota.
+3. **Given** el visor abierto mientras la imagen aún se descarga, **When** la descarga está en curso, **Then** se muestra un indicador de carga; **When** la descarga falla con 410 (`EVIDENCE_GONE`), **Then** se muestra «Esta imagen ya no está disponible.» (el texto de `messageForCode('EVIDENCE_GONE')`, heredado de 024) dentro del visor, sin imagen rota.
 4. **Given** el visor abierto, **When** el usuario navega con Tab/Shift+Tab, **Then** el foco permanece atrapado entre los controles del visor (no se escapa al contenido de fondo).
 
 ---
@@ -50,7 +50,7 @@ Como usuario viendo el detalle de una orden con **varias** evidencias, quiero mo
 
 1. **Given** una orden con N≥2 evidencias con blob, **When** el usuario abre el visor desde el tile de posición k, **Then** el visor muestra la imagen k y un indicador textual «k de N».
 2. **Given** el visor abierto en la posición k, **When** el usuario activa «siguiente» (control o flecha derecha) con k<N, **Then** el visor muestra la imagen k+1 y el indicador pasa a «k+1 de N»; **When** activa «anterior» (o flecha izquierda) con k>1, **Then** muestra k−1.
-3. **Given** el visor en la primera (k=1) o última (k=N) evidencia, **When** el usuario intenta retroceder desde la primera o avanzar desde la última, **Then** la navegación no sobrepasa los límites (sin envolver) y el control fuera de rango permanece **visible pero deshabilitado** (`aria-disabled=true`), sin eliminarse del DOM.
+3. **Given** el visor en la primera (k=1) o última (k=N) evidencia, **When** el usuario intenta retroceder desde la primera o avanzar desde la última, **Then** la navegación no sobrepasa los límites (sin envolver) y el control fuera de rango permanece **visible pero deshabilitado con `disabled` nativo** (no tabulable ni activable), sin eliminarse del DOM.
 4. **Given** una orden con **una sola** evidencia, **When** se abre el visor, **Then** no se ofrecen controles de anterior/siguiente ni indicador de posición.
 
 ---
@@ -60,7 +60,7 @@ Como usuario viendo el detalle de una orden con **varias** evidencias, quiero mo
 - **Sin evidencia / rol sin acceso**: si la orden no tiene evidencias, o el rol no puede verlas (p. ej. dispatcher), no existe tile que activar y el visor nunca se muestra.
 - **Tile legacy sin `evidence_id`**: un tile del fallback legacy (evidencia sin `evidence_id`) no es interactivo y **no abre el visor** (no hay identificador con el que pedir el binario) — ver FR-001.
 - **Orden cerrada**: si la orden pasa a `closed`, por diseño de 024 («closed no se sirve nunca») `getOrderEvidence` devuelve 404 y el visor muestra el mensaje genérico (FR-005). Es comportamiento **correcto**, no un fallo del visor.
-- **prefers-reduced-motion**: con la preferencia activa, las transiciones de apertura/cambio de imagen pasan a 0 ms (cambio instantáneo) — ver FR-010c.
+- **prefers-reduced-motion**: con la preferencia activa, la transición de apertura/cierre del visor pasa a 0 ms; el cambio de imagen del carrusel ya es un swap instantáneo (sin transición) — ver FR-010c.
 - **Blob purgado o expirado (410) durante el carrusel**: si al navegar a otra evidencia su blob ya no está, esa posición muestra el mensaje de no disponible (FR-005) sin romper la navegación al resto.
 - **Doble activación / reapertura**: reabrir el visor tras cerrarlo vuelve a partir del tile pulsado; no quedan visores duplicados ni fugas de object URLs (se revocan al cerrar/cambiar — FR-013).
 
@@ -72,18 +72,18 @@ Como usuario viendo el detalle de una orden con **varias** evidencias, quiero mo
 - **FR-002**: WHEN el visor necesita el binario de una evidencia THE front SHALL obtenerlo mediante el flujo fetch→blob existente (`getOrderEvidence`) y renderizarlo desde un object URL, SIN incluir la URL del endpoint como atributo `src`/`href` en el DOM.
 - **FR-003**: WHEN el visor está abierto y el usuario pulsa Esc, activa el control de cerrar, o hace click en el backdrop fuera de la imagen THE front SHALL cerrar el visor y devolver el foco al elemento (tile) que lo abrió.
 - **FR-004**: WHILE el visor está abierto THE front SHALL mantener el foco del teclado atrapado dentro del visor (Tab/Shift+Tab ciclan solo por sus controles) y no debe ser posible interactuar por teclado con el contenido de fondo.
-- **FR-005**: WHILE el binario de la evidencia mostrada se está descargando THE front SHALL mostrar un indicador de carga dentro del visor. WHEN `getOrderEvidence` responde 401 THE front SHALL delegar en el manejo de sesión existente del cliente HTTP (refresh/logout ya implementado en `apiFetch`), sin tratarlo como error del visor. WHEN responde 410 THE front SHALL mostrar «La evidencia ya no está disponible». WHEN responde 404, o falla la red, o cualquier otro estado ≥400 distinto de 401/410 THE front SHALL mostrar un único mensaje inline genérico dentro del visor (p. ej. «No se ha podido cargar la imagen») sin imagen rota y **sin exponer** el código ni detalle interno del error en el DOM.
+- **FR-005**: WHILE el binario de la evidencia mostrada se está descargando THE front SHALL mostrar un indicador de carga dentro del visor. WHEN `getOrderEvidence` responde 401 THE front SHALL delegar en el manejo de sesión existente del cliente HTTP (refresh/logout ya implementado en `apiFetch`), sin tratarlo como error del visor. WHEN responde **410 `EVIDENCE_GONE`** THE front SHALL mostrar `messageForCode('EVIDENCE_GONE')` (= «Esta imagen ya no está disponible.», el mismo texto que ya usa `EvidenceTile`). WHEN falla la **red/offline** THE front SHALL mostrar `OFFLINE_MESSAGE` (= «Sin conexión. Reinténtalo.»). WHEN responde **404 o cualquier otro estado ≥400 distinto de 401/410** THE front SHALL mostrar **`FALLBACK_MESSAGE`** (= «Ha ocurrido un error. Reinténtalo.»), un **único** texto fijo para todos esos casos —**NO** el texto por-código de `messageForCode` para 404/403/etc.— preservando el «404 uniforme» de 024 (el visor no revela el motivo/código de la denegación), sin imagen rota. El estado de carga/error es **por evidencia (por índice)**, no compartido entre posiciones del carrusel. WHEN la descarga resuelve 200 pero el binario **no es decodificable** como imagen (evento `onerror` del `<img>`) THE front SHALL mostrar `FALLBACK_MESSAGE` en lugar de una imagen rota, **revocar de inmediato el object URL** de ese blob (no esperar al cierre/cambio) y **no registrar** en consola/telemetría la URL blob, el `evidence_id` ni el detalle del error (solo el mensaje genérico en UI).
 - **FR-006**: WHEN la orden tiene N≥2 evidencias con `evidence_id` THE front SHALL ofrecer navegación anterior/siguiente dentro del visor y un indicador textual de posición «k de N».
 - **FR-007**: WHEN el usuario abre el visor desde el tile de posición k THE front SHALL mostrar inicialmente la evidencia k.
-- **FR-008**: WHEN el usuario activa siguiente/anterior (control o flechas ←/→) THE front SHALL cambiar a la evidencia adyacente dentro del rango [1..N] sin envolver (no pasa de N a 1 ni de 1 a N) y actualizar el indicador. WHEN la posición actual es el límite (k=1 para «anterior», k=N para «siguiente») THE front SHALL mantener el control correspondiente **visible pero deshabilitado** (`aria-disabled=true` / `disabled`), sin eliminarlo del DOM, para no alterar el orden de foco.
+- **FR-008**: WHEN el usuario activa siguiente/anterior (control o flechas ←/→) THE front SHALL cambiar a la evidencia adyacente dentro del rango [1..N] sin envolver (no pasa de N a 1 ni de 1 a N) y actualizar el indicador. WHEN la posición actual es el límite (k=1 para «anterior», k=N para «siguiente») THE front SHALL mantener el control correspondiente **visible pero deshabilitado con el atributo nativo `disabled`** (no solo `aria-disabled`), sin eliminarlo del DOM: así el focus-trap reutilizado (selector `button:not([disabled])`) lo **excluye del ciclo de Tab** y no es activable por click/Enter. WHEN el usuario navega rápido (varias pulsaciones antes de resolver una descarga) THE front SHALL garantizar que **solo la respuesta correspondiente al índice vigente** actualiza la imagen (una respuesta tardía de una posición abandonada no sobrescribe la actual).
 - **FR-009**: WHEN la orden tiene exactamente 1 evidencia THE front SHALL NOT mostrar controles de navegación ni indicador de posición.
 - **FR-010**: THE front SHALL estilar el visor usando exclusivamente tokens del design system, sin valores hex, px ni familia/tamaño de tipografía sueltos en sus componentes (verificable por stylelint/eslint del proyecto, 0 hallazgos).
-- **FR-010b**: THE front SHALL presentar todos los textos del visor en español, coherente con la convención del proyecto: los **mensajes de error/estado** reutilizan el módulo centralizado `src/i18n/errors.ts` (p. ej. `NOT_AVAILABLE_MESSAGE`, `messageForCode`, `FALLBACK_MESSAGE`, como ya hace `EvidenceTile`), y las **etiquetas de control** (cerrar, anterior/siguiente, «k de N») son literales en español como el resto del design system (p. ej. `ConfirmDialog`). No se introduce un framework i18n nuevo.
-- **FR-010c**: WHEN `prefers-reduced-motion: reduce` está activo THE front SHALL aplicar duración de transición de **0 ms** (cambio instantáneo) a la apertura/cierre del visor y al cambio de imagen del carrusel.
+- **FR-010b**: THE front SHALL presentar todos los textos del visor en español, coherente con la convención del proyecto: los **mensajes de error/estado** reutilizan el módulo centralizado `src/i18n/errors.ts` — `messageForCode('EVIDENCE_GONE')` para el 410, `OFFLINE_MESSAGE` para red, `FALLBACK_MESSAGE` para el resto (ver FR-005); **sin inventar strings nuevos**. Las **etiquetas de control** (cerrar, anterior/siguiente, indicador «k de N») son literales en español como el resto del design system (p. ej. `ConfirmDialog`: «Confirmar»/«Cancelar»). No se introduce un framework i18n nuevo.
+- **FR-010c**: La **única** transición animada del visor es su **apertura/cierre** (sobre la clase del overlay/diálogo, p. ej. `.evidence-viewer`/`.evidence-viewer__overlay`); el **cambio de imagen del carrusel es un swap instantáneo sin transición CSS** (no hay nada que animar ahí). THE front SHALL envolver esa transición de apertura/cierre en una regla `@media (prefers-reduced-motion: reduce)` que fija su duración a **0 ms** (mecanismo **CSS puro**, sin lectura JS de `matchMedia`). Verificable de forma estática: la regla existe en `components.css` y aplica a la clase nombrada del visor (consistente con `reduced-motion.test.ts`).
 - **FR-011**: THE front SHALL renderizar y operar el visor sin scroll horizontal del contenido en anchos de viewport de **360 px** (campo/móvil) y **1280 px** (oficina/escritorio), con la imagen contenida (`max-width:100%`) y controles interactivos con área táctil de **≥44×44 px**.
 - **FR-012**: THE feature SHALL NOT modificar backend, contrato OpenAPI, RBAC, el endpoint `getOrderEvidence` ni el seed; la autorización de la evidencia permanece server-authoritative y heredada exacta de `getOrderDetail`.
 - **FR-013**: WHEN el visor se cierra o cambia la imagen mostrada (carrusel) THE front SHALL revocar (`URL.revokeObjectURL`) los object URLs que dejan de estar en uso, de modo que no se acumulen referencias de blob en memoria.
-- **FR-014**: WHEN el usuario navega a otra orden de detalle (sin recarga completa de la SPA) THE front SHALL reiniciar el estado del visor (índice actual, lista de evidencias en memoria y object URLs), de forma que nunca se solicite un binario con un par `orderId`/`evidence_id` mezclado de una navegación anterior.
+- **FR-014**: THE front SHALL garantizar que el estado del visor (índice, lista de evidencias, object URLs) **no se arrastra entre órdenes distintas**, de forma que nunca se solicite un binario con un par `orderId`/`evidence_id` mezclado. Esto se apoya en el invariante de arquitectura existente: `OrdersView` monta `<OrderDetailView key={orderId} …>`, por lo que **cambiar de orden remonta todo el detalle** (incluido el visor y su estado), que nace limpio para la nueva orden. El requisito verificable de esta feature es: WHEN el `EvidenceViewer` **se desmonta** (por cambio de orden vía remount, o por cierre) THE front SHALL **revocar los object URLs** que tuviera vivos (efecto de limpieza), sin fugas. Este invariante (el `key={orderId}`) queda **protegido por un test de gobernanza** (T003), de modo que un refactor futuro que lo elimine falle. *(La gestión del foco al navegar entre órdenes es comportamiento preexistente de la SPA, no introducido ni alterado por esta feature.)*
 
 ### Key Entities *(include if feature involves data)*
 
@@ -97,23 +97,25 @@ Como usuario viendo el detalle de una orden con **varias** evidencias, quiero mo
 
 | FR | Endpoint(s) | Tarea(s) | Test(s) |
 |----|-------------|----------|---------|
-| FR-001 | (reutiliza) getOrderEvidence | (pend. tasks) | `should abrir el visor al activar un tile de evidencia` |
-| FR-002 | getOrderEvidence | (pend. tasks) | `should renderizar la imagen desde blob sin exponer la URL del endpoint` |
-| FR-003 | — | (pend. tasks) | `should cerrar con Esc/backdrop/botón y devolver foco al tile` |
-| FR-004 | — | (pend. tasks) | `should atrapar el foco dentro del visor` |
-| FR-005 | getOrderEvidence | (pend. tasks) | `should mostrar carga, 410 y mensaje genérico (404/red) sin fuga` |
-| FR-006 | — | (pend. tasks) | `should mostrar navegación e indicador k de N con N>=2` |
-| FR-007 | — | (pend. tasks) | `should abrir en la posición del tile pulsado` |
-| FR-008 | — | (pend. tasks) | `should navegar adyacente sin envolver y deshabilitar en los límites` |
-| FR-009 | — | (pend. tasks) | `should ocultar navegación con una sola evidencia` |
-| FR-010 | — | (pend. tasks) | `stylelint/eslint: 0 hex/px/tipografía sueltos en el visor` |
-| FR-010b | — | (pend. tasks) | `should reutilizar src/i18n/errors.ts para mensajes de error del visor` |
-| FR-010c | — | (pend. tasks) | `should aplicar 0ms con prefers-reduced-motion` |
-| FR-011 | — | (pend. tasks) | `should no tener scroll horizontal a 360px y 1280px` |
-| FR-012 | — | (pend. tasks) | `arch: sin cambios en backend/contracts/rbac/seed` |
-| FR-013 | — | (pend. tasks) | `should revocar object URLs al cerrar/cambiar imagen` |
-| FR-014 | — | (pend. tasks) | `should reiniciar el estado del visor al cambiar de orden` |
-| (edge legacy) | — | (pend. tasks) | `should no abrir el visor en un tile sin evidence_id` |
+| FR-001 | (reutiliza) getOrderEvidence | T004 (Red), T006, T007 | `should abrir el visor al activar un tile de evidencia` |
+| FR-002 | getOrderEvidence | T008, T010 | `should renderizar la imagen desde blob sin exponer la URL del endpoint` |
+| FR-003 | — | T007, T009 | `should cerrar con Esc/backdrop/botón y devolver foco al tile` |
+| FR-004 | — | T007, T009 | `should atrapar el foco dentro del visor` |
+| FR-005 | getOrderEvidence | T008, T010 | `should mostrar 410 (EVIDENCE_GONE), OFFLINE, FALLBACK único (404/otros) y onError de img sin fuga` |
+| FR-006 | — | T012, T013 | `should mostrar navegación e indicador k de N con N>=2` |
+| FR-007 | — | T012, T013 | `should abrir en la posición del tile pulsado` |
+| FR-008 | — | T012, T013 | `should navegar sin envolver, límites con disabled nativo, y sin cruces en navegación rápida` |
+| FR-009 | — | T012, T013 | `should ocultar navegación con una sola evidencia` |
+| FR-010 | — | T001, T003 | `governance: 0 hex/px/tipografía sueltos en el visor` |
+| FR-010b | — | T007, T008, T012 | `should usar EVIDENCE_GONE/OFFLINE/FALLBACK de errors.ts y etiquetas es en controles (incl. carrusel)` |
+| FR-010c | — | T001, T015 | `should tener regla @media prefers-reduced-motion:reduce a 0ms en el visor (CSS estático)` |
+| FR-011 | — | T001, T016 | `should no tener scroll horizontal a 360px y 1280px; controles >=44px` |
+| FR-012 | — | T003 | `governance: sin cambios en backend/contracts/rbac/seed; OrdersView mantiene key={orderId}` |
+| FR-013 | — | T008, T010, T014 | `should revocar object URLs al cerrar y al cambiar de imagen` |
+| FR-014 | — | T004, T005 | `should no arrastrar estado entre órdenes (remount) y revocar object URLs al desmontar` |
+| (edge legacy) | — | T004, T006 | `should no abrir el visor en un tile sin evidence_id` |
+| (edge 410 por-índice / carrera) | — | T012, T013 | `should aislar 410 por índice y no cruzar imágenes en navegación rápida` |
+| (edge reapertura) | — | T007, T009 | `should no duplicar overlay al abrir→cerrar→reabrir` |
 
 > Se mantiene en `docs/traceability.md` al implementar.
 

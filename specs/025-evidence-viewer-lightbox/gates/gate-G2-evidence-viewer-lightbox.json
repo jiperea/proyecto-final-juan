@@ -1,0 +1,26 @@
+{
+  "gate": "G2",
+  "feature": "025-evidence-viewer-lightbox",
+  "fecha": "2026-07-17",
+  "panel": ["revisor-consistencia", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-cinico"],
+  "rondas": 6,
+  "veredicto_global": "PASS",
+  "bloqueantes_final": 0,
+  "cierre": "PASS en 6 rondas. r1: 2 bloqueantes (FR-014 sin test Red; strings de error 410 inventados). r2-r6: cadena de remediación aterrizada en código real (strings de errors.ts; disabled nativo por el selector del focus-trap; colapso de errores a FALLBACK único sin oráculo; reduced-motion CSS estático; FR-014 apoyada en el remount key={orderId} en vez de reset manual + guardarraíl del invariante). Convergió sin espiral tras aislar cada matiz a su verificación real.",
+  "resumen": "Consistencia y regresión G1. 2 BLOQUEANTES: FR-014 sin tarea de test Red (K-001/H-003) y contradicción de strings de error 410 spec↔repo (T-001, auditor). ALTAs: orden TDD (foundational impl antes de Red), disabled nativo vs aria-disabled en límites (focus-trap de ConfirmDialog filtra :not([disabled])), colapso de errores 404 a mensaje único (S-001, no reabrir oráculo de 024). Remediado: tasks.md reescrito Red-primero con cobertura de FR-014/FR-010c/legacy/reapertura/410-por-indice/carrera/etiquetas-es; FR-005/FR-010b citan strings reales de errors.ts; FR-008 fija disabled nativo; test de gobernanza adelantado.",
+  "huecos": [
+    {"id": "K-001/H-003", "fuente": "consistencia+cinico", "sev": "BLOQUEANTE", "elemento": "FR-014", "resolucion": "T004 (Red foundational) ahora testea reset al cambiar de orden antes de T005 (impl)."},
+    {"id": "T-001", "fuente": "auditor-spec-theater", "sev": "BLOQUEANTE", "elemento": "FR-005/FR-010b strings", "resolucion": "Fijados strings reales de errors.ts: 410=messageForCode('EVIDENCE_GONE')='Esta imagen ya no está disponible.'; red=OFFLINE_MESSAGE; resto=FALLBACK_MESSAGE. Eliminada cita errónea de NOT_AVAILABLE_MESSAGE (404 de orden)."},
+    {"id": "K-006/H-001", "fuente": "consistencia+cinico", "sev": "ALTA", "elemento": "orden TDD", "resolucion": "Foundational reestructurado Red→Green (T004 Red antes de T005/T006)."},
+    {"id": "H-002", "fuente": "cinico", "sev": "ALTA", "elemento": "FR-008 disabled", "resolucion": "FR-008/US2-AS3/research fijan `disabled` NATIVO (no solo aria-disabled) para que el focus-trap reutilizado (button:not([disabled])) lo excluya."},
+    {"id": "S-001", "fuente": "rbac", "sev": "ALTA", "elemento": "FR-005/T010 colapso errores", "resolucion": "404/otros → FALLBACK_MESSAGE único (no messageForCode por-código); preserva 404 uniforme de 024. Test T008 lo verifica."},
+    {"id": "K-002", "fuente": "consistencia", "sev": "ALTA", "elemento": "FR-010c test", "resolucion": "T015 test runtime con matchMedia mock (0ms)."},
+    {"id": "H-006", "fuente": "cinico", "sev": "MEDIA", "elemento": "carrera navegación", "resolucion": "FR-008 + T012/T013: solo la respuesta del índice vigente actualiza la imagen; test de navegación rápida."},
+    {"id": "H-005", "fuente": "cinico", "sev": "MEDIA", "elemento": "410 por-índice", "resolucion": "FR-005 estado por-índice; T012 testea 410 en una posición sin contaminar otras."},
+    {"id": "K-004/H-007", "fuente": "consistencia+cinico", "sev": "MEDIA", "elemento": "edge legacy test", "resolucion": "T004 Red cubre tile sin evidence_id no abre visor."},
+    {"id": "H-004", "fuente": "cinico", "sev": "MEDIA", "elemento": "edge reapertura", "resolucion": "T007 testea abrir→cerrar→reabrir sin overlay duplicado."},
+    {"id": "K-003", "fuente": "consistencia", "sev": "MEDIA", "elemento": "etiquetas es controles", "resolucion": "T007/T012 verifican etiquetas/aria-label en español."},
+    {"id": "K-005", "fuente": "consistencia", "sev": "MEDIA", "elemento": "glosario/idioma fichero", "resolucion": "T017 añade términos a docs/09-glossary.md; test renombrado a evidence-viewer-carrusel.test.tsx."},
+    {"id": "S-002", "fuente": "rbac", "sev": "MEDIA", "elemento": "guardarraíl arch", "resolucion": "T003 (test de gobernanza) adelantado a Setup."}
+  ]
+}

@@ -18,15 +18,16 @@ Feature de presentación (frontend). Decisiones de diseño clave, todas ancladas
 
 ## D3 — Estado del carrusel: índice sobre `items[]`, límites deshabilitados, reset por orden
 
-- **Decisión**: el estado de apertura + índice actual vive en `OrderDetailView` (que ya posee `evidence.items[]`). El visor recibe `items`, `startIndex` y callbacks. Navegación ←/→ y controles anterior/siguiente cambian el índice dentro de `[0..N-1]` **sin envolver**; en los límites el control queda **visible + `disabled`/`aria-disabled`** (FR-008). Con N=1, sin controles ni indicador (FR-009).
+- **Decisión**: el estado de apertura + índice actual vive en `OrderDetailView` (que ya posee `evidence.items[]`). El visor recibe `items`, `startIndex` y callbacks. Navegación ←/→ y controles anterior/siguiente cambian el índice dentro de `[0..N-1]` **sin envolver**; en los límites el control queda **visible + `disabled` NATIVO** (no solo `aria-disabled`), porque el focus-trap reutilizado de `ConfirmDialog` filtra `button:not([disabled])` — con `disabled` nativo el control se excluye del Tab y no es activable (FR-008/FR-004). Con N=1, sin controles ni indicador (FR-009).
+- **Carrera de navegación** (FR-008): al cambiar de índice se descarta la respuesta de una posición abandonada — solo la respuesta cuyo `evidence_id` coincide con el índice vigente actualiza la `<img>` (se compara al resolver, patrón anti-stale de TanStack Query por `queryKey` distinto por `evidence_id`).
 - **Orden**: se respeta el orden de `items[]` tal cual lo entrega el backend (assumption de la spec); el indicador «k de N» usa esa posición.
-- **Reset (FR-014)**: al cambiar de `orderId` en el detalle, se cierra el visor y se limpia índice + object URLs (evita pedir un binario con par order/evidence mezclado).
+- **Reset (FR-014) — pasivo por remount**: `OrdersView` monta `<OrderDetailView key={orderId}>`, así que cambiar de orden **remonta** todo el detalle (y el visor): el estado nace limpio, sin lógica de reset manual. El único requisito activo es que el `EvidenceViewer` **revoque sus object URLs al desmontar** (efecto de limpieza). Así nunca se pide un binario con par order/evidence mezclado.
 - **Rationale**: mínimo estado, alineado con cómo `OrderDetailView` ya mapea `items[]` a tiles.
 
 ## D4 — Manejo de errores: reutilizar `src/i18n/errors.ts` y `ApiError`
 
-- **Decisión**: carga → spinner (`Spinner` de `ui/states`). 401 → lo gestiona `apiFetch` (refresh/logout), el visor no lo trata. 410 → `NOT_AVAILABLE_MESSAGE`. 404/red/otros ≥400 → mensaje genérico (`messageForCode`/`FALLBACK_MESSAGE`) **sin** exponer código/detalle (FR-005). Se reutiliza `ApiError.userMessage` como ya hace `EvidenceTile`.
-- **Rationale**: convención de mensajes del proyecto (no hay framework i18n; hay módulo centralizado de mensajes).
+- **Decisión** (strings reales de `src/i18n/errors.ts`, verificados): carga → spinner (`Spinner` de `ui/states`). 401 → lo gestiona `apiFetch` (refresh/logout), el visor no lo trata. **410 `EVIDENCE_GONE`** → `messageForCode('EVIDENCE_GONE')` = «Esta imagen ya no está disponible.» (mismo texto que `EvidenceTile`). **red/offline** → `OFFLINE_MESSAGE` = «Sin conexión. Reinténtalo.». **404/otros ≥400** → `FALLBACK_MESSAGE` = «Ha ocurrido un error. Reinténtalo.», **único** para todos (NO el `messageForCode` por-código, que revelaría el motivo) — preserva el 404 uniforme de 024 (FR-005/S-001 de G2).
+- **Rationale**: convención de mensajes del proyecto (no hay framework i18n; hay módulo centralizado). **Cuidado**: `NOT_AVAILABLE_MESSAGE` es el 404 de *orden*, NO se usa para evidencia; el 410 de evidencia es `EVIDENCE_GONE`.
 
 ## D5 — Estilado: solo tokens; contención de imagen; reduced-motion 0 ms
 
