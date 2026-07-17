@@ -6,7 +6,7 @@
 
 ## Summary
 
-Habilitador de **desarrollo (backend + tooling)** que hace visible la evidencia sembrada en el visor (025). El seed escribe un **blob de imagen real** vía el mismo `StoragePort`/adaptador cifrado de 024 (`putStaged`), de modo que `getOrderEvidence` sirva **200** (no 410) para la evidencia de la orden ancla; y la tooling (`make up`/`make seed`/`make reset`) se re-apunta a la **BD y almacén navegados en dev** (`db`/`fieldops`, `EVIDENCE_STORAGE_DIR`) ejecutando el seed **en el contexto del contenedor `backend`**. **No cambia contrato/dominio/RBAC/prod**; corrige el bug preexistente de `make seed` (poblaba `fieldops_test`).
+Habilitador de **desarrollo (backend + tooling)** que hace visible la evidencia sembrada en el visor (025). El seed escribe un **blob de imagen real** vía el mismo `StoragePort`/adaptador cifrado de 024 (`putStaged`), de modo que `getOrderEvidence` sirva **200** (no 410) para la evidencia de la orden ancla (marcada como **ciclo vigente** —audit `reason:'execution_registered'`, FR-014— para que el GC de staging no la purgue); y la tooling (`make up`/`make seed`/`make reset`) se re-apunta a la **BD y almacén navegados en dev** (`db`/`fieldops`, `EVIDENCE_STORAGE_DIR`) ejecutando el seed **en el contexto del contenedor `backend`**. **No cambia contrato/dominio/RBAC/prod**; corrige el bug preexistente de `make seed` (poblaba `fieldops_test`).
 
 ## Technical Context
 
@@ -23,9 +23,9 @@ Habilitador de **desarrollo (backend + tooling)** que hace visible la evidencia 
 
 **Project Type**: Web app hexagonal — esta feature toca **`backend/prisma/seed.ts`**, **`backend/src/infra/` (validador compartido)**, y **tooling** (`scripts/dcnode.sh`/`Makefile`/`docker-compose`).
 
-**Constraints**: guard dev-local (NODE_ENV≠production + hostname exacto de DATABASE_URL); clave heredada vía `env_file` (sin argv/logs); todo `make reset`/`seed` en el contexto del contenedor backend; object_ref determinista (content-addressed, el que devuelve `putStaged`); seed atómico (blob antes que fila, tx); modelo reset-y-siembra (sin ruta incremental).
+**Constraints**: guard dev-local (NODE_ENV≠production + hostname exacto de DATABASE_URL); clave heredada vía `env_file` (sin argv/logs); todo `make reset`/`seed` en el contexto del contenedor backend; object_ref = **el que devuelve `putStaged`** (no determinista — verificado en G2; no se toca el adaptador); **audit `reason:'execution_registered'`** para que el GC de staging no purgue el blob (FR-014); seed atómico (blob antes que fila, tx); modelo reset-y-siembra (sin ruta incremental; no-acumulación por `make reset`).
 
-**Scale/Scope**: 1 imagen mínima embebida (≤2048 B) en 1 orden ancla; 9 FR, 5 SC.
+**Scale/Scope**: 1 imagen mínima embebida (≤2048 B) en 1 orden ancla; **13 FR** (FR-001..FR-014, FR-012 retirado), 5 SC.
 
 ## Constitution Check
 
@@ -52,7 +52,7 @@ Habilitador de **desarrollo (backend + tooling)** que hace visible la evidencia 
 
 ```text
 backend/
-├── prisma/seed.ts               # MODIF — guard dev-local; escribe blob vía StoragePort (putStaged) ANTES de la fila; object_ref = ref devuelto; RESEED_HINT→make reset
+├── prisma/seed.ts               # MODIF — guard dev-local; escribe blob vía StoragePort (putStaged) ANTES de la fila; object_ref = ref DEVUELTO (no determinista, verificado); OrderAudit ancla reason:'execution_registered' (FR-014, para que el GC no lo purgue); RESEED_HINT→make reset
 ├── src/infra/
 │   ├── config.ts                # MODIF menor — extraer validador de EVIDENCE_ENC_KEY a helper compartido (FR-013)
 │   └── storage/fs-storage-adapter.ts  # SIN CAMBIOS (reutilizado)

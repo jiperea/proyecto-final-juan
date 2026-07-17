@@ -1,0 +1,23 @@
+{
+  "gate": "G2",
+  "feature": "026-seed-evidence-blob",
+  "fecha": "2026-07-17",
+  "panel": ["revisor-consistencia", "auditor-spec-theater", "revisor-rbac-seguridad", "revisor-cinico"],
+  "rondas": 2,
+  "veredicto_global": "PASS",
+  "bloqueantes_final": 0,
+  "cierre": "PASS en 2 rondas. r1: 2 BLOQUEANTES verificados en código (putStaged no determinista; GC purga por reason:null) + FR-009 sin tarea. Rediseño grounded (ref devuelto por putStaged, no-acumulación por make reset; FR-014 audit reason=execution_registered) + cobertura de tasks. r2: los 4 carriles 0 bloqueantes; se alinearon plan/research/trazabilidad y se afinó el fraseo de huérfanos (FR-007/FR-010). rbac verificó que reason=execution_registered deja consistentes GC/lectura/IA.",
+  "resumen": "2 BLOQUEANTES verificados en código: (H-001) putStaged NO es content-addressed (ObjectRef = ownerId/orderId/createdAt/nonce-aleatorio) → FR-007 «object_ref determinista» imposible; (H-002) el OrderAudit del seed tiene reason:null pero gc-job filtra reason:'execution_registered' → el GC purga el blob sembrado al arrancar el backend. Rediseño grounded: FR-007 usa el ref DEVUELTO por putStaged (no determinista) y la no-acumulación la da make reset (limpia almacén+BD); nuevo FR-014 pone reason:'execution_registered' para que el GC lo trate vigente. + FR-009 sin tarea (BLOQUEANTE consistencia) → T009. + cobertura: no-interpolar clave, Makefile sin argv, loadConfig tras refactor, 200 vía endpoint, no-asset, validador compartido, auditar dcnode.",
+  "huecos": [
+    {"id": "H-001", "fuente": "cinico", "sev": "BLOQUEANTE", "elemento": "FR-007 object_ref determinista", "resolucion": "FR-007 reescrito: usa el ref devuelto por putStaged (no determinista, verificado); no-acumulación por make reset (limpia almacén+BD). Sin tocar el adaptador de 024."},
+    {"id": "H-002", "fuente": "cinico", "sev": "BLOQUEANTE", "elemento": "GC purga blob sembrado (reason:null)", "resolucion": "FR-014: el OrderAudit del seed usa reason:'execution_registered' (dato del seed, no toca gc-job) → GC lo trata vigente. T008 test contra runStagingGc real."},
+    {"id": "K-001/T-001", "fuente": "consistencia+auditor", "sev": "BLOQUEANTE/ALTA", "elemento": "FR-009 sin tarea", "resolucion": "T009: test Red almacén no escribible → aborta nombrando la ruta."},
+    {"id": "T-002", "fuente": "auditor", "sev": "MEDIA", "elemento": "200 solo roundtrip adaptador", "resolucion": "T006: integración supertest GET getOrderEvidence → 200 (técnico/supervisor)."},
+    {"id": "T-003/H-004", "fuente": "auditor+cinico", "sev": "MEDIA/ALTA", "elemento": "T005 agrupaba GC/determinismo (024)", "resolucion": "Split: T005 (roundtrip+fila+atomicidad), T006 (200 endpoint), T008 (GC real). Determinismo eliminado (H-001)."},
+    {"id": "S-001", "fuente": "rbac", "sev": "MEDIA", "elemento": "interpolar valor de clave", "resolucion": "T003: el mensaje no interpola el valor de EVIDENCE_ENC_KEY (solo ausencia/longitud)."},
+    {"id": "S-002/K-003", "fuente": "rbac+consistencia", "sev": "MEDIA", "elemento": "clave por argv / asset nuevo", "resolucion": "T012: test de que el Makefile no pasa la clave por argv y que la imagen es constante embebida (sin asset nuevo)."},
+    {"id": "S-003/K-002", "fuente": "rbac+consistencia", "sev": "MEDIA", "elemento": "refactor validador debilita loadConfig / no-dup", "resolucion": "T001: test Red de import compartido + loadConfig sigue rechazando clave inválida."},
+    {"id": "H-003", "fuente": "cinico", "sev": "ALTA", "elemento": "destino dcnode.sh", "resolucion": "T011: decidir dcnode + auditar todos los targets que lo invocan (ninguno siembra db-test en dev)."},
+    {"id": "H-005", "fuente": "cinico", "sev": "MEDIA", "elemento": "salto FR-012 sin nota en spec", "resolucion": "Nota de FR-012 retirado añadida en spec.md."}
+  ]
+}
