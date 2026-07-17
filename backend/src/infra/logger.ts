@@ -13,6 +13,7 @@ const REDACT_PATHS = [
   'reason', // OrderAudit: motivo pre-saneado, nunca en logs ni en errores (FR-008/SC-006)
   'notes', // 005: notas de ejecución = payload PII; nunca en logs ni en errores (FR-005/SC-007)
   'object_ref', // 005: referencia de evidencia potencialmente PII; en logs sólo id/conteo (FR-005/SC-007)
+  'signed_handle', // 024: firma/handle interno de lectura (StoragePort.signRead); NUNCA en logs (FR-008/D6)
   'summary', // 007: resumen IA (posible PII residual); nunca en logs (FR-005). El evento de acceso NO lo lleva.
   'prompt', // 007: prompt minimizado al proveedor; nunca en logs (FR-005/H-002)
   '*.title',
@@ -20,6 +21,8 @@ const REDACT_PATHS = [
   '*.reason',
   '*.notes',
   '*.object_ref',
+  '*.signed_handle',
+  '*.*.signed_handle', // 024: anidado (p. ej. req.evidence.signed_handle) — 2 niveles de wildcard
   '*.summary',
   '*.prompt',
   'orders[*].title', // forma real de la respuesta listOrders: { orders: [{ title, description }] }

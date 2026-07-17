@@ -46,8 +46,9 @@ describe('getOrderDetail — contrato (operationId=getOrderDetail)', () => {
       ['order', 'notes', 'evidence', 'last_rejection_reason'].sort(),
     );
     expect(Object.keys(res.body.order).sort()).toEqual(ORDER_KEYS);
-    expect(Object.keys(res.body.evidence).sort()).toEqual(['count', 'content_types'].sort());
+    expect(Object.keys(res.body.evidence).sort()).toEqual(['count', 'content_types', 'items'].sort());
     expect(res.body.evidence.count).toBe(res.body.evidence.content_types.length);
+    expect(res.body.evidence.count).toBe(res.body.evidence.items.length); // 024/FR-014
     expect(typeof res.body.last_rejection_reason).toBe('string');
   });
 

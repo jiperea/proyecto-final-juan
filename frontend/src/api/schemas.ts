@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type {
+  EvidenceMeta,
   EvidenceRef,
   ExecutionRequest,
   IncidentSummaryResponse,
@@ -7,6 +8,7 @@ import type {
   OrderStatus,
   ReassignmentRequest,
   ReviewRequest,
+  UploadEvidenceResponse,
 } from './types';
 
 // Validación runtime en el boundary (FR-016). Derivado del contrato; en CI el objetivo es generarlo
@@ -35,18 +37,31 @@ export const orderListResponseSchema = z.object({
   orders: z.array(orderSchema),
 });
 
-export const orderDetailResponseSchema = z.object({
-  order: orderSchema,
-  notes: z.string().optional(),
-  evidence: z.object({ count: z.number(), content_types: z.array(z.string()) }).optional(),
-  last_rejection_reason: z.string().optional(),
-});
-
 // ── Write-side del técnico (FE-2, FR-004/FR-005/FR-008) ──────────────────────────────────────────
 // Derivado del contrato (EvidenceRef/ExecutionRequest). El binario NO viaja; solo metadato.
 export const CONTENT_TYPE_ALLOWLIST = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'] as const;
 export const EVIDENCE_MAX_BYTES = 26214400; // 25 MiB (contrato)
 export const EVIDENCE_MAX_ITEMS = 10;
+
+// 024 · FR-014: `items[]` amplía EvidenceMeta de forma COMPATIBLE (evidence_id + content_type, en el
+// MISMO orden que content_types). Opcional en el contrato (legacy/rollout); si viene, length == count.
+export const evidenceItemSchema = z.object({
+  evidence_id: z.string(),
+  content_type: z.enum(CONTENT_TYPE_ALLOWLIST),
+});
+
+export const evidenceMetaSchema = z.object({
+  count: z.number(),
+  content_types: z.array(z.enum(CONTENT_TYPE_ALLOWLIST)),
+  items: z.array(evidenceItemSchema).optional(),
+});
+
+export const orderDetailResponseSchema = z.object({
+  order: orderSchema,
+  notes: z.string().optional(),
+  evidence: evidenceMetaSchema.optional(),
+  last_rejection_reason: z.string().optional(),
+});
 
 export const evidenceRefSchema = z.object({
   // object_ref: 1..512, sin caracteres de control ni whitespace de borde (contrato). Generado en cliente (UUID).
@@ -59,6 +74,11 @@ export const evidenceRefSchema = z.object({
     .refine((s) => s === s.trim() && !/[\u0000-\u001f\u007f]/.test(s), 'object_ref invalido'),
   content_type: z.enum(CONTENT_TYPE_ALLOWLIST),
   size_bytes: z.number().int().min(1).max(EVIDENCE_MAX_BYTES),
+});
+
+// 024 (T032) · respuesta de uploadOrderEvidence: `object_ref` con el mismo formato que EvidenceRef.object_ref.
+export const uploadEvidenceResponseSchema = z.object({
+  object_ref: z.string(),
 });
 
 export const executionRequestSchema = z.object({
@@ -150,3 +170,23 @@ export type _ReviewDecisionBack = AssertAssignable<ZodReviewDecision, ReviewRequ
 type ZodIncidentSummary = z.infer<typeof incidentSummaryResponseSchema>;
 export type _SummaryFwd = AssertAssignable<IncidentSummaryResponse, ZodIncidentSummary>;
 export type _SummaryBack = AssertAssignable<ZodIncidentSummary, IncidentSummaryResponse>;
+
+// 024 · EvidenceMeta (items[] compatible). `items` no se asserta bidireccionalmente por la misma fricción
+// de exactOptionalPropertyTypes que ReviewRequest.reason (`.optional()` de Zod añade explícitamente
+// `| undefined`, incompatible con `items?: T[]`); se asserta count/content_types (el resto del contrato) y
+// SOLO el elemento de `items` (evidence_id/content_type), no la opcionalidad del array en sí.
+type ZodEvidenceMeta = z.infer<typeof evidenceMetaSchema>;
+export type _EvidenceMetaFwd = AssertAssignable<
+  Omit<EvidenceMeta, 'items'>,
+  Omit<ZodEvidenceMeta, 'items'>
+>;
+export type _EvidenceMetaBack = AssertAssignable<
+  Omit<ZodEvidenceMeta, 'items'>,
+  Omit<EvidenceMeta, 'items'>
+>;
+type ZodEvidenceItem = z.infer<typeof evidenceItemSchema>;
+export type _EvidenceItemFwd = AssertAssignable<EvidenceMeta['items'] extends (infer I)[] | undefined ? I : never, ZodEvidenceItem>;
+export type _EvidenceItemBack = AssertAssignable<ZodEvidenceItem, EvidenceMeta['items'] extends (infer I)[] | undefined ? I : never>;
+type ZodUploadEvidenceResponse = z.infer<typeof uploadEvidenceResponseSchema>;
+export type _UploadEvidenceFwd = AssertAssignable<UploadEvidenceResponse, ZodUploadEvidenceResponse>;
+export type _UploadEvidenceBack = AssertAssignable<ZodUploadEvidenceResponse, UploadEvidenceResponse>;

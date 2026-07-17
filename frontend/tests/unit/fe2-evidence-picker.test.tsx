@@ -16,11 +16,8 @@ function Harness() {
 }
 
 describe('FE-2 · EvidencePicker (FR-004)', () => {
-  it('muestra el aviso honesto de metadato (no se almacena)', () => {
-    render(<Harness />);
-    expect(screen.getByRole('status').textContent).toMatch(/no se almacena/i);
-  });
-
+  // 024 (T032): el aviso de «no se almacena todavía» (deuda #007) queda OBSOLETO — el envío ahora sube
+  // el binario real (uploadOrderEvidence). Se elimina el aviso; ya no aplica.
   it('añade una imagen válida con preview y nombre accesible', () => {
     render(<Harness />);
     fireEvent.change(screen.getByLabelText('Añadir foto'), { target: { files: [file('foto.jpg', 'image/jpeg')] } });

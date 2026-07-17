@@ -16,6 +16,7 @@ const base: Record<string, string> = {
   DB_QUERY_TIMEOUT_MS: '2000',
   PORT: '3000',
   NODE_ENV: 'test',
+  EVIDENCE_ENC_KEY: 'd'.repeat(40),
 };
 
 describe('config fail-fast (FR-016)', () => {

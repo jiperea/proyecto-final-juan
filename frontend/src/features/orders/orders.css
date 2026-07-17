@@ -196,6 +196,32 @@
   background: var(--color-surface-2);
   color: var(--color-text-muted);
   font: var(--font-caption);
+  overflow: hidden;
+}
+
+/* 024 (T031) · FR-010: tile clicable que abre la foto (fetch autenticado → blob). */
+.order-detail__evidence-open {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.order-detail__evidence-open:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.order-detail__evidence-tile--open {
+  background: var(--color-surface);
+}
+
+.order-detail__evidence-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .order-detail__rejection {

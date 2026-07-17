@@ -84,6 +84,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/orders/{orderId}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sube un blob de evidencia (staging) — técnico dueño, orden in_progress
+         * @description Multipart. Autz-primero (FR-020): (1) sin sesión → 401; (2) si no es el technician dueño actual o la orden no está in_progress → 404 uniforme (nunca 403) ANTES de mirar el contenido; (3) solo si autorizado se valida allowlist/tamaño/contenido real. Almacena el blob CIFRADO (staging, sin fila OrderEvidence) y devuelve `object_ref`. Tope ≤10 blobs staged vivos por ciclo (11.º → 422). El `object_ref` solo circula en el flujo upload↔submit; nunca en logs/lectura. Los `object_ref` devueltos son los consumidos por submitOrderExecution (005), sin cambiar su shape.
+         */
+        post: operations["uploadOrderEvidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orders/{orderId}/evidence/{evidenceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sirve el binario de una evidencia committeada — same-origin, por sesión
+         * @description Autz heredada EXACTA de getOrderDetail (008/#010): technician dueño actual o supervisor; dispatcher NO. Precedencia FR-007: 401 sin sesión; 404 uniforme (no 403) para no-autorizado / ajena / inexistente / `closed`/`draft` / `evidenceId` que no pertenece a `orderId` / `evidenceId` inexistente; SOLO si autorizado y en alcance se evalúa el binario → 410 si es legacy/superado (blob ausente en el store). Sirve el binario en la MISMA respuesta autenticada (sin token/URL de cliente); la firma ≤300 s que lee el objeto es interna backend↔store (nunca se expone al cliente). Cabeceras defensivas: `X-Content-Type-Options: nosniff`, `Content-Type` del magic-byte real detectado (no el declarado), `Referrer-Policy: no-referrer`, `Cache-Control: no-store`. Verifica `evidenceId` ∈ `orderId` (FR-015) antes de servir.
+         */
+        get: operations["getOrderEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/orders/{orderId}/execution": {
         parameters: {
             query?: never;
@@ -167,12 +207,22 @@ export interface components {
         OrderListResponse: {
             orders: components["schemas"]["Order"][];
         };
-        /** @description Metadatos (NO binario) de la evidencia del ciclo vigente (feature 008/#010). `count` = nº de evidencias del ciclo; `content_types` = lista de `content_type` por evidencia (duplicados posibles), ORDENADA por `at` ascendente de cada OrderEvidence (desempate por `id`). Invariante: `count == content_types.length`. Sin ciclo de ejecución aún (p. ej. `assigned` sin submit) → `{count:0, content_types:[]}`; un ciclo ya enviado siempre tiene ≥1 evidencia (005 exige 1..10). NUNCA incluye `object_ref` ni el binario. */
+        /** @description Metadatos (NO binario) de la evidencia del ciclo vigente (feature 008/#010; ampliado en 024 con `items[]`, de forma COMPATIBLE). `count` = nº de evidencias del ciclo; `content_types` = lista de `content_type` por evidencia (duplicados posibles), ORDENADA por `at` ascendente de cada OrderEvidence (desempate por `id`). Invariante: `count == content_types.length` (y, si `items` está presente, `count == items.length`, en el MISMO orden que `content_types`). Sin ciclo de ejecución aún (p. ej. `assigned` sin submit) → `{count:0, content_types:[]}` (`items: []` si presente); un ciclo ya enviado siempre tiene ≥1 evidencia (005 exige 1..10). NUNCA incluye `object_ref` ni el binario. */
         EvidenceMeta: {
             /** @description Número de evidencias del ciclo vigente (0 solo si aún no hay submit). */
             count: number;
             /** @description Un content_type por evidencia (duplicados posibles), ordenado por `at` asc. length == count. */
             content_types: ("image/jpeg" | "image/png" | "image/webp" | "image/heic")[];
+            /** @description Feature 024. Identificadores opacos por evidencia del ciclo vigente, en el MISMO orden que `content_types` (por `at` asc, desempate por `id`); `length == count`. Mismo alcance de rol que el resto de `EvidenceMeta` (dispatcher no la recibe). `evidence_id` es el `evidenceId` consumido por `GET /orders/{orderId}/evidence/{evidenceId}`. NUNCA expone `object_ref`. */
+            items?: {
+                /**
+                 * Format: uuid
+                 * @description Identificador opaco de la evidencia (id de OrderEvidence).
+                 */
+                evidence_id: string;
+                /** @enum {string} */
+                content_type: "image/jpeg" | "image/png" | "image/webp" | "image/heic";
+            }[];
         };
         /** @description Detalle de una orden (feature 008/#010). `order` siempre presente. `notes`, `evidence` y `last_rejection_reason` son OPCIONALES y se OMITEN (nunca `null`) cuando no aplican al rol/estado: el dispatcher no recibe `notes`/`evidence` (mínimo privilegio); `last_rejection_reason` solo lo ve el technician dueño ACTUAL con rechazo SIN atender (saneado al leer, fail-closed). Sin PII cruda ni object_ref. */
         OrderDetailResponse: {
@@ -229,7 +279,7 @@ export interface components {
             /** @description Motivo de la decisión. Obligatorio si `decision=reject`; opcional si `approve`. El `maxLength: 4000` es una **cota cruda de seguridad de payload** (evita cuerpos absurdos → 422 VALIDATION_ERROR). La **longitud efectiva 1..1000 code points se mide en el DOMINIO TRAS `sanitizeReason`** (trim + colapso de whitespace interno + strip de control chars Cc `U+0000`–`U+001F` `U+007F` salvo `\n` + NFC); vacío tras saneo o >1000 tras saneo → 422 **INVALID_REASON** (no VALIDATION_ERROR). Un motivo con mucho whitespace puede superar 1000 en crudo y ser válido tras saneo — por eso la cota del schema NO es 1000. Nunca en logs/errores. */
             reason?: string;
         };
-        /** @description Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/422/500; 005 (startOrderWork/submitOrderExecution) 401/403/404/422/500 — códigos de dominio EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e INVALID_TRANSITION (422). 006 (reviewOrder) 401/403/404/409/422/500/503 — VALIDATION_ERROR (422, decision/body), INVALID_REASON (422, motivo), GUARD_UNMET (404, no visible), EVIDENCE_MISSING (409, guard de evidencia en approve). 007 (summarizeOrderIncident) 401/403/404/429/500/503 — FORBIDDEN_ROLE (403), 404 genérico (no-enumeración, orden no visible/estado ≠ pending_review), RATE_LIMITED (429, con header Retry-After), INTERNAL (500, error inesperado), SERVICE_UNAVAILABLE (503, timeout/fallo del proveedor **o** BD no disponible al leer la fuente, convención 001/006). `agent_action` se emite en las respuestas de **negocio** de los handlers de 004/005/006 (404/409/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es opcional, no `required`). */
+        /** @description Contrato de error accionable (igual que 001). Códigos: 002a 401/403/503; 004 401/403/404/422/500; 005 (startOrderWork/submitOrderExecution) 401/403/404/422/500 — códigos de dominio EVIDENCE_REQUIRED/INVALID_EVIDENCE/VALIDATION_ERROR (422), GUARD_UNMET (404, no-enumeración) e INVALID_TRANSITION (422). 006 (reviewOrder) 401/403/404/409/422/500/503 — VALIDATION_ERROR (422, decision/body), INVALID_REASON (422, motivo), GUARD_UNMET (404, no visible), EVIDENCE_MISSING (409, guard de evidencia en approve). 007 (summarizeOrderIncident) 401/403/404/429/500/503 — FORBIDDEN_ROLE (403), 404 genérico (no-enumeración, orden no visible/estado ≠ pending_review), RATE_LIMITED (429, con header Retry-After), INTERNAL (500, error inesperado), SERVICE_UNAVAILABLE (503, timeout/fallo del proveedor **o** BD no disponible al leer la fuente, convención 001/006). 024 (uploadOrderEvidence) 401/404/413/415/422/503 — 404 genérico (no autorizado/ajena/inexistente/fuera de `in_progress`, no-enumeración, evaluado antes de mirar el contenido), PAYLOAD_TOO_LARGE (413, tamaño >25 MiB o 0 bytes), UNSUPPORTED_MEDIA_TYPE (415, tipo declarado fuera de allowlist), INVALID_EVIDENCE (422, contenido falseado/corrupto) o STAGING_LIMIT_EXCEEDED (422, tope ≤10 blobs staged vivos), SERVICE_UNAVAILABLE (503, BD/store no disponibles). 024 (getOrderEvidence) 401/404/410/503 — 404 genérico (misma autz heredada de getOrderDetail: no autorizado/ajena/inexistente/`closed`/`draft`/ `evidenceId`∉`orderId`, no-enumeración), EVIDENCE_GONE (410, blob legacy/superado, sin reintento), SERVICE_UNAVAILABLE (503, BD/store no disponibles al leer/firmar). `agent_action` se emite en las respuestas de **negocio** de los handlers de 004/005/006/024 (404/409/410/413/415/422/500); los 401/403 provienen del middleware reutilizado de 001 y pueden no llevarlo (por eso `agent_action` es opcional, no `required`). */
         ErrorResponse: {
             code: string;
             /** @description Español; no interpola valores recibidos ni PII. */
@@ -483,6 +533,160 @@ export interface operations {
             };
             /** @description Error interno genérico (todo error de BD). Cuerpo genérico; nunca filtra detalle de Postgres. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadOrderEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description 1 imagen (allowlist image/jpeg,png,webp,heic), ≤25 MiB, > 0 bytes.
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Blob staged; devuelve `object_ref` opaco. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Igual formato que EvidenceRef.object_ref (005); consumible por submitOrderExecution. */
+                        object_ref: string;
+                    };
+                };
+            };
+            /** @description No autenticado. Uniforme (001). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No autorizado / orden ajena / inexistente / fuera de estado (`in_progress`) / `orderId` malformado. Cuerpo genérico indistinguible (no-enumeración), evaluado ANTES de mirar el contenido del blob. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description PAYLOAD_TOO_LARGE — tamaño >25 MiB o 0 bytes. Sin efecto. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description UNSUPPORTED_MEDIA_TYPE — tipo declarado fuera de la allowlist de imágenes. Sin efecto. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description INVALID_EVIDENCE — contenido falseado/corrupto (magic-byte no coincide con el tipo declarado) o STAGING_LIMIT_EXCEEDED — tope ≤10 blobs staged vivos superado. Sin efecto. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description BD u object storage no disponibles al escribir el blob (fail-closed; nunca cuelga ni fail-open). Convención transversal (001). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getOrderEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+                evidenceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Binario de la imagen (Content-Type real por magic-byte). */
+            200: {
+                headers: {
+                    "X-Content-Type-Options"?: "nosniff";
+                    "Referrer-Policy"?: "no-referrer";
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                    "image/heic": string;
+                };
+            };
+            /** @description No autenticado. Uniforme (001). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No autorizado / ajena / inexistente / `closed`/`draft` / `orderId`/`evidenceId` malformados / `evidenceId` que no pertenece a `orderId`. Cuerpo genérico indistinguible (no-enumeración), evaluado antes de tocar el binario. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Autorizado y en alcance, pero el blob es legacy/superado (no disponible en el store). EVIDENCE_GONE. Sin reintento posible. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description BD u object storage no disponibles al leer/firmar el blob (fail-closed; nunca cuelga ni fail-open). Convención transversal (001). */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

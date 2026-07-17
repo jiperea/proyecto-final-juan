@@ -1,0 +1,22 @@
+{
+  "phase": "G1",
+  "feature": "024-evidence-binary-signed-url",
+  "round": 9,
+  "note": "Ronda 9 = pasada de verificacion sobre la remediacion r8. Panel: revisor-cinico PASS (H-001/H-002/H-003 cerrados, sin regresion); auditor-spec-theater APROBADA (T-001/T-002 cerrados: SC-004 AES-256-GCM + bytes crudos, SC-006 purga fisica con instante determinista); revisor-rbac-seguridad confirmo S-008 resuelto coherente en todo el cuerpo y solo levanto S-011 (fila de trazabilidad de FR-009 aun nombrada '...-410'), corregida inline (rename a evidence-retention-purge + closed->404). Fix editorial sin ramificacion semantica: no se re-ejecuta un round 10 (anti-espiral, XV).",
+  "bloqueantes": 0,
+  "altas": 0,
+  "medias": 0,
+  "total": 0,
+  "veredicto": "PASS",
+  "resumen": "G1 CONVERGE tras remediacion r8 + fix de propagacion S-011. Las 4 altas de la ronda 8 (S-008 retencion inalcanzable, H-001 purga de blob compartido, H-002 carrera TTL<->GC, T-001 asercion de cifrado) y las medias (T-002 latencia, H-003 doble-submit, auditoria de denegados, S-009 nosniff) quedan cerradas por simplificacion (Principio XV): closed no se sirve nunca (404, sin RBAC nueva; retencion = almacenamiento puro), un object_ref pertenece a una sola fila (GC seguro), TTL autoritativo por edad en transaccion, cifrado AES-256-GCM verificable por bytes crudos. 0 bloqueantes, 0 altas, 0 medias abiertas. Listo para /speckit-checklist -> /speckit-plan.",
+  "huecos": [],
+  "historial_ronda8": {
+    "veredicto": "REQUIERE_CAMBIOS",
+    "bloqueantes": 0,
+    "altas": 4,
+    "medias": 4,
+    "altas_ids": ["S-008", "H-001", "H-002", "T-001"],
+    "medias_ids": ["T-002", "H-003", "M-AUDIT-DENEGADOS", "S-009"],
+    "resolucion": "Remediadas en r8 (decision de usuario S-008 = purga sin acceso). S-011 (propagacion de nombre de test) detectada y corregida en la verificacion de ronda 9."
+  }
+}

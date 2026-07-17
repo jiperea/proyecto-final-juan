@@ -18,21 +18,44 @@ import { PrismaOrderDetailReader } from './repositories/order-detail-reader';
 import { PinoDeniedAccessLogger } from './audit/denied-access-logger';
 import { redactStructured } from '../domain/ai/pii-redactor';
 import {
-  PrismaOrderExecutionRepository,
   PrismaOrderReassignmentRepository,
   PrismaOrderTransitionRepository,
   PrismaOrderVisibilityRepository,
   PrismaStartOrderWorkRepository,
   PrismaUserLookupRepository,
 } from './repositories/order-write-side-repository';
+import { PrismaOrderExecutionRepository } from './repositories/order-execution-repository';
 import { PrismaReviewOrderRepository } from './repositories/order-review-repository';
 import { PrismaRefreshTokenRepository } from './repositories/refresh-token-repository';
 import { PrismaSessionRepository } from './repositories/session-repository';
 import { PrismaUserRepository } from './repositories/user-repository';
 import { InMemorySessionState } from './session-state/in-memory';
+import { FsStorageAdapter } from './storage/fs-storage-adapter';
+import { registerStorageFor } from './storage/storage-registry';
+import { PrismaEvidenceUploadRepository } from './repositories/evidence-upload-repository';
+import { PrismaEvidenceReadRepository } from './repositories/evidence-read-repository';
+import { PrismaEvidenceReadAuditRepository } from './repositories/evidence-read-audit-repository';
 
 const MIN_MS = 60_000;
 const DAY_MS = 86_400_000;
+
+// 007 — adaptadores del resumen de incidencia por IA (extraído para acotar buildAdapters, max-lines-per-function).
+function buildAiAdapters(prisma: PrismaClient, config: Config) {
+  return {
+    incidentSource: new PrismaIncidentSourceRepository(prisma),
+    aiProvider:
+      config.aiProvider === 'mock'
+        ? new MockAiSummaryProvider()
+        : new ClaudeCliProvider({ timeoutMs: config.aiTimeoutMs, temperature: config.aiTemperature, operable: config.aiOperable }),
+    aiAccessLog: new PinoAccessLog(createLogger()),
+    aiRateLimit: new InMemoryRateLimit({
+      max: config.aiRateMax,
+      windowMs: config.aiRateWindowMs,
+      lockoutMs: config.aiRateWindowMs,
+      lockoutSecret: config.lockoutSecret,
+    }),
+  };
+}
 
 // Instancia todos los adaptadores (puertos→infra) para un PrismaClient dado.
 function buildAdapters(prisma: PrismaClient, config: Config) {
@@ -45,6 +68,12 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
   });
   const refreshTokens = new PrismaRefreshTokenRepository(prisma);
   const sessions = new PrismaSessionRepository(prisma);
+  // 024 — StoragePort: blobs de evidencia cifrados en filesystem (dev/prod-local); en test se puede
+  // sustituir por el fake en memoria (tests/helpers/fake-storage.ts) al construir AppDeps. Se registra
+  // en el registro auxiliar (storage-registry) para que un repositorio instanciado FUERA del container
+  // (tests white-box) pueda resolverlo por defecto (ver order-write-side-repository.ts).
+  const storage = new FsStorageAdapter({ baseDir: config.evidenceStorageDir, encKey: config.evidenceEncKey, clock });
+  registerStorageFor(prisma, storage);
   return {
     clock,
     accountState,
@@ -63,7 +92,14 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
     userLookup: new PrismaUserLookupRepository(prisma),
     orderReassignment: new PrismaOrderReassignmentRepository(prisma),
     startOrderWork: new PrismaStartOrderWorkRepository(prisma),
-    orderExecution: new PrismaOrderExecutionRepository(prisma),
+    orderExecution: new PrismaOrderExecutionRepository(
+      prisma,
+      storage,
+      config.evidenceStagingTtlHours * 3_600_000,
+    ),
+    evidenceUploadLookup: new PrismaEvidenceUploadRepository(prisma),
+    evidenceReader: new PrismaEvidenceReadRepository(prisma), // 024, US2 (getOrderEvidence)
+    evidenceReadAudit: new PrismaEvidenceReadAuditRepository(prisma), // 024, US3 (FR-021)
     orderReview: new PrismaReviewOrderRepository(prisma),
     rateLimit: new InMemoryRateLimit({
       max: config.lockoutMax,
@@ -71,19 +107,8 @@ function buildAdapters(prisma: PrismaClient, config: Config) {
       lockoutMs: config.lockoutWindowMin * MIN_MS,
       lockoutSecret: config.lockoutSecret,
     }),
-    // 007 — resumen de incidencia por IA.
-    incidentSource: new PrismaIncidentSourceRepository(prisma),
-    aiProvider:
-      config.aiProvider === 'mock'
-        ? new MockAiSummaryProvider()
-        : new ClaudeCliProvider({ timeoutMs: config.aiTimeoutMs, temperature: config.aiTemperature, operable: config.aiOperable }),
-    aiAccessLog: new PinoAccessLog(createLogger()),
-    aiRateLimit: new InMemoryRateLimit({
-      max: config.aiRateMax,
-      windowMs: config.aiRateWindowMs,
-      lockoutMs: config.aiRateWindowMs,
-      lockoutSecret: config.lockoutSecret,
-    }),
+    ...buildAiAdapters(prisma, config), // 007
+    storage,
   };
 }
 
@@ -124,7 +149,7 @@ function authDeps(a: Adapters, config: Config): Pick<AppDeps, 'loginDeps' | 'log
   };
 }
 
-export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaClient } {
+export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaClient; storage: Adapters['storage'] } {
   const prisma = createPrisma(config.databaseUrl);
   const a = buildAdapters(prisma, config);
   const deps: AppDeps = {
@@ -153,11 +178,23 @@ export function buildContainer(config: Config): { deps: AppDeps; prisma: PrismaC
       redactor: { redact: redactStructured },
       deniedLogger: new PinoDeniedAccessLogger(createLogger()),
     }, // 008/#010
+    uploadEvidenceDeps: {
+      storage: a.storage,
+      lookup: a.evidenceUploadLookup,
+      deniedLogger: new PinoDeniedAccessLogger(createLogger()), // S-003
+    }, // 024, US1
+    getEvidenceDeps: {
+      reader: a.evidenceReader,
+      storage: a.storage,
+      deniedLogger: new PinoDeniedAccessLogger(createLogger()),
+      signTtlSeconds: config.evidenceSignTtlSeconds,
+      readAudit: a.evidenceReadAudit, // 024, US3 (FR-021)
+    }, // 024, US2
 
     cookie: {
       refreshMaxAgeMs: config.refreshTtlDays * DAY_MS,
       secure: config.nodeEnv === 'production',
     },
   };
-  return { deps, prisma };
+  return { deps, prisma, storage: a.storage };
 }

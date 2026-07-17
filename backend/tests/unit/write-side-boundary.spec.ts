@@ -7,9 +7,10 @@ import { join } from 'node:path';
 // verificación del clasificador único compartido se adelantó a T015 (checkpoint US1).
 const WRITE_REPO = 'order-write-side-repository.ts';
 const REVIEW_REPO = 'order-review-repository.ts';
+const EXEC_REPO = 'order-execution-repository.ts'; // 024: PrismaOrderExecutionRepository, separado por tamaño
 // La CAPA write-side puede repartirse en varios ficheros (separados por tamaño); todos ellos son puntos
 // legítimos de escritura de Order. El invariante es "sólo la capa write-side muta status/version".
-const WRITE_SIDE_FILES = [WRITE_REPO, REVIEW_REPO];
+const WRITE_SIDE_FILES = [WRITE_REPO, REVIEW_REPO, EXEC_REPO];
 
 function tsFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((e) => {
@@ -46,10 +47,12 @@ describe('frontera write-side (005/006) — status/version sólo en la capa writ
 
   it('el repo write-side ES el único punto de escritura (start + execution + review)', () => {
     const repo = readFileSync(`src/infra/repositories/${WRITE_REPO}`, 'utf8');
-    // start y execution viven en el repo write-side y usan UPDATE condicional keyeado por status+assigned_to.
+    const execRepo = readFileSync(`src/infra/repositories/${EXEC_REPO}`, 'utf8');
+    // start vive en order-write-side-repository.ts; execution (024) vive en su propio fichero (por tamaño,
+    // ver EXEC_REPO más arriba) — ambos usan UPDATE condicional keyeado por status+assigned_to.
     expect(repo).toContain('class PrismaStartOrderWorkRepository');
-    expect(repo).toContain('class PrismaOrderExecutionRepository');
-    expect(repo).toMatch(/updateMany\(\{[\s\S]*?status: EXEC_FROM, assignedTo: actorId/);
+    expect(execRepo).toContain('class PrismaOrderExecutionRepository');
+    expect(execRepo).toMatch(/updateMany\(\{[\s\S]*?status: EXEC_FROM, assignedTo: actorId/);
     expect(repo).toMatch(/updateMany\(\{[\s\S]*?status: START_FROM, assignedTo: actorId/);
   });
 

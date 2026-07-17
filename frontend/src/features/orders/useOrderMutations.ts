@@ -1,7 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '../../api/client';
-import type { ExecutionRequest, ReassignmentRequest, ReviewRequest } from '../../api/types';
-import { reassignOrder, reviewOrder, startOrderWork, submitOrderExecution } from './write-api';
+import type { EvidenceRef, ReassignmentRequest, ReviewRequest } from '../../api/types';
+import type { EvidenceItem } from './evidence';
+import {
+  reassignOrder,
+  reviewOrder,
+  startOrderWork,
+  submitOrderExecution,
+  uploadOrderEvidence,
+} from './write-api';
 
 // Invalida el detalle y el listado tras una mutación exitosa (refleja el nuevo estado sin recarga completa).
 function useInvalidateOrder(orderId: string) {
@@ -17,10 +24,26 @@ export function useStartWork(orderId: string) {
   return useMutation({ mutationFn: () => startOrderWork(orderId), onSuccess: invalidate });
 }
 
+// 024 (T032): antes de enviar la ejecución, cada foto se SUBE de verdad (endpoint nuevo
+// `uploadOrderEvidence`, multipart, staging cifrado); el `object_ref` que consume `submitOrderExecution`
+// es el DEVUELTO por el backend, no el placeholder de cliente (FR-012). Secuencial (no en paralelo): si
+// una sube falla (415/413/422), las siguientes no se intentan y el error se propaga tal cual (mismo
+// ApiError/userMessage que el resto de mutaciones).
 export function useSubmitExecution(orderId: string) {
   const invalidate = useInvalidateOrder(orderId);
   return useMutation({
-    mutationFn: (body: ExecutionRequest) => submitOrderExecution(orderId, body),
+    mutationFn: async ({ notes, items }: { notes: string; items: EvidenceItem[] }) => {
+      const evidence: EvidenceRef[] = [];
+      for (const item of items) {
+        const uploaded = await uploadOrderEvidence(orderId, item.file);
+        evidence.push({
+          object_ref: uploaded.object_ref,
+          content_type: item.ref.content_type,
+          size_bytes: item.ref.size_bytes,
+        });
+      }
+      return submitOrderExecution(orderId, { notes, evidence });
+    },
     onSuccess: invalidate,
   });
 }

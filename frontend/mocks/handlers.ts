@@ -37,6 +37,10 @@ export const handlers = [
       { status: 200 },
     ),
   ),
+  // 024 (T032) · uploadOrderEvidence (por defecto éxito → object_ref staged; los tests sobreescriben).
+  http.post(`${BASE}/orders/:orderId/evidence`, () =>
+    HttpResponse.json({ object_ref: crypto.randomUUID() }, { status: 201 }),
+  ),
   http.post(`${BASE}/orders/:orderId/execution`, ({ params }) =>
     HttpResponse.json(
       {

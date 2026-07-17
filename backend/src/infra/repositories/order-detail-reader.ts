@@ -81,9 +81,10 @@ export class PrismaOrderDetailReader implements OrderDetailReaderPort {
 
     let notes: string | null = null;
     let evidenceContentTypes: string[] = [];
+    let evidenceItems: { id: string; contentType: string }[] = [];
     if (submit !== null) {
       // Defensa en profundidad: filtra por auditId Y orderId (un auditId desalineado nunca sirve contenido
-      // de otra orden). content_types ordenado por `at` asc (id tiebreak) → invariante count == length.
+      // de otra orden). content_types/items ordenados por `at` asc (id tiebreak) → invariante count == length.
       const notesRow = await tx.orderExecutionNotes.findFirst({
         where: { auditId: submit.id, orderId },
         orderBy: [{ at: 'desc' }, { id: 'desc' }],
@@ -93,9 +94,10 @@ export class PrismaOrderDetailReader implements OrderDetailReaderPort {
       const evidence = await tx.orderEvidence.findMany({
         where: { auditId: submit.id, orderId },
         orderBy: [{ at: 'asc' }, { id: 'asc' }],
-        select: { contentType: true },
+        select: { id: true, contentType: true },
       });
       evidenceContentTypes = evidence.map((e) => e.contentType);
+      evidenceItems = evidence.map((e) => ({ id: e.id, contentType: e.contentType }));
     }
 
     return {
@@ -107,6 +109,7 @@ export class PrismaOrderDetailReader implements OrderDetailReaderPort {
           : { id: rejectRow.id, at: rejectRow.at, reason: rejectRow.reason },
       notes,
       evidenceContentTypes,
+      evidenceItems,
     };
   }
 }

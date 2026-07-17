@@ -10,6 +10,9 @@ import '../http-types';
 export function authWithDeniedAccessLog(
   auth: RequestHandler,
   logger: DeniedAccessLoggerPort,
+  // 024/US2 reutiliza este middleware para `getOrderEvidence`; el default preserva el valor histórico de
+  // `getOrderDetail` (no rompe tests existentes que aseveran `endpoint: 'getOrderDetail'`).
+  endpoint = 'getOrderDetail',
 ): RequestHandler {
   return async (req, res, next): Promise<void> => {
     let passed = false;
@@ -24,7 +27,7 @@ export function authWithDeniedAccessLog(
     // (FR-009): un fallo del logger NUNCA altera la respuesta 401 ya enviada.
     try {
       logger.record({
-        endpoint: 'getOrderDetail',
+        endpoint,
         recurso: sanitizeResource(req.params.orderId ?? ''),
         outcome: '401_unauth',
       });

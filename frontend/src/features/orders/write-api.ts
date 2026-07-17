@@ -5,6 +5,7 @@ import {
   orderSchema,
   reassignmentRequestSchema,
   reviewRequestSchema,
+  uploadEvidenceResponseSchema,
 } from '../../api/schemas';
 import type {
   ExecutionRequest,
@@ -12,6 +13,7 @@ import type {
   Order,
   ReassignmentRequest,
   ReviewRequest,
+  UploadEvidenceResponse,
 } from '../../api/types';
 
 // FE-2 · acciones write del técnico. apiFetch ya mapea los códigos del contrato (422 INVALID_TRANSITION/
@@ -21,6 +23,17 @@ import type {
 // startOrderWork: assigned→in_progress. POST /v1/orders/{id}/start → Order (version+1).
 export async function startOrderWork(orderId: string): Promise<Order> {
   return orderSchema.parse(await apiFetch<unknown>(`/v1/orders/${orderId}/start`, { method: 'POST' }));
+}
+
+// 024 (T032) · uploadOrderEvidence: sube el binario (multipart) al ENDPOINT NUEVO — el blob queda en
+// staging cifrado y el backend devuelve el `object_ref` real (ya no un UUID generado en cliente). Ese
+// `object_ref` es el que luego consume `submitOrderExecution` (shape del body SIN cambios, FR-012).
+export async function uploadOrderEvidence(orderId: string, file: File): Promise<UploadEvidenceResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  return uploadEvidenceResponseSchema.parse(
+    await apiFetch<unknown>(`/v1/orders/${orderId}/evidence`, { method: 'POST', body: form }),
+  );
 }
 
 // submitOrderExecution: in_progress→pending_review. Valida el body contra el contrato ANTES de enviar

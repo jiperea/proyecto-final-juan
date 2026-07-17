@@ -8,7 +8,7 @@ import type { EvidenceMeta, OrderDetailSnapshot } from './ports';
 // siempre trae ≥1 evidencia, 005 FR-004; count:0 solo ocurre antes del primer submit).
 export function evidenceMetaFor(snapshot: OrderDetailSnapshot): EvidenceMeta {
   const contentTypes = snapshot.evidenceContentTypes;
-  return { count: contentTypes.length, contentTypes };
+  return { count: contentTypes.length, contentTypes, items: snapshot.evidenceItems };
 }
 
 // Notas del ciclo vigente. `undefined` (clave omitida) si no hay ciclo de ejecución o no hay notas.

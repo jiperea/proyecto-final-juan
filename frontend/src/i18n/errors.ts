@@ -8,6 +8,11 @@ const MESSAGES: Record<string, string> = {
   INVALID_ASSIGNEE: 'El técnico destino no es válido.',
   INVALID_EVIDENCE: 'La evidencia no cumple los requisitos (formato/tamaño).',
   EVIDENCE_REQUIRED: 'Añade al menos una foto antes de enviar.',
+  // 024 (uploadOrderEvidence, T032): allowlist/tamaño/contenido real del binario.
+  PAYLOAD_TOO_LARGE: 'La imagen supera el tamaño máximo (25 MiB).',
+  UNSUPPORTED_MEDIA_TYPE: 'Formato no admitido. Usa JPG, PNG, WEBP o HEIC.',
+  STAGING_LIMIT_EXCEEDED: 'Máximo 10 fotos por ciclo.',
+  EVIDENCE_GONE: 'Esta imagen ya no está disponible.',
   INVALID_REASON: 'Indica un motivo válido.',
   EVIDENCE_MISSING: 'No se puede aprobar: la orden no tiene evidencia.',
   VALIDATION_ERROR: 'Revisa los campos marcados.',

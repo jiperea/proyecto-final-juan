@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Express } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import { buildApp, type AppDeps } from '../../src/handlers/app';
@@ -33,6 +35,11 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     aiMinEvidence: 1,
     aiRateMax: 10,
     aiRateWindowMs: 60_000,
+    // 024: evidencia fotográfica (cifrado AES-256-GCM + firma de lectura + staging)
+    evidenceEncKey: 'e'.repeat(40),
+    evidenceSignTtlSeconds: 300,
+    evidenceStagingTtlHours: 24,
+    evidenceStorageDir: join(tmpdir(), 'fieldops-evidence-test'), // no usado en integración salvo storage
     ...overrides,
   };
 }
@@ -63,6 +70,33 @@ export function makeTestAppWithOrderDetail(
 ): { app: Express; prisma: PrismaClient } {
   const { deps, prisma } = buildContainer(testConfig(overrides));
   const app = buildApp({ ...deps, orderDetailDeps: { ...deps.orderDetailDeps, ...over } });
+  return { app, prisma };
+}
+
+// 024 (US3) — app con override de getEvidenceDeps (deniedLogger captor / storage sustituido), conservando
+// el resto de adaptadores reales (Postgres + storage por defecto). Mismo patrón que
+// makeTestAppWithOrderDetail. Permite capturar la señal best-effort de acceso denegado emitida por
+// getOrderEvidence sin tocar producción (T037, FR-021).
+type GetEvidenceOverride = Partial<AppDeps['getEvidenceDeps']>;
+export function makeTestAppWithEvidence(
+  over: GetEvidenceOverride,
+  overrides: Partial<Config> = {},
+): { app: Express; prisma: PrismaClient } {
+  const { deps, prisma } = buildContainer(testConfig(overrides));
+  const app = buildApp({ ...deps, getEvidenceDeps: { ...deps.getEvidenceDeps, ...over } });
+  return { app, prisma };
+}
+
+// 024 (I-001/S-003) — app con override de uploadEvidenceDeps (lookup/storage que fallan / deniedLogger
+// captor), conservando el resto de adaptadores reales (Postgres + storage por defecto). Mismo patrón que
+// makeTestAppWithEvidence, para uploadOrderEvidence.
+type UploadEvidenceOverride = Partial<AppDeps['uploadEvidenceDeps']>;
+export function makeTestAppWithUpload(
+  over: UploadEvidenceOverride,
+  overrides: Partial<Config> = {},
+): { app: Express; prisma: PrismaClient } {
+  const { deps, prisma } = buildContainer(testConfig(overrides));
+  const app = buildApp({ ...deps, uploadEvidenceDeps: { ...deps.uploadEvidenceDeps, ...over } });
   return { app, prisma };
 }
 

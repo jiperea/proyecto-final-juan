@@ -1,0 +1,17 @@
+{
+  "phase": "G3",
+  "feature": "024-evidence-binary-signed-url",
+  "round": 2,
+  "note": "G3 ronda 2 = verificacion tras remediar la ronda 1. revisor-implementacion: I-001/I-002/S-003 cerrados (503 fail-closed con withDbFailover, ENOENT->410 vs storage-down->503, readAudit-fail->503, denied-signal en upload), 19/19 aislados sin regresion. revisor-rbac-seguridad (ronda 1): nucleo de acceso correcto. promptfoo N/A (sin IA). S-001/S-002 aceptados-documentados.",
+  "bloqueantes": 0,
+  "altas": 0,
+  "medias": 0,
+  "total": 0,
+  "veredicto": "PASS",
+  "resumen": "G3 CONVERGE. Implementacion cumple spec+contrato: autz heredada (404 uniforme, dispatcher excluido, evidenceId∈orderId sin IDOR), AES-256-GCM verificado byte-a-byte, no-fuga en logs/respuestas, auditoria de lectura en tabla propia (no contamina OrderAudit), GC/retencion con invariante fila/blob, re-verificacion de refs en transaccion, 503 fail-closed en BD/almacenamiento caidos. Tests genuinos (US1+US2+US3 + fail-closed). 0 bloqueantes / 0 altas / 0 medias abiertas (S-001 timing y S-002 object_ref-no-cifrado aceptados con justificacion). 024 lista para PR a develop.",
+  "huecos": [],
+  "historial": {
+    "ronda1": { "veredicto": "REQUIERE_CAMBIOS", "bloqueantes": 0, "altas": 1, "medias": 5, "ids": ["I-001", "I-002", "S-003", "S-001", "S-002"] },
+    "resolucion": "I-001/I-002/S-003 remediados (commit 0e07fa0) y verificados en ronda 2. S-001 (timing side-channel, senal marginal) y S-002 (object_ref firmado-no-cifrado; el dueno ya conoce los datos, nunca compartido/expuesto) ACEPTADOS con justificacion, no diferidos en silencio."
+  }
+}

@@ -517,3 +517,70 @@ Vistas mínimas del front». Sin endpoints/IA/backend/contratos ni cambios RBAC 
 | SC-004 | 0 regresiones (tsc/eslint/stylelint/build/vitest incl. axe); rbac-reskin-regression verde | suite completa | `npm run lint`/`typecheck`/`build`, `vitest` (T012) |
 | SC-005 | 0 hex/px/font sueltos introducidos | vistas tocadas | `stylelint` (T011) |
 | SC-006 | alcance del diff = solo `frontend/src/features/orders/**` + este doc | — | `git diff --name-only develop` (T015) |
+
+## 024 · Evidencia fotográfica — binario y visualización por URL firmada (`024-evidence-binary-signed-url`) — G1 PASS / G2 PASS / implementación US1+US2+US3 verde — **Polish en curso** (T045-T049; este mapa = T047)
+
+Cierra la deuda histórica **BL-068 / roadmap #007** (`NNN-evidencia-subida`, físicamente esta rama): subida
+binaria real de evidencia + servirla por URL firmada. Endpoints nuevos `uploadOrderEvidence` —
+`POST /v1/orders/{orderId}/evidence` (multipart) — y `getOrderEvidence` — `GET
+/v1/orders/{orderId}/evidence/{evidenceId}` (binario same-origin por sesión); `submitOrderExecution`
+**no cambia de forma** (evolución compatible, sigue JSON) pero re-verifica los `object_ref` bajo la misma
+transacción/`version`; `getOrderDetail` amplía `EvidenceMeta` con `items[]`. Decisiones ancladas: **404
+uniforme** (nunca 403/410 a no-autorizado; `closed` → 404, nunca 410), **un `object_ref` ↔ una fila**
+(`OrderEvidence`, invariante para GC seguro), auditoría de lectura en tabla **nueva** `EvidenceReadAudit`
+(append-only, separada de `OrderAudit` para no contaminar su semántica FSM), jobs programados
+`gc-job.ts` (staging/superados) y `retention-job.ts` (closed >90 d, independiente del GC).
+
+| FR | Descripción | Endpoint(s) | Tarea(s) | Test(s) reales |
+|----|-------------|-------------|----------|-----------------|
+| FR-001 | subir ≥1 imagen real; almacenar cifrada; `count` refleja lo almacenado tras el submit | `uploadOrderEvidence`+`submitOrderExecution` | T012-T021 | `integration/evidence-upload-store.spec.ts` |
+| FR-002 | 415 (tipo fuera de allowlist) / 413 (tamaño) / 422 (forma); nada se almacena | `uploadOrderEvidence` | T015/T018 | `contract/upload-evidence.contract.spec.ts`, `integration/evidence-content-validation.spec.ts` |
+| FR-003 | autz idéntica a `getOrderDetail` (dueño actual/supervisor sí, dispatcher no) | `getOrderEvidence` | T024/T028 | `integration/evidence-authz.spec.ts` |
+| FR-004 | 200 same-origin por sesión, `nosniff`+Content-Type real; 0 URL/token cliente-visible | `getOrderEvidence` | T022/T028 | `contract/get-evidence.contract.spec.ts` |
+| FR-005 | firma interna caducada/manipulada → lectura falla; sin sesión → denegado | `getOrderEvidence` | T034/T009 | `integration/evidence-internal-signature-ttl.spec.ts` |
+| FR-006 | binario no accesible sin pasar por el endpoint (sin firma interna) | (almacenamiento) | T036/T009 | `integration/evidence-no-direct-access.spec.ts` |
+| FR-007 | precedencia 401→404 uniforme (no-autz/ajena/inexistente/`closed`/`draft`)→410 solo si autorizado en alcance | `getOrderEvidence` | T025/T028 | `integration/evidence-404-uniforme.spec.ts` |
+| FR-008 | `object_ref`/firma/binario nunca en logs/errores/lectura | (logging) | T035/T040 | `integration/evidence-nolog.spec.ts` |
+| FR-009 | retención 90 d post-cierre → purga física; `closed` nunca se sirve (404, nunca 410); 410 solo legacy/superado en alcance | (retención) | T026/T039/T043 | `integration/evidence-410-legacy-superado.spec.ts`, `integration/evidence-retention-purge.spec.ts` |
+| FR-010 | detalle abre cada foto (miniatura/enlace real, sustituye placeholder de FE-9), estados carga/error | front detalle | T027/T031 | `frontend/tests/unit/order-detail-evidence-open.test.tsx`, `order-detail-evidence.test.tsx` |
+| FR-011 | atomicidad por operación: `uploadOrderEvidence` solo staging (sin fila); `submitOrderExecution` crea filas en su propia tx; huérfanos → GC | `uploadOrderEvidence`+`submitOrderExecution` | T050/T021 | `integration/evidence-atomic-gc.spec.ts` |
+| FR-012 | endpoint nuevo multipart; `submitOrderExecution` conserva su cuerpo (`object_ref` ahora reales) | `uploadOrderEvidence` | T012/T019/T020/T032 | `contract/upload-evidence.contract.spec.ts` |
+| FR-013 | front: fetch autenticado same-origin → `blob:` en memoria; sin URL en DOM/historial/Referer | front detalle | T027/T031 | `frontend/tests/unit/order-detail-evidence-open.test.tsx` |
+| FR-014 | `getOrderDetail.evidence.items[]` (`evidenceId`+`content_type`); `count==items.length`; omitido a dispatcher | `getOrderDetail` | T030 | `contract/get-order-detail.contract.spec.ts` (aserción `items`, líneas 49-51) — **T023 (contract test dedicado) no se creó como fichero propio; cubierto in situ, ver nota** |
+| FR-015 | `evidenceId∈orderId` verificado; mismatch → 404 | `getOrderEvidence` | T025 | `integration/evidence-404-uniforme.spec.ts` |
+| FR-016 | reasignación: nuevo dueño accede, saliente pierde acceso, supervisor mantiene el suyo | `getOrderEvidence` | T052 | `integration/evidence-reassign-access.spec.ts` |
+| FR-017 | ciclo vigente = `attempt`/`auditId` más reciente; reenvío marca superado el anterior (410 a autorizados) | `submitOrderExecution` | T051 | `integration/evidence-cycle-replace.spec.ts` |
+| FR-018 | job de purga por retención, ≥diario, latencia ≤24h, independiente del GC de ciclos | `retention-job.ts` | T043/T044 | `integration/evidence-retention-purge.spec.ts` |
+| FR-019 | validación de contenido real (magic-bytes); tipo declarado fuera de allowlist→415, falseado/corrupto→422 | `uploadOrderEvidence` | T015/T018 | `integration/evidence-content-validation.spec.ts` |
+| FR-020 | subida autz-primero: no-dueño/estado≠`in_progress` → 404 antes de validar contenido | `uploadOrderEvidence` | T014/T019 | `integration/evidence-upload-authz.spec.ts` |
+| FR-021 | lectura autorizada → auditoría append-only (`EvidenceReadAudit`: actor/orderId/evidenceId/timestamp, sin binario) | `getOrderEvidence` | T037/T041 | `integration/evidence-read-audit.spec.ts` |
+| FR-022 | ciclo subida↔envío: acumula ≤10 vivos, 11.º→422; submit>10→422; staged sin fila no son direccionables | `uploadOrderEvidence`+`submitOrderExecution` | T016/T018 | `integration/evidence-cycle-lifecycle.spec.ts` |
+| FR-023 | re-verificación de `object_ref` bajo `version` en la tx del submit: ajeno/otra orden/otro actor→404; malformado→422; fila-existente→422; TTL staging vencido→422; repetido→422; doble-submit→409 | `submitOrderExecution` | T017/T021 | `integration/evidence-ref-ownership.spec.ts` |
+| FR-024 | GC único: purga staged>24h sin fila y blobs de fila superada; nunca toca fila vigente; corre ≥diario | `gc-job.ts` | T038/T042 | `integration/evidence-staging-gc.spec.ts` |
+| SC-001 | subida ≥1 imagen → `count` real tras el submit | — | T013 | `integration/evidence-upload-store.spec.ts` |
+| SC-002 | 100% pares rol×autorización (dueño/supervisor sí, dispatcher/resto no) | — | T024 | `integration/evidence-authz.spec.ts` |
+| SC-003 | firma interna TTL≤300s + 0 URL/token cliente-visible | — | T034/T022 | `integration/evidence-internal-signature-ttl.spec.ts`, `contract/get-evidence.contract.spec.ts` |
+| SC-004 | 0 acceso directo sin autorización + cifrado AES-256-GCM verificado byte a byte | — | T036/T033 | `integration/evidence-no-direct-access.spec.ts`, `integration/evidence-encryption-at-rest.spec.ts` |
+| SC-005 | 0 apariciones de URL/`object_ref`/binario en logs | — | T035 | `integration/evidence-nolog.spec.ts` |
+| SC-006 | retención 90d: purga física verificada (ausencia del blob); `closed` nunca se sirve | — | T039 | `integration/evidence-retention-purge.spec.ts` |
+| SC-007 | 100% contract tests + 0 regresiones + cobertura (dominio/servicios ≥80%, contratos/transiciones 100%) | — | T049 (pendiente, Polish) | suite completa (`npm run test`, `tsc`, `eslint`) |
+
+> Arquitectura: dominio `evidence.ts` (extendido con magic-bytes/HEIC/tope 10/anti-dup) sigue puro
+> (`unit/evidence.spec.ts`); puerto `StoragePort` (`unit/storage-port.spec.ts`) + adaptador filesystem
+> AES-256-GCM (`integration/fs-storage-adapter.spec.ts`). **T045 (test de arquitectura dedicado en
+> `backend/tests/arch/` para los módulos nuevos de storage) sigue pendiente** (Polish, no bloquea G1/G2).
+>
+> **Huecos de trazabilidad detectados, no cerrados silenciosamente**:
+> - **T023** (contract test dedicado `detail-evidence-items.contract.spec.ts`) no se creó como fichero
+>   independiente; el campo `items[]` de `FR-014` está cubierto **dentro** de
+>   `contract/get-order-detail.contract.spec.ts` (aserción `count === items.length`). Deuda de
+>   granularidad de test, no de cobertura — a decidir por el humano si se separa en T023 o se deja así.
+> - **T046** (a11y de la apertura de imagen: `alt` descriptivo, foco, `prefers-reduced-motion`) y **T048**
+>   (validación manual de `quickstart.md`) siguen `[ ]` en `tasks.md` — Polish en curso, no forman parte
+>   de este mapa de trazabilidad funcional (no son RF).
+> - **SC-007** (cobertura ≥80%/100% + 0 regresiones) depende de **T049**, aún pendiente de ejecutar/reportar.
+> - **G3** (gate de implementación) no se ha corrido todavía sobre 024 — este documento refleja el estado
+>   **verde de US1/US2/US3** (implementación real, tests pasando), no un G3 PASS formal.
+>
+> Deuda/fuera de alcance heredada y no reabierta por esta feature: rotación de claves AES (Assumptions
+> §024), partición por equipo/tenant (organización única/plana), If-Match/409 explícito al cliente (BL-001).
