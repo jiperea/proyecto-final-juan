@@ -129,6 +129,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://fieldops:fieldops@localhost:5432/fieldops_test
       NODE_ENV: test
+      EVIDENCE_ENC_KEY: test-evidence-enc-key-min-32-characters-x # 026: seed exige la clave (guard dev-local; localhost pasa)
     defaults:
       run:
         working-directory: backend

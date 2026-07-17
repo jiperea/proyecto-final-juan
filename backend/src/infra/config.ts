@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidEvidenceEncKey } from './evidence-enc-key';
 
 // Validación de configuración con Zod y arranque fail-fast (FR-016).
 // Los 3 secretos HMAC/JWT deben ser distintos entre sí (pairwise-distinct, S-002/D8).
@@ -26,7 +27,10 @@ const schema = z.object({
   AI_RATE_MAX: z.coerce.number().int().positive().default(10), // FR-008 10/60s por usuario
   AI_RATE_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   // --- 024: evidencia fotográfica binaria y visualización por URL firmada ---
-  EVIDENCE_ENC_KEY: z.string().min(32), // clave AES-256-GCM (S-002-like: secreto, min 32)
+  // clave AES-256-GCM (S-002-like: secreto, min 32); regla compartida con el seed (026/FR-013).
+  EVIDENCE_ENC_KEY: z.string().refine(isValidEvidenceEncKey, {
+    message: 'EVIDENCE_ENC_KEY debe tener al menos 32 caracteres',
+  }),
   EVIDENCE_SIGN_TTL_SECONDS: z.coerce.number().int().min(1).max(300).default(300), // firma de lectura ≤300s
   EVIDENCE_STAGING_TTL_HOURS: z.coerce.number().int().min(1).default(24), // TTL de staging antes de GC
   EVIDENCE_STORAGE_DIR: z.string().min(1).default('./data/evidence'), // directorio del store fs (dev/test)

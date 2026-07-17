@@ -1,13 +1,15 @@
 # FieldOps 001 — un comando para todo (Constitution §Convenciones)
 # Entorno SIN Node en el host: todo corre en contenedor node:20 (scripts/dcnode.sh) + Postgres (compose).
-.PHONY: install up down dev build test test-unit lint typecheck migrate seed gate
+.PHONY: install up down dev build test test-unit lint typecheck migrate seed reset gate
 
 install:
 	bash scripts/dcnode.sh npm install
 
-up:
-	docker compose up -d db db-test
-	bash scripts/dcnode.sh sh -c "npx prisma generate && npx prisma migrate deploy && npx tsx prisma/seed.ts"
+# 026/FR-006 — up levanta db+db-test y migra/siembra (con blob de evidencia real) EN EL CONTEXTO DEL
+# CONTENEDOR `backend` (docker compose run --rm backend, override de dev fusionado ⇒ DATABASE_URL=db/
+# fieldops, EVIDENCE_STORAGE_DIR del volumen navegado, EVIDENCE_ENC_KEY heredada de env_file) — NO el
+# contenedor node efímero de scripts/dcnode.sh (que apunta a db-test/fieldops_test).
+up: ; docker compose up -d db db-test && docker compose run --rm backend sh -c "npx prisma generate && npx prisma migrate deploy && npm run seed"
 
 down:
 	docker compose down
@@ -25,8 +27,16 @@ build:
 migrate:
 	bash scripts/dcnode.sh npx prisma migrate deploy
 
-seed:
-	bash scripts/dcnode.sh npx tsx prisma/seed.ts
+# 026/FR-006 — seed puebla la BD/almacén NAVEGADOS (db/fieldops, EVIDENCE_STORAGE_DIR) en el contexto
+# del contenedor `backend` (hereda env_file/DATABASE_URL/volumen/UID por construcción). NO usa
+# scripts/dcnode.sh (que apuntaría a db-test/fieldops_test, la BD de la suite de tests). La clave
+# EVIDENCE_ENC_KEY nunca se pasa por argv: se hereda vía env_file del servicio backend.
+seed: ; docker compose run --rm backend npm run seed
+
+# 026/FR-011 — reset: guard dev-local -> prisma migrate reset --skip-seed -> vacía EVIDENCE_STORAGE_DIR
+# (mkdir -p, idempotente) -> re-siembra (con blob), todo en UNA sola invocación del contenedor `backend`
+# (backend/scripts/reset.ts). Si el guard falla, `prisma migrate reset` nunca se invoca.
+reset: ; docker compose run --rm backend npx tsx scripts/reset.ts # guard dev-local -> prisma migrate reset --force --skip-seed -> vaciar EVIDENCE_STORAGE_DIR -> re-sembrar
 
 # unit (sin BD) + integration + contract (Postgres real, db-test)
 test:
