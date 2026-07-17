@@ -4,9 +4,10 @@
   "fecha": "2026-07-17",
   "panel": ["revisor-implementacion", "revisor-front-a11y-ux", "revisor-rbac-seguridad"],
   "promptfoo": "N/A — feature de presentación sin componente IA; los SC se verifican con herramientas deterministas (axe/stylelint/vitest), ya en verde (377/377).",
-  "ronda": 1,
-  "veredicto_global": "FAIL",
-  "bloqueantes": 1,
+  "rondas": 2,
+  "veredicto_global": "PASS",
+  "bloqueantes_final": 0,
+  "cierre": "PASS en 2 rondas. r1: 1 bloqueante (F-001 indicador no anunciado en nav cacheada, WCAG 4.1.3) + ALTAs (tipo no derivado del contrato; revoke-en-nav sin test). Remediado por dev-frontend: aria-live en el indicador, tipo derivado de EvidenceMeta['items'], tests de revoke-en-nav y focus-trap N=3, layout lightbox (--lightbox-max-width + nav superpuesto), aria-label con contexto, retry restaurado (paridad 024). r2: los 3 carriles 0 huecos. Suite 383/383. Pendiente NO bloqueante: verificación visual Playwright del lightbox a 360/1280 (requiere login del seed).",
   "resumen": "Implementación fiel a FR-001..FR-014 (48/48 tests objetivo, 377/377 suite, 0 backend/contracts/rbac/seed, sin fuga: URL no en DOM, FALLBACK único, onError revoke+no-log). 1 BLOQUEANTE de a11y (indicador no anunciado en navegación cacheada) + ALTAs (tipo no derivado del contrato; revoke-en-navegación sin test) + MEDIAs (ancho lightbox, overflow móvil, aria-label, focus-trap N>=2, retry retirado). Remediado con dev-frontend.",
   "huecos": [
     {"id": "F-001", "fuente": "front-a11y-ux", "sev": "BLOQUEANTE", "elemento": "indicador k de N", "desc": "No anunciado a lector de pantalla al navegar a imagen cacheada (sin Spinner). WCAG 4.1.3.", "resolucion": "aria-live=polite/role=status en el indicador + test de anuncio en navegación cacheada."},
