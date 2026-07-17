@@ -150,6 +150,24 @@ describe('EvidenceViewer · shell modal a11y (T007 · FR-001/FR-003/FR-004/FR-01
     expect(screen.getByRole('button', { name: 'Cerrar' })).toHaveFocus();
   });
 
+  // F-005: el aria-label del diálogo iguala la información visual (posición, y N si hay varias).
+  it('el aria-label del diálogo incluye la posición (N=1: sin total, por no haberlo visualmente)', async () => {
+    const { dialog } = await openViewer();
+    expect(dialog).toHaveAttribute('aria-label', 'Visor de evidencia, imagen 1');
+  });
+
+  it('el aria-label del diálogo incluye posición y total cuando hay varias imágenes (N>1)', async () => {
+    bootAs('technician');
+    server.use(http.get(`/v1/orders/${ORDER_A}`, () => HttpResponse.json(orderDetailResponse(ORDER_A, 'Orden A', { items: ITEMS_N3 }))));
+    mockEvidence200(ORDER_A, EVIDENCE_ID_1);
+    renderApp(<AppRoutes />, `/orders/${ORDER_A}`);
+    await screen.findByRole('heading', { name: 'Orden A' });
+    fireEvent.click(screen.getByRole('button', { name: /Ver imagen 1 de 3/i }));
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByAltText('Imagen 1');
+    expect(dialog).toHaveAttribute('aria-label', 'Visor de evidencia, imagen 1 de 3');
+  });
+
   it('el foco queda atrapado: Tab en el último de los controles vuelve al primero (y Shift+Tab al revés)', async () => {
     const { dialog } = await openViewer();
     // N=1 → sin controles de navegación (FR-009): único focusable = Cerrar; el ciclo vuelve a sí mismo.
@@ -301,6 +319,35 @@ describe('EvidenceViewer · carga y errores (T008 · FR-002/FR-005/FR-013)', () 
     expect(img.src.startsWith('blob:')).toBe(true);
     expect(container.innerHTML).not.toContain(`/v1/orders/${ORDER_A}/evidence`);
     expect(container.innerHTML).not.toMatch(/Bearer\s/i);
+  });
+
+  // I-003: paridad con 024 — el estado de error del visor ofrece un botón «Reintentar» in-situ
+  // (mismo texto genérico de FR-005; el retry solo reintenta el mismo fetch).
+  it('el estado de error ofrece un botón «Reintentar» que vuelve a pedir el mismo binario', async () => {
+    bootAs('technician');
+    server.use(http.get(`/v1/orders/${ORDER_A}`, () => HttpResponse.json(orderDetailResponse(ORDER_A, 'Orden A', { items: ITEMS_N1 }))));
+    let calls = 0;
+    server.use(
+      http.get(`/v1/orders/${ORDER_A}/evidence/${EVIDENCE_ID_1}`, () => {
+        calls += 1;
+        if (calls === 1) return HttpResponse.json({ code: 'INTERNAL', message: 'boom' }, { status: 500 });
+        return HttpResponse.arrayBuffer(new Uint8Array([1, 2, 3]).buffer, {
+          status: 200,
+          headers: { 'Content-Type': 'image/jpeg' },
+        });
+      }),
+    );
+    renderApp(<AppRoutes />, `/orders/${ORDER_A}`);
+    await screen.findByRole('heading', { name: 'Orden A' });
+    fireEvent.click(screen.getByRole('button', { name: /Ver imagen 1 de 1/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('Ha ocurrido un error. Reinténtalo.')).toBeInTheDocument();
+
+    const retryBtn = within(dialog).getByRole('button', { name: 'Reintentar' });
+    fireEvent.click(retryBtn);
+
+    await within(dialog).findByAltText('Imagen 1');
+    expect(calls).toBe(2);
   });
 
   it('revoca el object URL al cerrar el visor', async () => {

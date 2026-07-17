@@ -82,6 +82,9 @@
   --color-scrim: rgba(15, 23, 42, 0.5);
   --z-modal: 1000;
   --dialog-max-width: 32rem;
+  /* 025 · el lightbox de evidencia necesita más ancho que un diálogo de confirmación (foto a tamaño
+     útil en escritorio, sin invadir el viewport en móvil). */
+  --lightbox-max-width: min(92vw, 64rem);
   --touch-target: 44px;
 
   /* Breakpoints (referencia; se usan en media queries) */

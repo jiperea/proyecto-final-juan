@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { ApiError } from '../../api/client';
+import type { components } from '../../api/generated/orders';
 import { FALLBACK_MESSAGE, OFFLINE_MESSAGE, messageForCode } from '../../i18n/errors';
 import { InlineError, Spinner } from '../../ui';
 import { useOrderEvidence } from './useOrders';
 
-export interface EvidenceViewerItem {
-  evidence_id: string;
-  content_type: string;
-}
+// F-002: tipo derivado del contrato (no redefinido a mano) — `content_type` es el enum del contrato,
+// no un `string` ensanchado.
+export type EvidenceViewerItem = NonNullable<components['schemas']['EvidenceMeta']['items']>[number];
 
 // 025 · Visor ampliado de evidencia (lightbox + carrusel). Reutiliza el patrón de foco de
 // `ConfirmDialog` (foco inicial dentro, focus-trap Tab/Shift+Tab, Esc cierra, retorno de foco al
@@ -39,6 +39,8 @@ export function EvidenceViewer({
   const current = items[index]!;
   const position = index + 1;
   const label = `Imagen ${position}`;
+  // F-005: el aria-label del diálogo iguala la información visual (posición + total si hay más de una).
+  const dialogLabel = total > 1 ? `Visor de evidencia, imagen ${position} de ${total}` : `Visor de evidencia, ${label.toLowerCase()}`;
 
   // El binario se obtiene por el flujo fetch→blob existente (`useOrderEvidence`/`apiFetchBlob`); al
   // navegar, la clave de query cambia con `evidence_id` — react-query mantiene el estado de
@@ -120,9 +122,13 @@ export function EvidenceViewer({
     // existe (Esc, gestionado en el diálogo) — el div en sí no es un control interactivo independiente.
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- backdrop de modal, cierre por teclado cubierto por Esc en el diálogo
     <div className="evidence-viewer__overlay" onClick={handleBackdropClick}>
-      <div ref={dialogRef} className="evidence-viewer" role="dialog" aria-modal="true" aria-label={label}>
+      <div ref={dialogRef} className="evidence-viewer" role="dialog" aria-modal="true" aria-label={dialogLabel}>
         <div className="evidence-viewer__header">
-          {total > 1 ? <span className="evidence-viewer__indicator">{`${position} de ${total}`}</span> : null}
+          {/* F-001: región viva independiente del estado de carga — se anuncia en CADA cambio de índice,
+              también al navegar a una posición ya cacheada (sin Spinner de por medio). */}
+          {total > 1 ? (
+            <span className="evidence-viewer__indicator" role="status" aria-live="polite">{`${position} de ${total}`}</span>
+          ) : null}
           <button ref={closeRef} type="button" className="evidence-viewer__control" onClick={onClose}>
             Cerrar
           </button>
@@ -131,7 +137,7 @@ export function EvidenceViewer({
           {total > 1 ? (
             <button
               type="button"
-              className="evidence-viewer__control"
+              className="evidence-viewer__control evidence-viewer__nav evidence-viewer__nav--prev"
               onClick={() => setIndex((i) => Math.max(i - 1, 0))}
               disabled={index === 0}
             >
@@ -142,7 +148,7 @@ export function EvidenceViewer({
           {query.isPending ? (
             <Spinner label={`Cargando ${label.toLowerCase()}…`} />
           ) : query.isError ? (
-            <InlineError>{errorMessage(query.error)}</InlineError>
+            <InlineError onRetry={() => void query.refetch()}>{errorMessage(query.error)}</InlineError>
           ) : decodeFailed ? (
             <InlineError>{FALLBACK_MESSAGE}</InlineError>
           ) : blobUrl !== null ? (
@@ -163,7 +169,7 @@ export function EvidenceViewer({
           {total > 1 ? (
             <button
               type="button"
-              className="evidence-viewer__control"
+              className="evidence-viewer__control evidence-viewer__nav evidence-viewer__nav--next"
               onClick={() => setIndex((i) => Math.min(i + 1, total - 1))}
               disabled={index === total - 1}
             >

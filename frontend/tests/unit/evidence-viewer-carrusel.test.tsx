@@ -1,8 +1,9 @@
 // 025 · Fase Red — T012 (US2: carrusel). `EvidenceViewer` aún no existe: falla porque nunca aparece
 // `role=dialog` (no por un import roto — `OrderDetailView`/tiles ya existen desde 024).
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderApp } from '../test-utils';
 import { AppRoutes } from '../../src/routes/AppRoutes';
 import { setAccessToken } from '../../src/api/session-store';
@@ -167,5 +168,73 @@ describe('EvidenceViewer · carrusel (T012 · FR-006/FR-007/FR-008/FR-009, SC-00
     const dialog = await openAt(1);
     expect(within(dialog).getByRole('button', { name: 'Siguiente' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Anterior' })).toBeInTheDocument();
+  });
+
+  // F-001 (BLOQUEANTE, WCAG 4.1.3): el indicador «k de N» debe anunciarse a lectores de pantalla
+  // también al navegar a posiciones YA CACHEADAS (sin Spinner de por medio) — región aria-live/role=status.
+  it('el indicador «k de N» se anuncia programáticamente al navegar entre posiciones ya cacheadas', async () => {
+    await bootN3();
+    const dialog = await openAt(1);
+    // precarga la posición 2 (cacheada por react-query) antes de comprobar la navegación de vuelta.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Siguiente' }));
+    await within(dialog).findByAltText('Imagen 2');
+
+    const status = within(dialog).getByRole('status') as HTMLElement;
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    expect(status).toHaveTextContent('2 de 3');
+
+    // vuelve a 1 (ya cacheada — sin Spinner) y comprueba que la MISMA región viva actualiza su texto.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Anterior' }));
+    await within(dialog).findByAltText('Imagen 1');
+    expect(status).toHaveTextContent('1 de 3');
+
+    // y de nuevo hacia adelante, a la posición 2 ya cacheada.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Siguiente' }));
+    await within(dialog).findByAltText('Imagen 2');
+    expect(status).toHaveTextContent('2 de 3');
+  });
+
+  // I-001 (ALTA, FR-013): al navegar en el carrusel se revoca el object URL de la imagen SALIENTE.
+  it('al navegar en el carrusel se revoca el object URL de la posición saliente', async () => {
+    await bootN3();
+    const dialog = await openAt(1);
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL');
+    revokeSpy.mockClear();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Siguiente' })); // 1 → 2
+    await within(dialog).findByAltText('Imagen 2');
+    expect(revokeSpy).toHaveBeenCalled(); // revoca la URL de la posición 1, ya no vigente
+
+    revokeSpy.mockClear();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Anterior' })); // 2 → 1
+    await within(dialog).findByAltText('Imagen 1');
+    expect(revokeSpy).toHaveBeenCalled(); // revoca la URL de la posición 2, ya no vigente
+  });
+
+  // I-002 (MEDIA): focus-trap con N>=2 — Tab/Shift+Tab reales ciclan entre Cerrar/Anterior/Siguiente,
+  // y el control disabled en el límite (Anterior en k=1) NO recibe foco por Tab.
+  it('el focus-trap con N>=2 cicla Cerrar→Siguiente→Cerrar por Tab (Anterior disabled queda fuera)', async () => {
+    const u = userEvent.setup();
+    await bootN3();
+    const dialog = await openAt(1); // límite k=1: Anterior queda disabled
+
+    const closeBtn = within(dialog).getByRole('button', { name: 'Cerrar' });
+    const nextBtn = within(dialog).getByRole('button', { name: 'Siguiente' });
+    const prevBtn = within(dialog).getByRole('button', { name: 'Anterior' });
+    expect(prevBtn).toBeDisabled();
+    expect(closeBtn).toHaveFocus(); // foco inicial
+
+    await u.tab(); // Cerrar → Siguiente (Anterior está disabled, se salta)
+    expect(nextBtn).toHaveFocus();
+    expect(prevBtn).not.toHaveFocus();
+
+    await u.tab(); // Siguiente → vuelve a Cerrar (ciclo, con solo 2 focusables)
+    expect(closeBtn).toHaveFocus();
+
+    await u.tab({ shift: true }); // Shift+Tab: Cerrar → Siguiente (ciclo inverso)
+    expect(nextBtn).toHaveFocus();
+
+    await u.tab({ shift: true }); // Siguiente → Cerrar
+    expect(closeBtn).toHaveFocus();
   });
 });

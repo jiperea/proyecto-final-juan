@@ -1,0 +1,22 @@
+{
+  "gate": "G3",
+  "feature": "025-evidence-viewer-lightbox",
+  "fecha": "2026-07-17",
+  "panel": ["revisor-implementacion", "revisor-front-a11y-ux", "revisor-rbac-seguridad"],
+  "promptfoo": "N/A — feature de presentación sin componente IA; los SC se verifican con herramientas deterministas (axe/stylelint/vitest), ya en verde (377/377).",
+  "ronda": 1,
+  "veredicto_global": "FAIL",
+  "bloqueantes": 1,
+  "resumen": "Implementación fiel a FR-001..FR-014 (48/48 tests objetivo, 377/377 suite, 0 backend/contracts/rbac/seed, sin fuga: URL no en DOM, FALLBACK único, onError revoke+no-log). 1 BLOQUEANTE de a11y (indicador no anunciado en navegación cacheada) + ALTAs (tipo no derivado del contrato; revoke-en-navegación sin test) + MEDIAs (ancho lightbox, overflow móvil, aria-label, focus-trap N>=2, retry retirado). Remediado con dev-frontend.",
+  "huecos": [
+    {"id": "F-001", "fuente": "front-a11y-ux", "sev": "BLOQUEANTE", "elemento": "indicador k de N", "desc": "No anunciado a lector de pantalla al navegar a imagen cacheada (sin Spinner). WCAG 4.1.3.", "resolucion": "aria-live=polite/role=status en el indicador + test de anuncio en navegación cacheada."},
+    {"id": "F-002", "fuente": "front-a11y-ux", "sev": "ALTA", "elemento": "EvidenceViewerItem", "desc": "Tipo redefinido a mano (content_type: string) en vez de derivado del contrato (enum).", "resolucion": "Derivar de EvidenceMeta['items']/schemas.ts."},
+    {"id": "I-001", "fuente": "revisor-implementacion", "sev": "ALTA", "elemento": "FR-013 nav", "desc": "Revoke-en-navegación del carrusel sin test; trazabilidad lo afirmaba falsamente.", "resolucion": "Test con spyOn(URL.revokeObjectURL) navegando k→k±1; corregir docs/traceability."},
+    {"id": "F-003", "fuente": "front-a11y-ux", "sev": "MEDIA", "elemento": "ancho lightbox", "desc": "Reutiliza --dialog-max-width (512px), pequeño para fotos en escritorio.", "resolucion": "Token dedicado mayor + layout lightbox."},
+    {"id": "F-004", "fuente": "front-a11y-ux", "sev": "MEDIA", "elemento": "overflow móvil 360px", "desc": "Controles en flex-row sin min-width:0 → posible overflow; Playwright no hecho.", "resolucion": "min-width:0/controles superpuestos; verificación visual Playwright queda pendiente (requiere login del seed)."},
+    {"id": "F-005", "fuente": "front-a11y-ux", "sev": "MEDIA", "elemento": "aria-label diálogo", "desc": "«Imagen k» sin contexto/total.", "resolucion": "«Visor de evidencia, imagen k de N»."},
+    {"id": "I-002", "fuente": "revisor-implementacion", "sev": "MEDIA", "elemento": "focus-trap N>=2", "desc": "Solo probado con N=1.", "resolucion": "Test Tab/Shift+Tab con N>=2 y control disabled en límite."},
+    {"id": "I-003", "fuente": "revisor-implementacion", "sev": "MEDIA", "elemento": "retry retirado", "desc": "024 tenía botón Reintentar in-situ; 025 lo quitó sin documentar.", "resolucion": "Restablecer paridad: InlineError con onRetry=refetch (sin cambiar el colapso de mensajes)."},
+    {"id": "S-001", "fuente": "rbac", "sev": "MEDIA", "elemento": "oráculo 410", "desc": "El mensaje distintivo 410 es oráculo ya ACEPTADO en 024; 025 lo reutiliza.", "resolucion": "Nota de trazabilidad: reutilización de decisión aceptada en 024, no hallazgo nuevo."}
+  ]
+}
