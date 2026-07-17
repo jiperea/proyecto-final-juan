@@ -11,7 +11,8 @@ useDefault = true
 # contraseñas ficticias de prueba. El allowlist es ACOTADO al literal exacto —
 # cualquier otro secreto, en tests o en cualquier sitio, se sigue detectando.
 [allowlist]
-description = "Passwords ficticias de fixtures de login (incorrecta-<n>); camino de error 401. No son secretos."
+description = "Literales ficticios de fixtures de test (no secretos): passwords 'incorrecta-<n>' del camino 401 y la clave dummy de cifrado de evidencia (fs-storage-adapter.spec)."
 regexes = [
   '''incorrecta-\d+''',
+  '''test-evidence-enc-key-min-32-characters-x''',
 ]
