@@ -608,7 +608,7 @@ ni cambia contrato/backend/RBAC. Tests en `frontend/tests/unit/`.
 | FR-010c | `@media (prefers-reduced-motion: reduce)` a 0 ms en el visor (CSS estático, sin `matchMedia` en JS) | — | T001, T015 | `reduced-motion.test.ts`: "(a) existe @media (prefers-reduced-motion: reduce) que fija a 0ms la transición del overlay del visor", "(b) el selector de la imagen del carrusel no declara transition/animation (swap instantáneo)", "(c) EvidenceViewer.tsx no invoca matchMedia (mecanismo CSS puro, sin lectura JS de la preferencia)" |
 | FR-011 | sin scroll horizontal a 360 px/1280 px; controles ≥44×44 px | — | T001, T016 | `evidence-viewer-viewport.test.tsx`: "la imagen del visor está contenida (max-width:100%, sin ancho fijo mayor)", "los controles del visor (cerrar/anterior/siguiente) usan el token de área táctil (>=44x44px)" |
 | FR-012 | sin cambios backend/contracts/RBAC/seed; `OrdersView` conserva `key={orderId}` | — | T003 | `front-governance.test.ts`: "no toca backend/, contracts/, RBAC ni seed frente a develop (FR-012)", "`OrdersView.tsx` mantiene `key={orderId}` en `<OrderDetailView>` (invariante del que depende FR-014)" |
-| FR-013 | revocación de object URLs al cerrar y al cambiar de imagen | — | T008, T010, T014 | `evidence-viewer.test.tsx`: "revoca el object URL al cerrar el visor" (revocación en navegación cubierta por T014, integrada en los tests de carrusel de FR-008) |
+| FR-013 | revocación de object URLs al cerrar y al cambiar de imagen | — | T008, T010, T014 | `evidence-viewer.test.tsx`: "revoca el object URL al cerrar el visor"; `evidence-viewer-carrusel.test.tsx`: "revoca el object URL de la posición saliente al navegar (±1) en el carrusel" (spyOn `URL.revokeObjectURL`) |
 | FR-014 | sin arrastre de estado entre órdenes (remount por `key={orderId}`); revoca object URLs al desmontar | — | T004, T005 | `evidence-viewer.test.tsx`: "(c) al cambiar de orden (remount vía key={orderId}) el visor no arrastra estado, no repite fetch con el par antiguo y revoca sus object URLs al desmontar" |
 | (edge legacy) | tile sin `evidence_id` no abre el visor | — | T004, T006 | `evidence-viewer.test.tsx`: "(b) un tile LEGACY sin evidence_id no es interactivo y no abre el visor" |
 | (edge 410 por-índice / carrera) | 410 aislado por índice; respuesta tardía de posición abandonada no sobrescribe la vigente | — | T012, T013 | `evidence-viewer-carrusel.test.tsx`: "410 por-índice: una posición sin blob no contamina la navegación al resto", "navegación rápida: una respuesta tardía de una posición abandonada no sobrescribe la vigente" |
@@ -617,3 +617,8 @@ ni cambia contrato/backend/RBAC. Tests en `frontend/tests/unit/`.
 > Axe (SC-003) verificado en `evidence-viewer.test.tsx`: "sin violaciones de accesibilidad (axe)". Deuda/
 > fuera de alcance heredada, no reabierta por esta feature: zoom, descarga, rotación, miniaturas y gestos
 > táctiles avanzados (Assumptions §025); seed con blob visible sin subir (spec propia futura, descope de G1).
+> Nota (G3/S-001): el mensaje distintivo del 410 (`EVIDENCE_GONE`) que el visor muestra es un oráculo ya
+> **aceptado y documentado en 024** (S-001/S-002); 025 solo lo **reutiliza** en la nueva superficie, no
+> introduce un hallazgo nuevo. El resto de estados (404/500/red) se colapsan a `FALLBACK_MESSAGE` único.
+> Verificación visual con Playwright MCP (fidelidad del lightbox a 360px/1280px) queda **pendiente**
+> (requiere login del seed), como en features de front previas.
