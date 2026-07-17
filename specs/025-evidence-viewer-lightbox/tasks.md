@@ -46,8 +46,8 @@ Feature **solo frontend** (presentación). **TDD estricto fase Red**: en cada fa
 
 - [X] T015 [P] **Test** reduced-motion (estático, CSS puro) en `frontend/tests/unit/reduced-motion.test.ts` (o equivalente): (a) `components.css` contiene la regla `@media (prefers-reduced-motion: reduce)` que fija a **0 ms** la transición de apertura/cierre del overlay (clase de T001); (b) el selector de la **imagen del carrusel no declara** `transition`/`animation` (swap instantáneo); (c) `EvidenceViewer.tsx` **no invoca `matchMedia`** (mecanismo CSS puro) (FR-010c, T-001/K-101 de G2).
 - [X] T016 [P] Verificar (test/assertion) sin scroll horizontal a 360 px y 1280 px y controles ≥44×44 px (FR-011).
-- [ ] T017 [P] Actualizar `docs/traceability.md` (FR-001..FR-014 → tarea → test) y añadir «visor de evidencia»/«carrusel»/«lightbox» a `docs/09-glossary.md` (K-005 de G2).
-- [ ] T018 Ejecutar `tsc` + `eslint` + `stylelint` + `vitest` en verde; validar el flujo de `quickstart.md`.
+- [X] T017 [P] Actualizar `docs/traceability.md` (FR-001..FR-014 → tarea → test) y añadir «visor de evidencia»/«carrusel»/«lightbox» a `docs/09-glossary.md` (K-005 de G2).
+- [X] T018 Ejecutar `tsc` + `eslint` + `stylelint` + `vitest` en verde; validar el flujo de `quickstart.md`.
 
 ## Dependencies
 

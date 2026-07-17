@@ -50,3 +50,16 @@
 - **Matriz rol×alcance:** política centralizada que define qué órdenes ve/opera cada rol.
 - **Gate (G1/G2/G3):** punto de control adversarial tras clarify / analyze / implement.
 - **Success Criteria (SC):** criterios medibles de éxito de una spec, evaluados como métricas.
+
+## UI · Visor de evidencia
+
+- **Visor de evidencia (EvidenceViewer):** componente modal (`role=dialog`) que muestra una foto de
+  evidencia a tamaño completo a partir de un tile del detalle de orden, con foco atrapado y retorno de
+  foco al cerrar. Reutiliza el fetch→blob de `getOrderEvidence` (024); no añade endpoint ni cambia
+  contrato/RBAC. *(Feature 025 — `025-evidence-viewer-lightbox`.)*
+- **Lightbox:** patrón de interacción del visor de evidencia: overlay a pantalla completa sobre el
+  contenido de la página, cierre por Esc/backdrop/botón, sin navegar fuera de la vista actual.
+  *(Feature 025.)*
+- **Carrusel (de evidencia):** navegación anterior/siguiente dentro del visor cuando una orden tiene ≥2
+  evidencias, con indicador de posición «k de N»; sin envolver (los límites quedan `disabled`); oculto
+  con una sola evidencia (N=1). *(Feature 025.)*
