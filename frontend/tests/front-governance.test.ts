@@ -65,16 +65,38 @@ describe('FE-6 · cupo y formato de eslint-disable (FR-005a/SC-002)', () => {
 describe('025 · guardarraíl del visor de evidencia (FR-010/FR-012/FR-014)', () => {
   it('no toca backend/, contracts/, RBAC ni seed frente a develop (FR-012)', () => {
     // Repo root = un nivel por encima de `frontend/` (cwd de esta suite).
+    // Resuelve la rama base de forma PORTABLE (local y CI): en CI el ref local `develop`
+    // no existe (checkout del PR), así que se prueban candidatos —`origin/$GITHUB_BASE_REF`,
+    // `origin/develop`, `develop`— y, si ninguno resuelve, se hace un fetch superficial de develop.
+    const git = (cmd: string) => execSync(cmd, { cwd: '..', stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim();
+    const refExists = (ref: string) => {
+      try {
+        git(`git rev-parse --verify --quiet ${ref}^{commit}`);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const candidates = [
+      process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : '',
+      'origin/develop',
+      'develop',
+    ].filter(Boolean);
+    let baseRef = candidates.find(refExists);
+    if (!baseRef) {
+      try {
+        git('git fetch --no-tags --depth=200 origin develop:refs/remotes/origin/develop');
+        if (refExists('origin/develop')) baseRef = 'origin/develop';
+      } catch {
+        /* sin red / sin origin: se maneja abajo */
+      }
+    }
     let files: string[];
     try {
-      const base = execSync('git merge-base develop HEAD', { cwd: '..' }).toString().trim();
-      files = execSync(`git diff --name-only ${base} HEAD`, { cwd: '..' })
-        .toString()
-        .trim()
-        .split('\n')
-        .filter(Boolean);
+      const base = git(`git merge-base ${baseRef ?? 'develop'} HEAD`);
+      files = git(`git diff --name-only ${base} HEAD`).split('\n').filter(Boolean);
     } catch (e) {
-      throw new Error(`no se pudo calcular el diff frente a develop: ${String(e)}`);
+      throw new Error(`no se pudo calcular el diff frente a develop (base=${baseRef ?? 'develop'}): ${String(e)}`);
     }
     const forbidden = files.filter(
       (f) =>
