@@ -33,7 +33,7 @@ Habilitador **backend/tooling** de dev. **TDD fase Red** (test en rojo antes de 
 
 - [x] T012 [P] **Test arquitectónico/gobernanza** (FR-002/FR-008/SC-004): 0 cambios en `contracts/`, dominio, RBAC y handlers `getOrderEvidence`/`uploadOrderEvidence`; la imagen es **constante embebida** (no se añaden ficheros de asset nuevos al repo); el `Makefile`/comando de seed **no pasa `EVIDENCE_ENC_KEY` por argv** (`-e KEY=valor`), se hereda por `env_file` (rbac S-002; consistencia K-003).
 - [x] T013 [P] Actualizar `docs/traceability.md` (026: FR-001..FR-014, sin FR-012, → tarea → test).
-- [ ] T014 Ejecutar `make reset` real + validar `quickstart.md` (200 para la evidencia ancla; persiste tras `docker compose restart backend`/GC; reconexión del pool o fallback); suite backend verde con su BD de test; `tsc`/`eslint`.
+- [~] T014 **Verificación manual pendiente** (G3/I-001): la LÓGICA está cubierta por tests automatizados (T005/T006 blob+200, T008 GC real) y la suite backend + `tsc`/`eslint` están verdes. Falta ejecutar `make reset` **real** end-to-end contra el stack navegado y validar `quickstart.md` (200 en `:3001`/navegador; persiste tras `docker compose restart backend`) — muta la BD dev en caliente / requiere login del seed; se hace en la revisión del PR (análogo al Playwright de 025).
 
 ## Dependencies
 

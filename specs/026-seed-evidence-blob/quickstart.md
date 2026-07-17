@@ -9,6 +9,8 @@ make reset      # guard dev-local → prisma migrate reset --skip-seed → vacia
 make dev        # levanta la app navegable (:5173 / :3001) contra db/fieldops
 ```
 
+> **Requisito (D-002):** ejecutar `make reset`/`make up`/`make seed` **desde la raíz del repo con `docker-compose.override.yml` presente** (config de dev; `docker compose` lo fusiona por defecto → `NODE_ENV=development`, `db/fieldops`). Si se fuerza `docker compose -f docker-compose.yml …` (base, paridad-prod, `NODE_ENV=production`), el guard dev-local **aborta a propósito** (fail-closed): usa el flujo `make …` normal.
+
 ## Validación
 
 1. **Evidencia sembrada visible (SC-001)**: como técnico dueño **o** supervisor, abrir el detalle de la orden ancla (`approvableReview`) y pulsar su evidencia → el visor (025) muestra **la imagen** (HTTP 200), no «Esta imagen ya no está disponible» (410). Equivalente en API: `GET /v1/orders/{ancla}/evidence/{evidence_id}` → 200 con el binario.
