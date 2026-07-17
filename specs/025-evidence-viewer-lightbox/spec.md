@@ -78,7 +78,7 @@ Como usuario viendo el detalle de una orden con **varias** evidencias, quiero mo
 - **FR-008**: WHEN el usuario activa siguiente/anterior (control o flechas ←/→) THE front SHALL cambiar a la evidencia adyacente dentro del rango [1..N] sin envolver (no pasa de N a 1 ni de 1 a N) y actualizar el indicador. WHEN la posición actual es el límite (k=1 para «anterior», k=N para «siguiente») THE front SHALL mantener el control correspondiente **visible pero deshabilitado** (`aria-disabled=true` / `disabled`), sin eliminarlo del DOM, para no alterar el orden de foco.
 - **FR-009**: WHEN la orden tiene exactamente 1 evidencia THE front SHALL NOT mostrar controles de navegación ni indicador de posición.
 - **FR-010**: THE front SHALL estilar el visor usando exclusivamente tokens del design system, sin valores hex, px ni familia/tamaño de tipografía sueltos en sus componentes (verificable por stylelint/eslint del proyecto, 0 hallazgos).
-- **FR-010b**: THE front SHALL presentar todos los textos del visor (etiquetas de controles, indicador de posición, mensajes de carga/error) en español a través del mecanismo de i18n del proyecto, sin cadenas literales incrustadas en el componente.
+- **FR-010b**: THE front SHALL presentar todos los textos del visor en español, coherente con la convención del proyecto: los **mensajes de error/estado** reutilizan el módulo centralizado `src/i18n/errors.ts` (p. ej. `NOT_AVAILABLE_MESSAGE`, `messageForCode`, `FALLBACK_MESSAGE`, como ya hace `EvidenceTile`), y las **etiquetas de control** (cerrar, anterior/siguiente, «k de N») son literales en español como el resto del design system (p. ej. `ConfirmDialog`). No se introduce un framework i18n nuevo.
 - **FR-010c**: WHEN `prefers-reduced-motion: reduce` está activo THE front SHALL aplicar duración de transición de **0 ms** (cambio instantáneo) a la apertura/cierre del visor y al cambio de imagen del carrusel.
 - **FR-011**: THE front SHALL renderizar y operar el visor sin scroll horizontal del contenido en anchos de viewport de **360 px** (campo/móvil) y **1280 px** (oficina/escritorio), con la imagen contenida (`max-width:100%`) y controles interactivos con área táctil de **≥44×44 px**.
 - **FR-012**: THE feature SHALL NOT modificar backend, contrato OpenAPI, RBAC, el endpoint `getOrderEvidence` ni el seed; la autorización de la evidencia permanece server-authoritative y heredada exacta de `getOrderDetail`.
@@ -107,7 +107,7 @@ Como usuario viendo el detalle de una orden con **varias** evidencias, quiero mo
 | FR-008 | — | (pend. tasks) | `should navegar adyacente sin envolver y deshabilitar en los límites` |
 | FR-009 | — | (pend. tasks) | `should ocultar navegación con una sola evidencia` |
 | FR-010 | — | (pend. tasks) | `stylelint/eslint: 0 hex/px/tipografía sueltos en el visor` |
-| FR-010b | — | (pend. tasks) | `should usar claves i18n (sin literales) en textos del visor` |
+| FR-010b | — | (pend. tasks) | `should reutilizar src/i18n/errors.ts para mensajes de error del visor` |
 | FR-010c | — | (pend. tasks) | `should aplicar 0ms con prefers-reduced-motion` |
 | FR-011 | — | (pend. tasks) | `should no tener scroll horizontal a 360px y 1280px` |
 | FR-012 | — | (pend. tasks) | `arch: sin cambios en backend/contracts/rbac/seed` |
