@@ -91,12 +91,31 @@ describe('025 · guardarraíl del visor de evidencia (FR-010/FR-012/FR-014)', ()
         /* sin red / sin origin: se maneja abajo */
       }
     }
+    const ref = baseRef ?? 'develop';
+    const mergeBase = (): string => git(`git merge-base ${ref} HEAD`);
     let files: string[];
     try {
-      const base = git(`git merge-base ${baseRef ?? 'develop'} HEAD`);
+      let base: string;
+      try {
+        base = mergeBase();
+      } catch {
+        // Checkout shallow de CI: HEAD y develop no comparten historia local → merge-base falla.
+        // Se profundiza el clon (unshallow si es shallow; si ya es completo, --unshallow da error y se ignora).
+        try {
+          git('git fetch --no-tags --unshallow origin');
+        } catch {
+          try {
+            git('git fetch --no-tags --deepen=2000 origin');
+          } catch {
+            /* ya completo o sin red */
+          }
+        }
+        git('git fetch --no-tags origin develop:refs/remotes/origin/develop');
+        base = mergeBase();
+      }
       files = git(`git diff --name-only ${base} HEAD`).split('\n').filter(Boolean);
     } catch (e) {
-      throw new Error(`no se pudo calcular el diff frente a develop (base=${baseRef ?? 'develop'}): ${String(e)}`);
+      throw new Error(`no se pudo calcular el diff frente a develop (base=${ref}): ${String(e)}`);
     }
     const forbidden = files.filter(
       (f) =>
