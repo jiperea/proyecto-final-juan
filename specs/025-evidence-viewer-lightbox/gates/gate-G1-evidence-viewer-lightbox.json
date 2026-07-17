@@ -1,0 +1,23 @@
+{
+  "gate": "G1",
+  "feature": "025-evidence-viewer-lightbox",
+  "fecha": "2026-07-17",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad"],
+  "rondas": 5,
+  "veredicto_global": "PASS",
+  "bloqueantes_final": 0,
+  "resumen": "PASS en 5 rondas. Lección: la espiral de remediacion (cada salvaguarda del seed abria otro hueco: H-012 config -> H-014 loadConfig -> H-001 db-test/baseDir) se corto SIMPLIFICANDO por decision del usuario: US3 (seed con blob) se saca a una spec propia por su entanglement con la topologia del entorno dev. La spec queda solo US1/US2 (visor lightbox+carrusel, front-only), aprobada por los 3 revisores con 0 huecos. Diff net-negativo (Principio XV).",
+  "trayectoria": [
+    {"ronda": 1, "veredicto": "FAIL", "bloqueantes": 1, "nota": "T-001 (FR-011 'usable' sin cuantificar) + ALTAs (FR-005 errores, seed audit/env)."},
+    {"ronda": 2, "veredicto": "FAIL", "nota": "UI resuelto; persiste S-002 (seed sin guard entorno, prod nace vacio)."},
+    {"ronda": 3, "veredicto": "FAIL", "bloqueantes": 1, "nota": "S-002 cerrado con guard; remediacion introduce H-014 (loadConfig completo rompe make seed)."},
+    {"ronda": 4, "veredicto": "FAIL", "bloqueantes": 1, "nota": "H-014 cerrado; H-001 nuevo (make seed puebla db-test, no la fieldops navegada) + baseDir/volumenes."},
+    {"ronda": 5, "veredicto": "PASS", "bloqueantes": 0, "nota": "US3 descoped a spec propia (decision usuario). Spec solo US1/US2. auditor 0, rbac 0, cinico 0 bloqueantes (2 MEDIA de redaccion aplicadas)."}
+  ],
+  "descope": {
+    "que": "US3 — seed de desarrollo que guarda un blob real para ver evidencia sembrada sin subir foto.",
+    "por_que": "Entanglement con topologia dev: make seed (dcnode.sh) puebla fieldops_test, pero el backend navegado (make dev) lee fieldops; + storage baseDir/volumenes por contenedor; + inyeccion de EVIDENCE_ENC_KEY. Cluster de entorno, ajeno al visor.",
+    "destino": "Spec propia futura (habilitador dev de evidencia sembrada). Incluye ademas el bug preexistente de make seed (BD equivocada) que explica la friccion historica 'requiere login del seed'.",
+    "mientras_tanto": "Para ver imagen real en dev: subir foto como tecnico (flujo 024, operativo)."
+  }
+}

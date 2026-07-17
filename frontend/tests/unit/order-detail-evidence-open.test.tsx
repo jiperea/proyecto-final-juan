@@ -76,7 +76,7 @@ describe('Abrir la imagen de evidencia (024 · T027/FR-010/FR-013)', () => {
     expect(img.getAttribute('src')).toMatch(/^blob:/);
   });
 
-  it('(b) estado de carga y luego error (410/404 → mensaje, con reintento)', async () => {
+  it('(b) estado de carga y luego error (410 → mensaje dentro del visor, sin imagen) [superseded by 025: EvidenceViewer]', async () => {
     bootAs('supervisor');
     server.use(
       http.get(`/v1/orders/${ORDER_ID}`, () => HttpResponse.json(orderWithEvidence())),
@@ -89,13 +89,15 @@ describe('Abrir la imagen de evidencia (024 · T027/FR-010/FR-013)', () => {
     await screen.findByRole('heading', { name: 'Orden con foto real' });
 
     fireEvent.click(screen.getByRole('button', { name: /Ver imagen 2 de 2/i }));
+    const dialog = await screen.findByRole('dialog');
 
     // carga: región viva con mensaje de progreso, ANTES de que resuelva la respuesta demorada.
-    expect(await screen.findByText(/Cargando imagen 2/i)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/Cargando imagen 2/i)).toBeInTheDocument();
 
-    // error: alerta accesible con botón de reintento, sin la imagen.
-    const alert = await screen.findByRole('alert');
-    expect(within(alert).getByRole('button', { name: /Reintentar/i })).toBeInTheDocument();
+    // error: alerta accesible con el mensaje 410 (EVIDENCE_GONE), sin la imagen ni botón de reintento
+    // (025/EvidenceViewer: colapso de errores único, sin retry — ver FR-005 de 025).
+    const alert = await within(dialog).findByRole('alert');
+    expect(within(alert).getByText('Esta imagen ya no está disponible.')).toBeInTheDocument();
     expect(screen.queryByAltText('Imagen 2')).not.toBeInTheDocument();
   });
 

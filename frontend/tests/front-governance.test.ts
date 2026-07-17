@@ -1,7 +1,8 @@
 // FE-6 (020) · FR-010/SC-006 (sincronía doc↔config) + FR-005a/SC-002 (cupo/formato de eslint-disable).
 // Verificación determinista de gobernanza: cada regla `enforced` del documento existe como error en la
 // config, y el nº de eslint-disable de la feature respeta el cupo ≤3 con comentario justificativo.
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -53,6 +54,100 @@ describe('FE-6 · cupo y formato de eslint-disable (FR-005a/SC-002)', () => {
       const m = d.match(/--\s*(.+)$/);
       expect(m, `disable sin '-- <razón>': ${d}`).not.toBeNull();
       expect((m?.[1] ?? '').trim().length).toBeGreaterThanOrEqual(15);
+    }
+  });
+});
+
+// 025 (T003) · Guardarraíl (Red), activo durante todo el desarrollo de la feature: 025 es SOLO frontend
+// (presentación) — no toca backend/contrato/RBAC/seed (FR-012); el visor solo usa tokens (FR-010/SC-005);
+// y el invariante de remount (`key={orderId}`) del que depende FR-014 queda protegido frente a un refactor
+// futuro que lo quite.
+describe('025 · guardarraíl del visor de evidencia (FR-010/FR-012/FR-014)', () => {
+  it('no toca backend/, contracts/, RBAC ni seed frente a develop (FR-012)', () => {
+    // Repo root = un nivel por encima de `frontend/` (cwd de esta suite).
+    // Resuelve la rama base de forma PORTABLE (local y CI): en CI el ref local `develop`
+    // no existe (checkout del PR), así que se prueban candidatos —`origin/$GITHUB_BASE_REF`,
+    // `origin/develop`, `develop`— y, si ninguno resuelve, se hace un fetch superficial de develop.
+    const git = (cmd: string) => execSync(cmd, { cwd: '..', stdio: ['pipe', 'pipe', 'pipe'] }).toString().trim();
+    const refExists = (ref: string) => {
+      try {
+        git(`git rev-parse --verify --quiet ${ref}^{commit}`);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const candidates = [
+      process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : '',
+      'origin/develop',
+      'develop',
+    ].filter(Boolean);
+    let baseRef = candidates.find(refExists);
+    if (!baseRef) {
+      try {
+        git('git fetch --no-tags --depth=200 origin develop:refs/remotes/origin/develop');
+        if (refExists('origin/develop')) baseRef = 'origin/develop';
+      } catch {
+        /* sin red / sin origin: se maneja abajo */
+      }
+    }
+    const ref = baseRef ?? 'develop';
+    const mergeBase = (): string => git(`git merge-base ${ref} HEAD`);
+    let files: string[];
+    try {
+      let base: string;
+      try {
+        base = mergeBase();
+      } catch {
+        // Checkout shallow de CI: HEAD y develop no comparten historia local → merge-base falla.
+        // Se profundiza el clon (unshallow si es shallow; si ya es completo, --unshallow da error y se ignora).
+        try {
+          git('git fetch --no-tags --unshallow origin');
+        } catch {
+          try {
+            git('git fetch --no-tags --deepen=2000 origin');
+          } catch {
+            /* ya completo o sin red */
+          }
+        }
+        git('git fetch --no-tags origin develop:refs/remotes/origin/develop');
+        base = mergeBase();
+      }
+      files = git(`git diff --name-only ${base} HEAD`).split('\n').filter(Boolean);
+    } catch (e) {
+      throw new Error(`no se pudo calcular el diff frente a develop (base=${ref}): ${String(e)}`);
+    }
+    const forbidden = files.filter(
+      (f) =>
+        f.startsWith('backend/') ||
+        f.startsWith('contracts/') ||
+        f.toLowerCase().includes('rbac') ||
+        f.toLowerCase().includes('seed'),
+    );
+    expect(forbidden, `archivos fuera de alcance de 025 (solo frontend): ${forbidden.join(', ')}`).toEqual([]);
+  });
+
+  it('`OrdersView.tsx` mantiene `key={orderId}` en `<OrderDetailView>` (invariante del que depende FR-014)', () => {
+    const src = readFileSync(join(root, 'src', 'features', 'orders', 'OrdersView.tsx'), 'utf8');
+    expect(src).toMatch(/<OrderDetailView\s+key=\{orderId\}/);
+  });
+
+  it('0 estilos sueltos (hex/px/tipografía) en los componentes del visor (FR-010/SC-005)', () => {
+    const viewerPath = join(root, 'src', 'features', 'orders', 'EvidenceViewer.tsx');
+    expect(existsSync(viewerPath), 'EvidenceViewer.tsx aún no existe (fase Red)').toBe(true);
+    const viewerSrc = readFileSync(viewerPath, 'utf8');
+    expect(viewerSrc).not.toMatch(/#[0-9a-fA-F]{3,8}\b/); // hex de color suelto
+    expect(viewerSrc).not.toMatch(/[^-\w]\d+px\b/); // px suelto (fuera de nombres de variable/clase)
+    expect(viewerSrc).not.toMatch(/font-family\s*:/i);
+
+    const css = readFileSync(join(root, 'src', 'ui', 'components.css'), 'utf8');
+    const viewerBlocks = css.match(/\.evidence-viewer[\w-]*[^{}]*\{[^}]*\}/g) ?? [];
+    expect(
+      viewerBlocks.length,
+      'no se encontraron reglas .evidence-viewer* en components.css (fase Red)',
+    ).toBeGreaterThan(0);
+    for (const block of viewerBlocks) {
+      expect(block, `hex suelto en: ${block}`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     }
   });
 });

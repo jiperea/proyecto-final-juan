@@ -584,3 +584,41 @@ uniforme** (nunca 403/410 a no-autorizado; `closed` → 404, nunca 410), **un `o
 >
 > Deuda/fuera de alcance heredada y no reabierta por esta feature: rotación de claves AES (Assumptions
 > §024), partición por equipo/tenant (organización única/plana), If-Match/409 explícito al cliente (BL-001).
+
+## 025 · Visor ampliado de evidencia — lightbox + carrusel (`025-evidence-viewer-lightbox`)
+
+Feature de **presentación (solo `frontend/`)**: abre cada tile de evidencia (024) a tamaño completo en un
+visor modal (`role=dialog`) con foco atrapado/retorno, y navega entre las N fotos de una orden (carrusel,
+indicador «k de N») sin envolver. Reutiliza el fetch→blob de `getOrderEvidence` (024); no añade endpoints
+ni cambia contrato/backend/RBAC. Tests en `frontend/tests/unit/`.
+
+| FR | Descripción | Endpoint(s) | Tarea(s) | Test(s) |
+|----|-------------|-------------|----------|---------|
+| FR-001 | activar un tile con `evidence_id` (click/Enter/Espacio) abre el visor en su posición | (reutiliza) getOrderEvidence | T004, T006, T007 | `evidence-viewer.test.tsx`: "(a) un tile CON evidence_id abre el visor en su posición al hacer click", "(a) también se abre con Enter/Espacio desde teclado" |
+| FR-002 | imagen renderizada desde `blob:` (fetch→blob), sin exponer la URL del endpoint en el DOM | getOrderEvidence | T008, T010 | `evidence-viewer.test.tsx`: "la imagen se renderiza desde un object URL (blob:), sin exponer la URL del endpoint en el DOM" |
+| FR-003 | cierre por Esc, backdrop y botón, con retorno de foco al tile | — | T007, T009 | `evidence-viewer.test.tsx`: "Esc cierra el visor y devuelve el foco al tile que lo abrió", "el botón «Cerrar» cierra el visor y devuelve el foco al tile", "el click en el backdrop (fuera de la imagen) cierra el visor y devuelve el foco al tile" |
+| FR-004 | foco atrapado dentro del visor (`role=dialog`/`aria-modal=true`) | — | T007, T009 | `evidence-viewer.test.tsx`: "abre con role=dialog + aria-modal=true, y el foco inicial queda dentro (botón Cerrar)", "el foco queda atrapado: Tab en el último de los controles vuelve al primero (y Shift+Tab al revés)" |
+| FR-005 | estados 410/offline/fallback único (404/otros)/`onError` de `<img>`, sin imagen rota ni fuga | getOrderEvidence | T008, T010 | `evidence-viewer.test.tsx`: "410 EVIDENCE_GONE → «Esta imagen ya no está disponible.» (messageForCode)", "red/offline (sin respuesta HTTP) → OFFLINE_MESSAGE", "404 → FALLBACK_MESSAGE único (NO el texto por-código...)", "500 (u otro >=400 distinto de 401/410) → el MISMO FALLBACK_MESSAGE único", "200 con blob no decodificable (onError del <img>) → FALLBACK_MESSAGE, revocación inmediata y SIN loguear detalle/evidence_id/URL blob" |
+| FR-006 | indicador «k de N» con N≥2 | — | T012, T013 | `evidence-viewer-carrusel.test.tsx`: "abre en la posición k del tile pulsado y muestra el indicador «k de N»" |
+| FR-007 | el visor abre en la posición del tile pulsado | — | T012, T013 | `evidence-viewer-carrusel.test.tsx`: "abre en la posición k del tile pulsado y muestra el indicador «k de N»" |
+| FR-008 | navegación anterior/siguiente sin envolver; límites con `disabled` nativo; sin cruces en navegación rápida | — | T012, T013 | `evidence-viewer-carrusel.test.tsx`: "«Siguiente» avanza imagen e indicador; «Anterior» retrocede", "las flechas ←/→ del teclado navegan igual que los controles", "en k=1 «Anterior» queda disabled NATIVO (no tabulable ni activable), sin envolver", "en k=N «Siguiente» queda disabled NATIVO, sin envolver", "navegación rápida: una respuesta tardía de una posición abandonada no sobrescribe la vigente" |
+| FR-009 | con una sola evidencia (N=1), sin controles de navegación ni indicador | — | T012, T013 | `evidence-viewer-carrusel.test.tsx`: "con N=1 no se ofrecen controles de navegación ni indicador de posición" |
+| FR-010 | 0 hex/px/tipografía sueltos en los componentes del visor | — | T001, T003 | `front-governance.test.ts`: "0 estilos sueltos (hex/px/tipografía) en los componentes del visor (FR-010/SC-005)" |
+| FR-010b | mensajes de `errors.ts` (`EVIDENCE_GONE`/`OFFLINE`/`FALLBACK`) y etiquetas es en controles (incl. carrusel) | — | T007, T008, T012 | `evidence-viewer.test.tsx` (mensajes 410/offline/fallback, arriba), `evidence-viewer-carrusel.test.tsx`: "las etiquetas de los controles de navegación están en español" |
+| FR-010c | `@media (prefers-reduced-motion: reduce)` a 0 ms en el visor (CSS estático, sin `matchMedia` en JS) | — | T001, T015 | `reduced-motion.test.ts`: "(a) existe @media (prefers-reduced-motion: reduce) que fija a 0ms la transición del overlay del visor", "(b) el selector de la imagen del carrusel no declara transition/animation (swap instantáneo)", "(c) EvidenceViewer.tsx no invoca matchMedia (mecanismo CSS puro, sin lectura JS de la preferencia)" |
+| FR-011 | sin scroll horizontal a 360 px/1280 px; controles ≥44×44 px | — | T001, T016 | `evidence-viewer-viewport.test.tsx`: "la imagen del visor está contenida (max-width:100%, sin ancho fijo mayor)", "los controles del visor (cerrar/anterior/siguiente) usan el token de área táctil (>=44x44px)" |
+| FR-012 | sin cambios backend/contracts/RBAC/seed; `OrdersView` conserva `key={orderId}` | — | T003 | `front-governance.test.ts`: "no toca backend/, contracts/, RBAC ni seed frente a develop (FR-012)", "`OrdersView.tsx` mantiene `key={orderId}` en `<OrderDetailView>` (invariante del que depende FR-014)" |
+| FR-013 | revocación de object URLs al cerrar y al cambiar de imagen | — | T008, T010, T014 | `evidence-viewer.test.tsx`: "revoca el object URL al cerrar el visor"; `evidence-viewer-carrusel.test.tsx`: "revoca el object URL de la posición saliente al navegar (±1) en el carrusel" (spyOn `URL.revokeObjectURL`) |
+| FR-014 | sin arrastre de estado entre órdenes (remount por `key={orderId}`); revoca object URLs al desmontar | — | T004, T005 | `evidence-viewer.test.tsx`: "(c) al cambiar de orden (remount vía key={orderId}) el visor no arrastra estado, no repite fetch con el par antiguo y revoca sus object URLs al desmontar" |
+| (edge legacy) | tile sin `evidence_id` no abre el visor | — | T004, T006 | `evidence-viewer.test.tsx`: "(b) un tile LEGACY sin evidence_id no es interactivo y no abre el visor" |
+| (edge 410 por-índice / carrera) | 410 aislado por índice; respuesta tardía de posición abandonada no sobrescribe la vigente | — | T012, T013 | `evidence-viewer-carrusel.test.tsx`: "410 por-índice: una posición sin blob no contamina la navegación al resto", "navegación rápida: una respuesta tardía de una posición abandonada no sobrescribe la vigente" |
+| (edge reapertura) | abrir→cerrar→reabrir no deja overlay duplicado | — | T007, T009 | `evidence-viewer.test.tsx`: "reabrir (abrir→cerrar→reabrir) no deja overlay duplicado" |
+
+> Axe (SC-003) verificado en `evidence-viewer.test.tsx`: "sin violaciones de accesibilidad (axe)". Deuda/
+> fuera de alcance heredada, no reabierta por esta feature: zoom, descarga, rotación, miniaturas y gestos
+> táctiles avanzados (Assumptions §025); seed con blob visible sin subir (spec propia futura, descope de G1).
+> Nota (G3/S-001): el mensaje distintivo del 410 (`EVIDENCE_GONE`) que el visor muestra es un oráculo ya
+> **aceptado y documentado en 024** (S-001/S-002); 025 solo lo **reutiliza** en la nueva superficie, no
+> introduce un hallazgo nuevo. El resto de estados (404/500/red) se colapsan a `FALLBACK_MESSAGE` único.
+> Verificación visual con Playwright MCP (fidelidad del lightbox a 360px/1280px) queda **pendiente**
+> (requiere login del seed), como en features de front previas.
