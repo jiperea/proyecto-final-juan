@@ -5,6 +5,7 @@ import { Button, StatusBadge, Stepper, useWideViewport } from '../../ui';
 import { InlineError, Spinner } from '../../ui';
 import { useSession } from '../auth/session';
 import { EvidenceTile } from './EvidenceTile';
+import { EvidenceViewer } from './EvidenceViewer';
 import { ExecutionForm } from './ExecutionForm';
 import { IncidentSummaryPanel } from './IncidentSummaryPanel';
 import { ReassignForm } from './ReassignForm';
@@ -22,6 +23,10 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   const [showReassign, setShowReassign] = useState(false);
   const [reassignAnnounce, setReassignAnnounce] = useState('');
   const assigneeRef = useRef<HTMLSpanElement>(null);
+  // 025 · Estado del visor de evidencia ampliada: null = cerrado; si no, índice 0-based abierto. El
+  // reset entre órdenes lo da el remount existente (`key={orderId}` en OrdersView) — no hace falta
+  // lógica de reset manual aquí (FR-014).
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // Write-side del supervisor (FE-4).
   const [reviewAnnounce, setReviewAnnounce] = useState('');
   const statusRef = useRef<HTMLDivElement>(null);
@@ -165,11 +170,12 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           <p>{notes}</p>
         </section>
       ) : null}
-      {/* FE-9 (023)/024 (T031) · FR-006/FR-010: N tiles «Imagen N» (1-based) por `evidence.count`;
+      {/* FE-9 (023)/024 (T031)/025 · FR-006/FR-010: N tiles «Imagen N» (1-based) por `evidence.count`;
           invariante del contrato `count == content_types.length` (enum de imágenes). `count === 0` →
-          estado explícito, 0 tiles. Con `items[]` (024, FR-014) cada tile es un control accesible que abre
-          la foto (fetch autenticado → blob); sin `items` (legacy/rollout) se mantiene el placeholder no
-          interactivo de FE-9 (no hay `evidence_id` con el que pedir el binario). */}
+          estado explícito, 0 tiles. Con `items[]` (024, FR-014) cada tile es un disparador accesible
+          que abre el visor ampliado (025, `EvidenceViewer`) en su posición; sin `items` (legacy/
+          rollout) se mantiene el placeholder no interactivo de FE-9 (no hay `evidence_id` con el que
+          pedir el binario). */}
       {evidence !== undefined ? (
         <section aria-label="Evidencia">
           <h3>Evidencia</h3>
@@ -179,10 +185,9 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
                 ? evidence.items.map((item, i) => (
                     <EvidenceTile
                       key={item.evidence_id}
-                      orderId={order.id}
-                      evidenceId={item.evidence_id}
                       index={i + 1}
                       total={evidence.count}
+                      onOpen={() => setViewerIndex(i)}
                     />
                   ))
                 : Array.from({ length: evidence.count }, (_, i) => (
@@ -195,6 +200,17 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
             <p className="order-detail__desc">Sin evidencia adjunta.</p>
           )}
         </section>
+      ) : null}
+
+      {/* 025 · Visor ampliado (lightbox + carrusel): montado/desmontado por completo (no solo oculto)
+          para que cada apertura sea una instancia fresca sin overlays duplicados (FR-001/FR-003). */}
+      {evidence?.items !== undefined && viewerIndex !== null ? (
+        <EvidenceViewer
+          orderId={order.id}
+          items={evidence.items}
+          startIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
       ) : null}
     </article>
   );
