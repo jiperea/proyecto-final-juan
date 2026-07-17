@@ -1,0 +1,18 @@
+{
+  "gate": "G1",
+  "feature": "026-seed-evidence-blob",
+  "fecha": "2026-07-17",
+  "panel": ["revisor-cinico", "auditor-spec-theater", "revisor-rbac-seguridad"],
+  "rondas": 10,
+  "veredicto_global": "PASS",
+  "bloqueantes_final": 0,
+  "resumen": "PASS en 10 rondas. Feature de tooling/datos de dev con un ciclo de vida intrincado (guard de entorno, contexto de contenedor, volúmenes, UID, interrupciones, resets). Convergió por CONSOLIDACIÓN estructural, no por acumular salvaguardas: (1) todo `make reset`/`seed` corre en UNA invocación del contenedor backend (mismo env_file/DATABASE_URL/volumen/UID) — cerró la coherencia de clave/BD/almacén/permisos; (2) guard dev-local POSITIVO (NODE_ENV!=production + hostname exacto de DATABASE_URL, sin filtrar credenciales); (3) modelo reset-y-siembra (sin ruta incremental) apoyado en el ensureSeedableOrThrow existente; (4) object_ref fijo + seed atómico. Dos CORTES anti-espiral (diff net-negativo): se eliminó la idempotencia de make up (chocaba con ensureSeedableOrThrow) y la orquestación stop/start del backend (generaba edge cases sin fin). rbac r3: 0; auditor r9: 0; cinico r10: APROBADA.",
+  "verificacion_pendiente_G3": "H-210/H-211/H-212 (no bloqueantes de spec, asignados a G2/G3): verificar empíricamente en quickstart que el pool de Prisma reconecta tras el reset con el backend en caliente (fallback documentado: restart del contenedor). Convertido de afirmación-como-hecho a asunción-a-verificar.",
+  "trayectoria_bloqueantes": [
+    {"ronda": 1, "bloqueantes": 1, "nota": "S-001/H-002 guard NODE_ENV única barrera para pre/prod vacío."},
+    {"ronda": 2, "bloqueantes": 1, "nota": "H-013 FR-012 (idempotencia make up) choca con ensureSeedableOrThrow/test 019."},
+    {"ronda": 3, "bloqueantes": 0, "nota": "eliminada FR-012 (corte anti-espiral); + T-001 make reset sin comando."},
+    {"ronda": "4-9", "bloqueantes": "0-1 transitorios", "nota": "cadena de edge cases de tooling (compose merge, stack, UID, socket) cerrados por consolidación en contexto backend."},
+    {"ronda": 10, "bloqueantes": 0, "nota": "eliminada orquestación stop/start (corte anti-espiral); cinico APROBADA."}
+  ]
+}
