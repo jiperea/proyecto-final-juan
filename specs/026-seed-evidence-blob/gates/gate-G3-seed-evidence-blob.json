@@ -1,0 +1,18 @@
+{
+  "gate": "G3",
+  "feature": "026-seed-evidence-blob",
+  "fecha": "2026-07-17",
+  "panel": ["revisor-implementacion", "revisor-rbac-seguridad", "revisor-devops"],
+  "promptfoo": "N/A — habilitador dev/backend sin componente IA; SC deterministas (exit codes, 200/410, arch-diff), verificados por la suite.",
+  "ronda": 1,
+  "veredicto_global": "PASS",
+  "bloqueantes": 0,
+  "resumen": "Los 3 carriles APROBADA_CON_COMENTARIOS, 0 bloqueantes. 14 FR implementados y verificados en código: guard dev-local antes de escribir, blob-antes-que-fila en transacción, object_ref devuelto por putStaged, validador compartido, reason='execution_registered' verificado contra runStagingGc real, Makefile/reset.ts al contexto backend, 0 cambios en contracts/dominio/RBAC/handlers (arch-test + git diff). Suite 652 verde, sin regresión 019/006. CI compat: EVIDENCE_ENC_KEY de test (allowlisted) en los 3 workflows.",
+  "medias_aceptadas": [
+    {"id": "I-001", "fuente": "implementacion", "desc": "SC-001/SC-003 no verificados end-to-end con Docker real (make reset contra el stack navegado); T014 queda como verificación MANUAL pendiente (muta la BD dev en caliente / requiere login del seed). La lógica (blob+fila+GC+servir 200) sí está cubierta por tests automatizados (T005/T006/T008).", "estado": "ACEPTADO/PENDIENTE — verificación manual (análogo al Playwright de 025)."},
+    {"id": "I-002", "fuente": "implementacion", "desc": "Unhandled-rejection latente en el constructor de FsStorageAdapter (mkdir de 024), expuesto por el test FR-009. Warning, no fallo (suite verde). Podría endurecerse bajo Node strict.", "estado": "ACEPTADO — deuda pre-existente de 024, warning-only; follow-up: .catch en this.ready. No se expande 026 al adaptador de 024."},
+    {"id": "D-001", "fuente": "devops", "desc": "EVIDENCE_ENC_KEY de test duplicada en 3 workflows (no un punto único).", "estado": "ACEPTADO — literal de test allowlisted; follow-up opcional: variable de repo."},
+    {"id": "D-002", "fuente": "devops", "desc": "make reset/up dependen de la fusión automática del override (dev).", "estado": "RESUELTO — nota añadida en quickstart.md."},
+    {"id": "S-001/S-002", "fuente": "rbac", "desc": "guard confía en el string hostname (no identidad real de BD); clave valida solo longitud ≥32 (no entropía).", "estado": "ACEPTADO — sin explotabilidad en la topología dev; mismo criterio de longitud que 024."}
+  ]
+}

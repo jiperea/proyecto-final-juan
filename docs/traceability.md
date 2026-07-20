@@ -622,3 +622,41 @@ ni cambia contrato/backend/RBAC. Tests en `frontend/tests/unit/`.
 > introduce un hallazgo nuevo. El resto de estados (404/500/red) se colapsan a `FALLBACK_MESSAGE` único.
 > Verificación visual con Playwright MCP (fidelidad del lightbox a 360px/1280px) queda **pendiente**
 > (requiere login del seed), como en features de front previas.
+
+## 026 · Seed de desarrollo con blob de evidencia real (`026-seed-evidence-blob`)
+
+Habilitador **backend/tooling** de desarrollo: el seed almacena un blob de imagen REAL (vía el mismo
+`StoragePort`/adaptador cifrado AES-256-GCM de 024, `putStaged`) para la evidencia de la orden ancla, de
+modo que `getOrderEvidence` sirva **200** (no 410); y re-apunta `make up`/`make seed`/`make reset` a la
+BD/almacén NAVEGADOS (`db`/`fieldops`, `EVIDENCE_STORAGE_DIR`), ejecutados en el contexto del contenedor
+`backend`. Guard dev-local (NODE_ENV≠production + hostname exacto de `DATABASE_URL`); validador de
+`EVIDENCE_ENC_KEY` compartido; modelo reset-y-siembra. **0 cambios en `contracts/`, `src/domain/`, RBAC ni
+en los handlers `getOrderEvidence`/`uploadOrderEvidence`** (FR-008).
+
+| FR | Endpoint(s) | Tarea(s) | Test(s) |
+|----|-------------|----------|---------|
+| FR-001 | (reutiliza) getOrderEvidence | T005,T006,T007 | `seed-evidence-blob-write.spec.ts`, `seed-evidence-blob-serve.spec.ts` |
+| FR-002 | — | T002,T012 | `seed-evidence-blob-governance.spec.ts` (imagen embebida, sin asset nuevo) |
+| FR-003 | — | T001,T003,T004 | `seed-dev-local-guard.spec.ts`, `evidence-enc-key-validator.spec.ts` |
+| FR-004 | — | T003,T004 | `seed-dev-local-guard.spec.ts` (NODE_ENV=production / host externo, match exacto, sin fuga) |
+| FR-005 | getOrderEvidence | T007,T010 | `seed-evidence-blob-write.spec.ts` (blob en EVIDENCE_STORAGE_DIR) |
+| FR-006 | — | T010,T011 | `seed-reset-script.spec.ts` (Makefile: seed/up/reset en `docker compose run --rm backend`, sin `dcnode.sh`) |
+| FR-007 | — | T005,T007,T010 | `seed-evidence-blob-write.spec.ts` (object_ref DEVUELTO por `putStaged`, no placeholder) |
+| FR-008 | — | T012 | `seed-evidence-blob-governance.spec.ts` (0 diff contracts/dominio/RBAC/handlers frente a develop) |
+| FR-009 | — | T009 | `seed-evidence-blob-storage-failure.spec.ts` (almacén inalcanzable → error nombra la ruta, sin fila huérfana) |
+| FR-010 | — | T005,T007,T009 | `seed-evidence-blob-write.spec.ts` (atomicidad: interrupción ⇒ BD vacía, blob antes que fila) |
+| FR-011 | — | T010,T011 | `seed-reset-script.spec.ts` (`runReset`/`clearDirContents`: orden guard→migrate reset→clearDir→seed; idempotencia) |
+| FR-013 | — | T001 | `evidence-enc-key-validator.spec.ts` (`config.ts` y el seed comparten `isValidEvidenceEncKey`) |
+| FR-014 | getOrderEvidence | T008 | `seed-evidence-blob-gc.spec.ts` (`reason:'execution_registered'` ⇒ `runStagingGc` no purga; control con `reason:null` sí) |
+
+> **Hallazgo abierto (no remediable dentro del alcance de esta tarea)**: el test CONTROL de
+> `seed-evidence-blob-gc.spec.ts` («con `reason:null` … SÍ sería purgado») intenta `prisma.orderAudit.update(...)`
+> para simular el dato legacy DESPUÉS de sembrar; `order_audit` es **append-only por trigger de BD**
+> (`order_audit_no_mutation`, feature 002b, Constitution IX) y rechaza CUALQUIER `UPDATE`/`DELETE` — incluso
+> del propietario de la tabla — con `23001 order_audit is append-only`. El test, tal y como está escrito, no
+> puede pasar sin (a) editar el test (fuera de mi autorización en esta tarea) o (b) debilitar el trigger
+> append-only (un invariante de seguridad/forense verificado por otros 3 tests, `order-audit-append-only.spec.ts`
+> et al.) — ninguna aceptable unilateralmente. Los otros 2 tests del mismo fichero (audit con
+> `reason:'execution_registered'` y «sobrevive al `runStagingGc` real») SÍ pasan; la implementación de
+> FR-014 es correcta. Requiere decisión humana/gate: reescribir el CONTROL con una fila `OrderAudit`
+> `reason:null` insertada DIRECTAMENTE (no vía UPDATE tras el hecho).

@@ -7,7 +7,7 @@ export default tseslint.config(
   },
   ...tseslint.configs.recommended,
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts', 'prisma/**/*.ts'],
+    files: ['src/**/*.ts', 'tests/**/*.ts', 'prisma/**/*.ts', 'scripts/**/*.ts'],
     rules: {
       // Cero `any` salvo con JUSTIFICACIÓN adyacente (Constitution XII)
       '@typescript-eslint/no-explicit-any': 'error',

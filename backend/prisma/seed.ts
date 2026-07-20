@@ -3,6 +3,9 @@ import { PrismaClient } from '@prisma/client';
 import argon2 from 'argon2';
 import { v7 as uuidv7 } from 'uuid';
 import { normalizeIdentifier } from '../src/domain/model';
+import { isValidEvidenceEncKey } from '../src/infra/evidence-enc-key';
+import { FsStorageAdapter } from '../src/infra/storage/fs-storage-adapter';
+import type { StoragePort } from '../src/domain/ports/storage';
 import {
   NONEXISTENT_PROBE_ID,
   SEED_ORDERS,
@@ -14,8 +17,125 @@ import {
 
 const prisma = new PrismaClient();
 
+// 026 (T002/FR-002) — imagen JPEG mínima VÁLIDA (1x1, magic bytes FFD8FF…FFD9), embebida como constante
+// en el propio seed (sin añadir ficheros de asset nuevos al repo, FR-002/gobernanza). No es PII real.
+export const EMBEDDED_EVIDENCE_IMAGE: Buffer = Buffer.from(
+  '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=',
+  'base64',
+);
+
+// 026 (T003/T004, US3, FR-003/FR-004) — guard dev-local POSITIVO: el seed aborta ANTES de escribir nada
+// salvo que se confirme un destino de desarrollo local. Doble barrera: (a) NODE_ENV !== 'production'
+// (pre/prod usan NODE_ENV=production, docs/16:45); (b) el hostname de DATABASE_URL (match EXACTO, no
+// subcadena) ∈ {db, localhost, 127.0.0.1}. Además valida EVIDENCE_ENC_KEY con el helper COMPARTIDO
+// (FR-013), sin invocar loadConfig() completo. El mensaje nombra la causa pero NUNCA interpola la
+// DATABASE_URL completa (credenciales) ni el valor de la clave.
+const DEV_LOCAL_HOSTS = new Set(['db', 'localhost', '127.0.0.1']);
+
+export function assertDevLocalOrThrow(env: NodeJS.ProcessEnv): void {
+  if (env.NODE_ENV === 'production') {
+    throw new Error(
+      'Seed abortado (026/FR-004): NODE_ENV=production no está permitido; el seed solo corre en desarrollo local.',
+    );
+  }
+  let hostname: string;
+  try {
+    hostname = new URL(env.DATABASE_URL ?? '').hostname;
+  } catch {
+    throw new Error(
+      'Seed abortado (026/FR-004): DATABASE_URL ausente o no es una URL válida (no se puede determinar el host).',
+    );
+  }
+  if (!DEV_LOCAL_HOSTS.has(hostname)) {
+    throw new Error(
+      `Seed abortado (026/FR-004): el host de DATABASE_URL ('${hostname}') no es un destino de desarrollo ` +
+        'local (db/localhost/127.0.0.1); rechazado por seguridad.',
+    );
+  }
+  if (!isValidEvidenceEncKey(env.EVIDENCE_ENC_KEY)) {
+    throw new Error(
+      'Seed abortado (026/FR-003): EVIDENCE_ENC_KEY ausente o demasiado corta; ' +
+        'define una clave de al menos 32 caracteres en backend/.env.',
+    );
+  }
+}
+
+export interface SeedEvidenceBlobDeps {
+  readonly prisma: PrismaClient;
+  readonly storage: StoragePort;
+  readonly orderId: string;
+  readonly actorId: string;
+}
+
+export interface SeedEvidenceBlobResult {
+  readonly auditId: string;
+  readonly evidenceId: string;
+  readonly objectRef: string;
+}
+
+// 026 (T007/T008, US1, FR-001/FR-007/FR-010/FR-014) — escribe un blob de evidencia REAL a través del
+// MISMO StoragePort/adaptador cifrado que uploadOrderEvidence (024), y crea la fila `OrderEvidence`
+// correspondiente usando el `object_ref` DEVUELTO por `putStaged` (no un placeholder). El blob se
+// escribe ANTES que la fila (FR-010): si `putStaged` falla (almacén no escribible/inalcanzable, FR-009),
+// se aborta sin dejar fila huérfana. Las escrituras de BD (auditoría + evidencia) van en UNA transacción
+// (interrupción ⇒ BD vacía para esa orden). El `OrderAudit` usa `reason:'execution_registered'` (no
+// null) para que el GC de staging (`gc-job.ts::latestSubmitAuditId`) lo reconozca como CICLO VIGENTE y
+// no purgue su blob (FR-014).
+export async function seedEvidenceBlobForOrder(deps: SeedEvidenceBlobDeps): Promise<SeedEvidenceBlobResult> {
+  const { prisma: db, storage, orderId, actorId } = deps;
+  let objectRef: string;
+  try {
+    objectRef = await storage.putStaged({
+      bytes: EMBEDDED_EVIDENCE_IMAGE,
+      contentType: 'image/jpeg',
+      ownerId: actorId,
+      orderId,
+    });
+  } catch (e) {
+    throw new Error(
+      `Seed: no se pudo escribir el blob de evidencia (almacén de EVIDENCE_STORAGE_DIR no escribible/inalcanzable): ${(e as Error).message}`,
+    );
+  }
+  return db.$transaction(async (tx) => {
+    // Coherente con el evento auditado (in_progress→pending_review, como el `submitOrderExecution` real):
+    // si la orden sigue `in_progress`, la transición se refleja también en su `status`/`version`. Para la
+    // orden ancla (ya creada en `pending_review` por el seed), este UPDATE no coincide con 0 filas (sin
+    // efecto); su `version` la fija aparte `seedApprovableReviewArtifacts` (H-002).
+    await tx.order.updateMany({
+      where: { id: orderId, status: 'in_progress' },
+      data: { status: 'pending_review', version: { increment: 1 } },
+    });
+    const auditId = uuidv7();
+    await tx.orderAudit.create({
+      data: {
+        id: auditId,
+        orderId,
+        actorId,
+        eventType: 'transition',
+        fromStatus: 'in_progress',
+        toStatus: 'pending_review',
+        reason: 'execution_registered',
+      },
+    });
+    const evidenceId = uuidv7();
+    await tx.orderEvidence.create({
+      data: {
+        id: evidenceId,
+        orderId,
+        auditId,
+        objectRef,
+        contentType: 'image/jpeg',
+        sizeBytes: EMBEDDED_EVIDENCE_IMAGE.length,
+        uploadedBy: actorId,
+        attempt: 1,
+      },
+    });
+    return { auditId, evidenceId, objectRef };
+  });
+}
+
 // 002a — genera las órdenes semilla (≥30) con las anclas deterministas de tests.
-async function seedOrders(): Promise<void> {
+async function seedOrders(storage: StoragePort): Promise<void> {
   const t1 = SEED_USERS.technician.id;
   const t2 = SEED_USERS.technician2.id;
   const t3 = SEED_USERS.technician3.id;
@@ -70,25 +190,17 @@ async function seedOrders(): Promise<void> {
   push('draft', null);
 
   await prisma.order.createMany({ data: rows });
-  await seedApprovableReviewArtifacts(t1);
+  await seedApprovableReviewArtifacts(storage, t1);
 }
 
-// 019 — audit de la transición (in_progress→pending_review) + notas + evidencia para la orden APROBABLE.
-// OrderEvidence/Notes exigen un OrderAudit (FK). Sin esto, aprobar da 409 EVIDENCE_MISSING (guard de 006).
-async function seedApprovableReviewArtifacts(actorId: string): Promise<void> {
+// 019/026 — audit de la transición (in_progress→pending_review) + notas + evidencia (con blob REAL,
+// FR-001) para la orden APROBABLE. OrderEvidence/Notes exigen un OrderAudit (FK). Sin esto, aprobar da
+// 409 EVIDENCE_MISSING (guard de 006). El blob+fila los escribe `seedEvidenceBlobForOrder` (mismo
+// StoragePort cifrado que uploadOrderEvidence, `object_ref` DEVUELTO por `putStaged`, audit con
+// `reason:'execution_registered'` para que el GC de staging no lo purgue, FR-014).
+async function seedApprovableReviewArtifacts(storage: StoragePort, actorId: string): Promise<void> {
   const orderId = SEED_ORDERS.approvableReview;
-  const auditId = uuidv7();
-  await prisma.orderAudit.create({
-    data: {
-      id: auditId,
-      orderId,
-      actorId,
-      eventType: 'transition',
-      fromStatus: 'in_progress',
-      toStatus: 'pending_review',
-      reason: null, // marcador opaco de ejecución; las notas van en OrderExecutionNotes (no aquí)
-    },
-  });
+  const { auditId } = await seedEvidenceBlobForOrder({ prisma, storage, orderId, actorId });
   await prisma.orderExecutionNotes.create({
     data: {
       id: uuidv7(),
@@ -99,26 +211,14 @@ async function seedApprovableReviewArtifacts(actorId: string): Promise<void> {
       createdBy: actorId,
     },
   });
-  await prisma.orderEvidence.create({
-    data: {
-      id: uuidv7(),
-      orderId,
-      auditId,
-      objectRef: '018f2000-0000-7000-8000-0000000000a1-ev1',
-      contentType: 'image/jpeg',
-      sizeBytes: 204800,
-      uploadedBy: actorId,
-      attempt: 1,
-    },
-  });
   // 019/H-002 — coherencia con el invariante «version == nº de transiciones auditadas»: la orden ancla
   // tiene 1 transición auditada (in_progress→pending_review), luego su version es 1 (no 0 del createMany).
   await prisma.order.update({ where: { id: orderId }, data: { version: 1 } });
 }
 
 export const RESEED_HINT =
-  'BD no vacía (datos append-only de un seed previo). Re-siembra con: ' +
-  'npx prisma migrate reset --force --skip-seed && npx tsx prisma/seed.ts';
+  'BD no vacía (datos append-only de un seed previo). Re-siembra con: make reset ' +
+  '(limpia BD y EVIDENCE_STORAGE_DIR y re-siembra, todo en el contenedor backend).';
 
 // 019/H-001 — re-seed sobre BD con datos append-only: order_evidence/audit/notes prohíben DELETE (trigger)
 // y su FK a Order es Restrict, así que `order.deleteMany()` fallaría con un P2003 críptico en la 2ª
@@ -133,7 +233,20 @@ export async function ensureSeedableOrThrow(db: PrismaClient): Promise<void> {
   if (audits + evidence + notes > 0) throw new Error(RESEED_HINT);
 }
 
+// 026/FR-005 — construye el StoragePort exactamente como container.ts:75 (mismo baseDir/encKey del
+// entorno), de modo que el blob sembrado quede en el MISMO almacén que lee el backend navegado.
+function buildSeedStorage(env: NodeJS.ProcessEnv): StoragePort {
+  const clock = { now: (): Date => new Date() };
+  return new FsStorageAdapter({
+    baseDir: env.EVIDENCE_STORAGE_DIR ?? './data/evidence',
+    encKey: env.EVIDENCE_ENC_KEY ?? '',
+    clock,
+  });
+}
+
 async function main(): Promise<void> {
+  assertDevLocalOrThrow(process.env); // 026/FR-004 — ANTES de escribir nada.
+  const storage = buildSeedStorage(process.env);
   await ensureSeedableOrThrow(prisma);
   // Orden inverso de FK para el borrado. NOTA (019): order_evidence/audit/notes son APPEND-ONLY (DELETE
   // prohibido); este seed asume BD fresca en esas tablas (así corre db-test, efímera). Cinturón y tirantes
@@ -184,7 +297,7 @@ async function main(): Promise<void> {
   // NONEXISTENT_PROBE_ID se deja SIN crear a propósito (404-por-inexistencia).
   void NONEXISTENT_PROBE_ID;
 
-  await seedOrders();
+  await seedOrders(storage);
   console.log('Seed OK: usuarios + probes + órdenes creados.');
 }
 

@@ -57,6 +57,10 @@ export class FsStorageAdapter implements StoragePort {
     this.refKey = deriveRefKey(cfg.encKey);
     this.handleKey = deriveHandleKey(cfg.encKey);
     this.ready = mkdir(cfg.baseDir, { recursive: true }).then(() => undefined);
+    // 026 (I-002): adjuntar un handler no-op evita un unhandled-rejection si el `mkdir` del constructor
+    // falla de forma síncrona (p. ej. baseDir no escribible/ENOTDIR) antes de que un método haga
+    // `await this.ready`. Los métodos siguen esperando `this.ready` y reciben el error real (fail-fast).
+    void this.ready.catch(() => undefined);
   }
 
   private fileHash(objectRef: string): string {
